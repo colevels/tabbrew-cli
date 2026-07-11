@@ -1,0 +1,42 @@
+{
+  "name": "tabbrew-cli",
+  "version": "0.1.0",
+  "description": "Push HTML docs into TabBrew from your terminal — a Bun + TypeScript CLI.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Jiho",
+  "homepage": "https://github.com/colevels/tabbrew-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/colevels/tabbrew-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/colevels/tabbrew-cli/issues"
+  },
+  "keywords": [
+    "tabbrew",
+    "cli",
+    "bun",
+    "typescript",
+    "oauth",
+    "device-flow",
+    "chrome-extension",
+    "ai-agents",
+    "claude-code"
+  ],
+  "bin": {
+    "tabbrew": "src/index.ts"
+  },
+  "engines": {
+    "bun": ">=1.1"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --compile --outfile dist/tabbrew",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}
