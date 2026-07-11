@@ -12,6 +12,7 @@ login              Sign in via OAuth device flow and store the token
 logout             Delete the stored token
 whoami             Verify the token works and print the user profile
 tools repo-info    Demo: orchestrate `git` (checked with which()) to report repo stats
+docs push <file>   Send an HTML file to the TabBrew sidepanel Docs view
 init               Install tabbrew-cli awareness into an AI agent (Claude Code)
 help               Show usage
 ```
@@ -55,7 +56,10 @@ at `https://www.tabbrew.com`:
 | `TABBREW_DEVICE_CODE_URL` | `$BASE/api/v1/oauth/device/code` | Override the device-code endpoint (POST) |
 | `TABBREW_TOKEN_URL` | `$BASE/api/v1/oauth/token` | Override the token endpoint (POST, polled) |
 | `TABBREW_USERINFO_URL` | `$BASE/api/v1/oauth/userinfo` | Override the whoami endpoint (GET) |
+| `TABBREW_HTML_LOCAL_URL` | `$BASE/api/v1/html_files/local` | Override the `docs push` local-register endpoint (POST) |
+| `TABBREW_HTML_UPLOAD_URL` | `$BASE/api/v1/html_files/upload` | Override the `docs push` cloud-upload endpoint (POST) |
 | `TABBREW_TOKEN` | *(unset)* | Use this token directly; **wins over the stored file** (for CI/CD) |
+| `TABBREW_UPLOAD_TOKEN` | *(unset)* | `docs push` upload token; **wins over** `~/.config/tabbrew/upload-token` |
 | `TABBREW_NO_BROWSER` | *(unset)* | Set to skip auto-opening the browser during `login` |
 | `TABBREW_TIMEOUT_MS` | `15000` | Per-request timeout in milliseconds (device code / poll / whoami) |
 | `TABBREW_DEBUG` | *(unset)* | Print stack traces on unexpected errors |
@@ -101,6 +105,33 @@ existing `CLAUDE.md` prompts for confirmation (default **No**); non-interactive 
 decline unless `--yes` is passed, so it's safe in CI. The `AgentTarget` registry in
 `src/agents.ts` is the seam for adding Cursor/Codex/Gemini later.
 
+## Docs view (`docs push`)
+
+`tabbrew docs push <file>` sends an HTML file (a plan doc, report, or viewer) to
+TabBrew so it opens from the sidepanel **Docs** view. Two modes:
+
+```bash
+tabbrew docs push ./plan.html                    # local (default)
+tabbrew docs push ./report.html --cloud          # upload the content (≤ 2 MB)
+tabbrew docs push ./doc.html --title "Auth plan" # override the Docs-list title
+```
+
+- **local** (default): registers the file's **absolute path** only — the file
+  stays on this machine and TabBrew opens it as `file://`. (Opening it from the
+  extension needs "Allow access to file URLs" enabled.)
+- **cloud** (`--cloud`): uploads the content to private storage (max **2 MB**;
+  the CLI checks this before sending) and prints an owner-only view URL.
+
+The title defaults to the document's `<title>`, falling back to the filename.
+
+**Auth.** These endpoints are moving to the same OAuth login token as the rest of
+the CLI, so `docs push` tries the **login token** (`Authorization: Bearer`) first
+and falls back to a legacy per-feature **upload token** if the server rejects the
+bearer with 401. The upload token is read from `TABBREW_UPLOAD_TOKEN` (wins) or
+`~/.config/tabbrew/upload-token`; generate one at
+`https://www.tabbrew.com/profile`. Once the server accepts the bearer for
+`/api/v1/html_files/*` the fallback becomes dead code and can be removed.
+
 ## Credentials
 
 - Stored at `~/.config/tabbrew/credentials.json` — **not** in the project folder.
@@ -125,7 +156,11 @@ tabbrew whoami
 # 4. External-tool demo — shells out to git only if it's installed
 tabbrew tools repo-info
 
-# 5. Sign out
+# 5. Send an HTML file to the Docs view (local register, then cloud upload)
+tabbrew docs push ./some.html
+tabbrew docs push ./some.html --cloud
+
+# 6. Sign out
 tabbrew logout
 ```
 
@@ -161,12 +196,12 @@ src/
   config.ts           # env-driven configuration (base URL, client id, endpoints)
   auth.ts             # OAuth device-flow logic (request code, poll, pending/slow_down)
   credentials.ts      # token storage (~/.config, chmod 600) + env-var override
-  api.ts              # authed fetch wrapper + 401 handling + userinfo
+  api.ts              # authed fetch wrapper + 401 handling + userinfo + html_files client
   util.ts             # sleep, which(), safeText, open-browser
   ui.ts               # colors, help text, version
   agents.ts           # init: AgentTarget registry (Claude Code; extensible)
   awareness.ts        # init: bundled awareness doc + managed-block string ops
   fsops.ts            # init: atomic write, writeIfChanged, backup, safe read/remove
   commands/
-    login.ts logout.ts whoami.ts tools.ts init.ts
+    login.ts logout.ts whoami.ts tools.ts docs.ts init.ts
 ```
