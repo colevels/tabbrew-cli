@@ -91,8 +91,7 @@ for the full variable list and the server contract.
 ## Agent awareness (`init`)
 
 `tabbrew init` teaches an AI coding agent (Claude Code) that this CLI exists and
-how to drive it — patterned after [`rtk init`](https://github.com/rtk-ai/rtk) but
-awareness-only (no command-rewriting hook). It writes two artifacts:
+how to drive it — awareness-only (no command-rewriting hook). It writes two artifacts:
 
 - a slim `TABBREW-CLI.md` "how to use tabbrew-cli" doc, and
 - a version-tagged managed block in `CLAUDE.md` that imports it via `@TABBREW-CLI.md`:
