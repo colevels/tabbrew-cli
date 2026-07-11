@@ -35,22 +35,35 @@ help               Show usage
 
 ## Install
 
+### Prebuilt binary (recommended)
+
+Install the latest release for macOS or Linux — no Bun required:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/colevels/tabbrew-cli/main/install.sh | sh
+```
+
+The script picks the right binary for your OS/arch, verifies its SHA-256 checksum, and
+installs `tabbrew` to `~/.local/bin` (override with `TABBREW_INSTALL_DIR`). Prefer to look
+before you pipe? Read [`install.sh`](./install.sh), or download a binary directly from the
+[releases page](https://github.com/colevels/tabbrew-cli/releases/latest).
+
+### From source
+
 Requires Bun ≥ 1.1.
 
 ```bash
-cd tabbrew-cli
+git clone https://github.com/colevels/tabbrew-cli && cd tabbrew-cli
 bun install
 ```
 
 Run directly during development:
 
 ```bash
-bun run src/index.ts --help
-# or
-bun start -- --help
+bun run src/index.ts --help   # or: bun start -- --help
 ```
 
-Install it as a global command (`tabbrew`) on your PATH:
+Install it as a global `tabbrew` command on your PATH:
 
 ```bash
 bun link          # registers this package; symlinks the bin into ~/.bun/bin
