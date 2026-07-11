@@ -93,3 +93,66 @@ It writes a slim `TABBREW-CLI.md` doc plus a version-tagged managed block in
 `ui.ts` centralizes colors (disabled when non-TTY or `NO_COLOR`) and reads the version
 from `package.json` (bundled at compile time). The repo/package name is `tabbrew-cli`;
 the user-facing binary/command is `tabbrew` (`BIN` in `ui.ts`).
+
+## Project layout
+
+```
+src/
+  index.ts            # command router — Bun.argv + parseArgs, single error boundary
+  config.ts           # env-driven configuration (base URL, client id, endpoints)
+  auth.ts             # OAuth device-flow logic (request code, poll, pending/slow_down)
+  credentials.ts      # token storage (~/.config, chmod 600) + env-var override
+  api.ts              # authed fetch wrapper + 401 handling + userinfo + html_files client
+  util.ts             # sleep, which(), safeText, open-browser
+  ui.ts               # colors, help text, version
+  agents.ts           # init: AgentTarget registry (Claude Code; extensible)
+  awareness.ts        # init: bundled awareness doc + managed-block string ops
+  fsops.ts            # init: atomic write, writeIfChanged, backup, safe read/remove
+  commands/
+    login.ts logout.ts whoami.ts tools.ts docs.ts init.ts
+```
+
+## Configuration
+
+Everything is driven by `TABBREW_*` env vars (resolved once in `config.ts`), so the
+same binary can point at prod, staging, or a local server. The defaults target the
+hosted TabBrew server at `https://www.tabbrew.com`:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TABBREW_BASE_URL` | `https://www.tabbrew.com` | Base URL of the auth/identity server |
+| `TABBREW_CLIENT_ID` | `tabbrew-cli` | OAuth client id sent in the device flow |
+| `TABBREW_SCOPE` | *(unset)* | Optional space-delimited OAuth scopes |
+| `TABBREW_DEVICE_CODE_URL` | `$BASE/api/v1/oauth/device/code` | Override the device-code endpoint (POST) |
+| `TABBREW_TOKEN_URL` | `$BASE/api/v1/oauth/token` | Override the token endpoint (POST, polled) |
+| `TABBREW_USERINFO_URL` | `$BASE/api/v1/oauth/userinfo` | Override the whoami endpoint (GET) |
+| `TABBREW_HTML_LOCAL_URL` | `$BASE/api/v1/html_files/local` | Override the `docs push` local-register endpoint (POST) |
+| `TABBREW_HTML_UPLOAD_URL` | `$BASE/api/v1/html_files/upload` | Override the `docs push` cloud-upload endpoint (POST) |
+| `TABBREW_TOKEN` | *(unset)* | Use this token directly; **wins over the stored file** (for CI/CD) |
+| `TABBREW_UPLOAD_TOKEN` | *(unset)* | `docs push` upload token; **wins over** `~/.config/tabbrew/upload-token` |
+| `TABBREW_NO_BROWSER` | *(unset)* | Set to skip auto-opening the browser during `login` |
+| `TABBREW_TIMEOUT_MS` | `15000` | Per-request timeout in milliseconds (device code / poll / whoami) |
+| `TABBREW_DEBUG` | *(unset)* | Print stack traces on unexpected errors |
+| `NO_COLOR` | *(unset)* | Disable ANSI colors |
+
+The server is expected to implement RFC 8628:
+
+- `POST {device code endpoint}` with `client_id` → `{ device_code, user_code, verification_uri, verification_uri_complete?, expires_in, interval }`
+- `POST {token endpoint}` with `grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=…&client_id=…` → `{ access_token, … }`, or an error body of `authorization_pending` / `slow_down` / `access_denied` / `expired_token`
+- `GET {userinfo endpoint}` with `Authorization: Bearer <token>` → any user JSON (the CLI surfaces `id`/`sub`, `email`, `name`/`username`/`login` when present, then prints the full body)
+
+## Build
+
+`bun build --compile` bundles the runtime + code into one self-contained executable
+(no Bun install needed on the target machine):
+
+```bash
+bun run build          # → dist/tabbrew  (Mach-O / ELF for the current platform)
+./dist/tabbrew --help
+```
+
+Cross-compile for another target with `--target` (see `bun build --help`), e.g.:
+
+```bash
+bun build src/index.ts --compile --target=bun-linux-x64 --outfile dist/tabbrew-linux
+```
