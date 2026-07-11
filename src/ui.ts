@@ -30,7 +30,7 @@ export function indent(text: string, spaces = 2): string {
 
 export function printHelp(): void {
   const lines = [
-    `${c.bold(BIN)} ${c.dim("v" + VERSION)} — test connectivity to a TabBrew server (OAuth device flow)`,
+    `${c.bold(BIN)} ${c.dim("v" + VERSION)} — command-line companion to TabBrew (sign in · push HTML docs · agent init)`,
     "",
     c.bold("USAGE"),
     `  ${BIN} <command> [options]`,
