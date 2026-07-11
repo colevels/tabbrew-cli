@@ -1,6 +1,7 @@
 # tabbrew-cli
 
 [![CI](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/colevels/tabbrew-cli?sort=semver)](https://github.com/colevels/tabbrew-cli/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Bun](https://img.shields.io/badge/Bun-%E2%89%A5%201.1-000?logo=bun&logoColor=white)](https://bun.sh)
 
