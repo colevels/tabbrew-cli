@@ -15,12 +15,18 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
 - The user asks to sign in to / check auth against / sign out of TabBrew.
 - You need to confirm the active TabBrew identity before an authenticated action.
 - The user asks for \`tabbrew tools\` output (e.g. repo-info).
+- The user wants to send an HTML file (plan, report, viewer) to TabBrew so it
+  opens from the sidepanel Docs view ("send this to tabbrew", "ส่งเข้า tabbrew").
 
 ## Commands
 - \`tabbrew login\`   — sign in via device flow (opens a browser; prints a code).
 - \`tabbrew whoami\`  — verify the token and print the current user (exit 1 if logged out).
 - \`tabbrew logout\`  — delete the stored token.
 - \`tabbrew tools repo-info\` — report git repo stats.
+- \`tabbrew docs push <file.html>\` — send an HTML file to the TabBrew Docs view.
+  Local by default (registers the absolute path; opens as file://). Add \`--cloud\`
+  to upload the content (≤ 2 MB) for cross-machine viewing, or \`--title "…"\` to set
+  the Docs-list title (defaults to the doc's <title>, else the filename).
 
 ## Non-interactive / CI
 Set \`TABBREW_TOKEN\` to authenticate without a login prompt (it wins over the stored

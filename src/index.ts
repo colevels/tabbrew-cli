@@ -4,6 +4,7 @@ import { login } from "./commands/login";
 import { logout } from "./commands/logout";
 import { whoami } from "./commands/whoami";
 import { repoInfo } from "./commands/tools";
+import { docsPush } from "./commands/docs";
 import { init } from "./commands/init";
 import { AuthError } from "./auth";
 import { ApiError, NotAuthenticatedError, TokenExpiredError } from "./api";
@@ -21,6 +22,9 @@ async function route(): Promise<void> {
       uninstall: { type: "boolean" },
       yes: { type: "boolean", short: "y" },
       agent: { type: "string" },
+      // docs push flags
+      cloud: { type: "boolean" },
+      title: { type: "string" },
     },
     allowPositionals: true,
     strict: true,
@@ -56,6 +60,17 @@ async function route(): Promise<void> {
       if (sub === "repo-info") return repoInfo();
       console.error(
         `Unknown tools subcommand: ${sub ?? "(none)"}. Try: tabbrew tools repo-info`,
+      );
+      process.exitCode = 1;
+      return;
+    case "docs":
+      if (sub === "push")
+        return docsPush(positionals[2], {
+          cloud: values.cloud,
+          title: values.title,
+        });
+      console.error(
+        `Unknown docs subcommand: ${sub ?? "(none)"}. Try: tabbrew docs push <file.html>`,
       );
       process.exitCode = 1;
       return;

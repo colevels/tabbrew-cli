@@ -21,9 +21,15 @@ export interface CliConfig {
     token: string;
     /** GET — "whoami" / userinfo, requires a valid bearer token. */
     userInfo: string;
+    /** POST — register a local HTML file's absolute path (Docs view). */
+    htmlLocal: string;
+    /** POST — upload HTML content to cloud storage (Docs view). */
+    htmlUpload: string;
   };
   /** Env var the CLI reads a token from (CI/CD), overriding the stored file. */
   tokenEnvVar: string;
+  /** Env var the CLI reads the html_files upload token from, overriding the file. */
+  uploadTokenEnvVar: string;
   /** Per-request timeout in milliseconds. */
   timeoutMs: number;
 }
@@ -44,7 +50,13 @@ export const config: CliConfig = {
     token: process.env.TABBREW_TOKEN_URL ?? `${baseUrl}/api/v1/oauth/token`,
     userInfo:
       process.env.TABBREW_USERINFO_URL ?? `${baseUrl}/api/v1/oauth/userinfo`,
+    htmlLocal:
+      process.env.TABBREW_HTML_LOCAL_URL ?? `${baseUrl}/api/v1/html_files/local`,
+    htmlUpload:
+      process.env.TABBREW_HTML_UPLOAD_URL ??
+      `${baseUrl}/api/v1/html_files/upload`,
   },
   tokenEnvVar: "TABBREW_TOKEN",
+  uploadTokenEnvVar: "TABBREW_UPLOAD_TOKEN",
   timeoutMs: parsePositiveInt(process.env.TABBREW_TIMEOUT_MS, 15000),
 };

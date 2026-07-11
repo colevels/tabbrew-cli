@@ -16,6 +16,8 @@ export interface StoredCredentials {
 
 const CONFIG_DIR = join(homedir(), ".config", "tabbrew");
 export const CRED_PATH = join(CONFIG_DIR, "credentials.json");
+/** Legacy per-feature token for the html_files (Docs) endpoints. */
+export const UPLOAD_TOKEN_PATH = join(CONFIG_DIR, "upload-token");
 
 function isErrno(err: unknown, code: string): boolean {
   return (
@@ -77,4 +79,24 @@ export async function resolveToken(): Promise<ResolvedToken | null> {
   if (stored?.access_token) return { token: stored.access_token, source: "file" };
 
   return null;
+}
+
+/**
+ * Resolve the html_files upload token. Mirrors resolveToken's precedence: the
+ * env var (TABBREW_UPLOAD_TOKEN) wins over the stored ~/.config/tabbrew/upload-token
+ * file. This is a separate credential from the OAuth login token — see the
+ * html_files client in api.ts for how the two are tried.
+ */
+export async function resolveUploadToken(): Promise<ResolvedToken | null> {
+  const envToken = process.env[config.uploadTokenEnvVar]?.trim();
+  if (envToken) return { token: envToken, source: "env" };
+
+  try {
+    const raw = await readFile(UPLOAD_TOKEN_PATH, "utf8");
+    const trimmed = raw.trim();
+    return trimmed ? { token: trimmed, source: "file" } : null;
+  } catch (err) {
+    if (isErrno(err, "ENOENT")) return null;
+    throw err;
+  }
 }
