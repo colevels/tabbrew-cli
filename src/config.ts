@@ -25,6 +25,8 @@ export interface CliConfig {
     htmlLocal: string;
     /** POST — upload HTML content to cloud storage (Docs view). */
     htmlUpload: string;
+    /** GET — list the signed-in user's HTML docs (Docs view). */
+    htmlList: string;
   };
   /** Env var the CLI reads a token from (CI/CD), overriding the stored file. */
   tokenEnvVar: string;
@@ -55,6 +57,8 @@ export const config: CliConfig = {
     htmlUpload:
       process.env.TABBREW_HTML_UPLOAD_URL ??
       `${baseUrl}/api/v1/html_files/upload`,
+    htmlList:
+      process.env.TABBREW_HTML_LIST_URL ?? `${baseUrl}/api/v1/html_files`,
   },
   tokenEnvVar: "TABBREW_TOKEN",
   uploadTokenEnvVar: "TABBREW_UPLOAD_TOKEN",
