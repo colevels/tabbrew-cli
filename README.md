@@ -31,6 +31,7 @@ tools repo-info    Demo: orchestrate `git` (checked with which()) to report repo
 docs push <file>   Send an HTML file to the TabBrew sidepanel Docs view
 docs list          List the HTML docs you've pushed
 init               Install tabbrew-cli awareness into an AI agent (Claude Code)
+update             Update the installed binary to the latest release
 help               Show usage
 ```
 
@@ -72,6 +73,24 @@ tabbrew --help
 bun unlink        # to remove it later
 ```
 
+## Updating
+
+If you installed the prebuilt binary, `tabbrew update` upgrades it in place — no
+need to re-run the installer:
+
+```bash
+tabbrew update --check   # report current vs latest; change nothing (--json for scripting)
+tabbrew update           # download the latest release, verify its checksum, swap in place
+```
+
+`update` resolves the newest release from the `releases/latest` redirect (no API
+token, no rate limit), downloads the binary for your OS/arch, verifies its
+SHA-256 against `checksums.txt` (same as `install.sh`), and atomically replaces
+the running executable. It's a no-op when you're already current, and it only
+works on the installed binary — from a source checkout, use `git pull && bun run
+build`. Point `TABBREW_REPO` / `TABBREW_RELEASE_URL` / `TABBREW_DOWNLOAD_BASE_URL`
+elsewhere to update from a fork or mirror.
+
 ## Usage
 
 ```bash
@@ -95,7 +114,11 @@ tabbrew docs push ./some.html --cloud
 tabbrew docs list
 tabbrew docs list --json
 
-# 7. Sign out
+# 7. Keep the binary current
+tabbrew update --check           # is there a newer release?
+tabbrew update                   # download, verify checksum, replace in place
+
+# 8. Sign out
 tabbrew logout
 ```
 
