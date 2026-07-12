@@ -138,8 +138,10 @@ export async function docsList(opts: DocsListOptions): Promise<void> {
     return;
   }
 
-  // Hand-padded columns (no table lib in this repo). Colors wrap whole lines
-  // only — never inside a padded cell — so ANSI escapes can't skew alignment.
+  // Hand-padded columns (no table lib in this repo). Padding is measured by
+  // terminal display width (Bun.stringWidth), not string length, so CJK/emoji
+  // (width 2) and Thai/combining marks (width 0) don't skew the columns. Colors
+  // still wrap whole lines only, never inside a padded cell.
   const view = rows.map((r) => ({
     id: String(r.id),
     title: truncate(r.title?.trim() || r.filename || "(untitled)", 48),
@@ -179,20 +181,40 @@ export async function docsList(opts: DocsListOptions): Promise<void> {
   console.log(c.dim(`  ${rows.length} doc${rows.length === 1 ? "" : "s"}`));
 }
 
+// Terminal display width: CJK/emoji count as 2, Thai/combining marks as 0, and
+// ANSI escapes as 0. Bun ships this natively, so no dependency is needed.
+function width(s: string): number {
+  return Bun.stringWidth(s);
+}
+
 function colWidth(
   header: string,
   rows: Array<Record<string, string>>,
   key: string,
 ): number {
-  return Math.max(header.length, ...rows.map((r) => r[key]!.length));
+  return Math.max(width(header), ...rows.map((r) => width(r[key]!)));
 }
 
-function padEnd(s: string, width: number): string {
-  return s + " ".repeat(Math.max(0, width - s.length));
+function padEnd(s: string, w: number): string {
+  return s + " ".repeat(Math.max(0, w - width(s)));
 }
 
+/**
+ * Truncate to a display width of `max` columns (not code units), appending "…".
+ * Walks grapheme clusters (Intl.Segmenter) so a wide char, emoji, or Thai vowel
+ * is never cut in half — and reserves one column for the ellipsis.
+ */
 function truncate(s: string, max: number): string {
-  return s.length <= max ? s : s.slice(0, max - 1) + "…";
+  if (width(s) <= max) return s;
+  let out = "";
+  let w = 0;
+  for (const { segment } of new Intl.Segmenter().segment(s)) {
+    const sw = width(segment);
+    if (w + sw > max - 1) break; // leave room for the "…"
+    out += segment;
+    w += sw;
+  }
+  return out + "…";
 }
 
 function formatBytes(n: number): string {
