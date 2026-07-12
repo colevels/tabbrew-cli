@@ -27,7 +27,10 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
   Local by default (registers the absolute path; opens as file://). Add \`--cloud\`
   to upload the content (≤ 2 MB) for cross-machine viewing, or \`--title "…"\` to set
   the Docs-list title (defaults to the doc's <title>, else the filename).
-- \`tabbrew docs list\` — list the HTML docs on your account (add \`--json\` for scripting).
+- \`tabbrew docs list\` — list the HTML docs on your account. Prefer \`--json\` for parsing:
+  an array of \`{ id, title, filename, sizeBytes, kind: "gcs"|"local", localPath, createdAt,
+  updatedAt }\` (ISO-8601 dates, raw byte counts; empty list is \`[]\`). The default table is
+  for humans and is lossy — parse the JSON, not the table.
 
 ## Non-interactive / CI
 Set \`TABBREW_TOKEN\` to authenticate without a login prompt (it wins over the stored
