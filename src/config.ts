@@ -7,6 +7,10 @@ const baseUrl = stripTrailingSlash(
   process.env.TABBREW_BASE_URL ?? "https://www.tabbrew.com",
 );
 
+// Self-update source: GitHub Releases for this repo (not $BASE, which is the
+// TabBrew server). The URLs derive from the slug unless individually overridden.
+const updateRepo = process.env.TABBREW_REPO ?? "colevels/tabbrew-cli";
+
 export interface CliConfig {
   /** Base URL of the auth/identity server. */
   baseUrl: string;
@@ -27,6 +31,20 @@ export interface CliConfig {
     htmlUpload: string;
     /** GET — list the signed-in user's HTML docs (Docs view). */
     htmlList: string;
+  };
+  /**
+   * Self-update (`tabbrew update`). Points at GitHub Releases, not the TabBrew
+   * web API — overridable so a test can aim it at a local fixture server.
+   */
+  update: {
+    /** `owner/name` slug the release URLs derive from. */
+    repo: string;
+    /** URL that 302-redirects to the newest release's tag page. */
+    releaseLatestUrl: string;
+    /** Base URL the per-asset download URLs are built from. */
+    downloadBaseUrl: string;
+    /** Timeout for the (tens-of-MB) binary download, separate from timeoutMs. */
+    downloadTimeoutMs: number;
   };
   /** Env var the CLI reads a token from (CI/CD), overriding the stored file. */
   tokenEnvVar: string;
@@ -59,6 +77,20 @@ export const config: CliConfig = {
       `${baseUrl}/api/v1/html_files/upload`,
     htmlList:
       process.env.TABBREW_HTML_LIST_URL ?? `${baseUrl}/api/v1/html_files`,
+  },
+  update: {
+    repo: updateRepo,
+    releaseLatestUrl:
+      process.env.TABBREW_RELEASE_URL ??
+      `https://github.com/${updateRepo}/releases/latest`,
+    downloadBaseUrl: stripTrailingSlash(
+      process.env.TABBREW_DOWNLOAD_BASE_URL ??
+        `https://github.com/${updateRepo}/releases/latest/download`,
+    ),
+    downloadTimeoutMs: parsePositiveInt(
+      process.env.TABBREW_DOWNLOAD_TIMEOUT_MS,
+      120000,
+    ),
   },
   tokenEnvVar: "TABBREW_TOKEN",
   uploadTokenEnvVar: "TABBREW_UPLOAD_TOKEN",

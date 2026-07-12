@@ -42,7 +42,7 @@ once into the exported `config` object. Endpoints derive from `TABBREW_BASE_URL`
 unless individually overridden. Nothing else reads `process.env` for configuration —
 route new config through here.
 
-The codebase is two loosely-coupled subsystems that share only `config`, `ui`, and `util`:
+The codebase is three loosely-coupled subsystems that share only `config`, `ui`, and `util`:
 
 **1. Auth / API (the original purpose)**
 - `auth.ts` — device-flow protocol: request a device code, then `pollForToken`
@@ -105,6 +105,29 @@ It writes a slim `TABBREW-CLI.md` doc plus a version-tagged managed block in
 - Behavior is idempotent (re-runs report `unchanged`) and safe non-interactively:
   `confirm()` defaults to No and auto-declines on a non-TTY unless `--yes` is passed.
 
+**3. `update` — self-updating binary**
+`tabbrew update` replaces the running compiled binary with the newest GitHub Release.
+It is **not** part of the web-API/dual-token seams — it talks only to GitHub Releases,
+so its config lives in `config.update` (`TABBREW_REPO` / `TABBREW_RELEASE_URL` /
+`TABBREW_DOWNLOAD_BASE_URL` / `TABBREW_DOWNLOAD_TIMEOUT_MS`), separate from the auth
+endpoints. `update.ts` is the IO/protocol module (like `api.ts`); `commands/update.ts`
+is the thin presentation layer. Design constraints worth preserving:
+- **Version discovery uses the `releases/latest` 302 redirect**, not the REST API — no
+  token, no 60/hr rate limit, and no coupling to API JSON. Same trick `install.sh` uses.
+- **Compiled-vs-dev is gated on `import.meta.url` containing `/$bunfs/`** (a compiled
+  standalone runs its entry from Bun's virtual FS; `bun run src/…` is a real `file://`).
+  `update` refuses in dev so it never overwrites the `bun` binary. `process.execpath`
+  (realpath'd) is the file to replace.
+- **The swap is an atomic rename over self**: temp file in the target's own dir (no
+  `EXDEV`), `chmod 0o755`, then `rename` — safe while running (keeps the old inode; we
+  never write in place, which would `ETXTBSY`). Mirrors `fsops.ts`'s temp+rename idiom.
+  Permission failures (`EACCES`/`EPERM`/`EROFS`) become an actionable `UpdateError`.
+- **SHA-256 is verified client-side** against `checksums.txt` (`Bun.CryptoHasher`, zero
+  dep) before the swap — a mismatch aborts and leaves the original binary untouched.
+- `--check` reports current-vs-latest and **always exits 0** (`--json` for scripting);
+  the full form has **no confirmation prompt** (the command *is* the intent) and is a
+  no-op when already current. Throw `UpdateError` for any user-facing failure.
+
 `ui.ts` centralizes colors (disabled when non-TTY or `NO_COLOR`) and reads the version
 from `package.json` (bundled at compile time). The repo/package name is `tabbrew-cli`;
 the user-facing binary/command is `tabbrew` (`BIN` in `ui.ts`).
@@ -114,17 +137,18 @@ the user-facing binary/command is `tabbrew` (`BIN` in `ui.ts`).
 ```
 src/
   index.ts            # command router — Bun.argv + parseArgs, single error boundary
-  config.ts           # env-driven configuration (base URL, client id, endpoints)
+  config.ts           # env-driven configuration (base URL, client id, endpoints, update)
   auth.ts             # OAuth device-flow logic (request code, poll, pending/slow_down)
   credentials.ts      # token storage (~/.config, chmod 600) + env-var override
   api.ts              # authed fetch wrapper + 401 handling + userinfo + html_files client
+  update.ts           # self-update: release lookup, download+checksum, atomic binary swap
   util.ts             # sleep, which(), safeText, open-browser
   ui.ts               # colors, help text, version
   agents.ts           # init: AgentTarget registry (Claude Code; extensible)
   awareness.ts        # init: bundled awareness doc + managed-block string ops
   fsops.ts            # init: atomic write, writeIfChanged, backup, safe read/remove
   commands/
-    login.ts logout.ts whoami.ts tools.ts docs.ts init.ts
+    login.ts logout.ts whoami.ts tools.ts docs.ts init.ts update.ts
 ```
 
 ## Configuration
@@ -144,6 +168,10 @@ hosted TabBrew server at `https://www.tabbrew.com`:
 | `TABBREW_HTML_LOCAL_URL` | `$BASE/api/v1/html_files/local` | Override the `docs push` local-register endpoint (POST) |
 | `TABBREW_HTML_UPLOAD_URL` | `$BASE/api/v1/html_files/upload` | Override the `docs push` cloud-upload endpoint (POST) |
 | `TABBREW_HTML_LIST_URL` | `$BASE/api/v1/html_files` | Override the `docs list` endpoint (GET) |
+| `TABBREW_REPO` | `colevels/tabbrew-cli` | GitHub `owner/name` the `update` release URLs derive from |
+| `TABBREW_RELEASE_URL` | `github.com/$REPO/releases/latest` | Override the `update` latest-release redirect URL |
+| `TABBREW_DOWNLOAD_BASE_URL` | `github.com/$REPO/releases/latest/download` | Override the `update` release-asset download base |
+| `TABBREW_DOWNLOAD_TIMEOUT_MS` | `120000` | `update` binary-download timeout (separate from `TABBREW_TIMEOUT_MS`) |
 | `TABBREW_TOKEN` | *(unset)* | Use this token directly; **wins over the stored file** (for CI/CD) |
 | `TABBREW_UPLOAD_TOKEN` | *(unset)* | `docs push` upload token; **wins over** `~/.config/tabbrew/upload-token` |
 | `TABBREW_NO_BROWSER` | *(unset)* | Set to skip auto-opening the browser during `login` |

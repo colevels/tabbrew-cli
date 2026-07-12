@@ -6,8 +6,10 @@ import { whoami } from "./commands/whoami";
 import { repoInfo } from "./commands/tools";
 import { docsPush, docsList } from "./commands/docs";
 import { init } from "./commands/init";
+import { update } from "./commands/update";
 import { AuthError } from "./auth";
 import { ApiError, NotAuthenticatedError, TokenExpiredError } from "./api";
+import { UpdateError } from "./update";
 import { c, printHelp, VERSION } from "./ui";
 
 async function route(): Promise<void> {
@@ -27,6 +29,8 @@ async function route(): Promise<void> {
       title: { type: "string" },
       // docs list flags
       json: { type: "boolean" },
+      // update flags
+      check: { type: "boolean" },
     },
     allowPositionals: true,
     strict: true,
@@ -77,6 +81,8 @@ async function route(): Promise<void> {
       );
       process.exitCode = 1;
       return;
+    case "update":
+      return update({ check: values.check, json: values.json });
     default:
       console.error(`Unknown command: ${command}\n`);
       printHelp();
@@ -90,7 +96,8 @@ route().catch((err: unknown) => {
     err instanceof AuthError ||
     err instanceof ApiError ||
     err instanceof NotAuthenticatedError ||
-    err instanceof TokenExpiredError;
+    err instanceof TokenExpiredError ||
+    err instanceof UpdateError;
 
   if (known) {
     console.error(`\n${c.red("✗")} ${(err as Error).message}`);
