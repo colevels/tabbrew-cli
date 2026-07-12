@@ -71,6 +71,21 @@ resolved by `resolveUploadToken()`), but the goal is the OAuth login token. So
 a consumed multipart stream is regenerated). Once the server accepts the bearer for
 these routes the fallback is dead code — remove it then.
 
+`commands/docs.ts` also has `tabbrew docs list` (`GET /api/v1/html_files`), which
+prints the account's docs as a hand-padded table (`--json` for the raw array). It
+is **not** part of the dual-token seam: the read route already accepts the OAuth
+login token, so `htmlFilesList()` in `api.ts` uses `authedFetch` directly (like
+`fetchUserInfo`). Its `HtmlFileRow` mirrors the server's `HtmlFileDTO`
+(`tabbrew-web/lib/html-files.ts`) and stays a tolerant reader — extra server
+fields are ignored, not fatal.
+
+> **Cross-repo:** the server routes + wire contract for every `docs`/API-backed
+> command live in the `tabbrew` monorepo (`tabbrew-web`), which is their source of
+> truth. When adding such a command, follow the *"Adding a `tabbrew-cli` command
+> backed by a web API route"* checklist in that repo's root `CLAUDE.md`: contract
+> first → server (+ `curl` verify) → CLI here (against local web via
+> `TABBREW_BASE_URL`/`TABBREW_TOKEN`) → ship the server before the binary.
+
 **2. `init` — agent-awareness installer**
 `tabbrew init` teaches an AI agent (currently only Claude Code) that this CLI exists.
 It writes a slim `TABBREW-CLI.md` doc plus a version-tagged managed block in
@@ -128,6 +143,7 @@ hosted TabBrew server at `https://www.tabbrew.com`:
 | `TABBREW_USERINFO_URL` | `$BASE/api/v1/oauth/userinfo` | Override the whoami endpoint (GET) |
 | `TABBREW_HTML_LOCAL_URL` | `$BASE/api/v1/html_files/local` | Override the `docs push` local-register endpoint (POST) |
 | `TABBREW_HTML_UPLOAD_URL` | `$BASE/api/v1/html_files/upload` | Override the `docs push` cloud-upload endpoint (POST) |
+| `TABBREW_HTML_LIST_URL` | `$BASE/api/v1/html_files` | Override the `docs list` endpoint (GET) |
 | `TABBREW_TOKEN` | *(unset)* | Use this token directly; **wins over the stored file** (for CI/CD) |
 | `TABBREW_UPLOAD_TOKEN` | *(unset)* | `docs push` upload token; **wins over** `~/.config/tabbrew/upload-token` |
 | `TABBREW_NO_BROWSER` | *(unset)* | Set to skip auto-opening the browser during `login` |

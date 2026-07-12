@@ -1,6 +1,6 @@
 import { basename, extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { ApiError, htmlFilesPost } from "../api";
+import { ApiError, htmlFilesList, htmlFilesPost } from "../api";
 import { config } from "../config";
 import { c } from "../ui";
 
@@ -111,6 +111,101 @@ async function pushCloud(absPath: string, title: string): Promise<void> {
       `  url:   ${url}  ${c.dim("(owner-only; requires being logged in to tabbrew.com)")}`,
     );
   }
+}
+
+export interface DocsListOptions {
+  json?: boolean;
+}
+
+/**
+ * `tabbrew docs list` — show the HTML docs registered/uploaded to the TabBrew
+ * Docs view (id, title, kind, size, created). Authenticated with the same OAuth
+ * login token as `whoami`. `--json` prints the raw array.
+ */
+export async function docsList(opts: DocsListOptions): Promise<void> {
+  const rows = await htmlFilesList();
+
+  if (opts.json) {
+    console.log(JSON.stringify(rows, null, 2));
+    return;
+  }
+
+  if (rows.length === 0) {
+    console.log(
+      c.dim("No docs yet.") +
+        ` Push one with: ${c.bold("tabbrew docs push <file.html>")}`,
+    );
+    return;
+  }
+
+  // Hand-padded columns (no table lib in this repo). Colors wrap whole lines
+  // only — never inside a padded cell — so ANSI escapes can't skew alignment.
+  const view = rows.map((r) => ({
+    id: String(r.id),
+    title: truncate(r.title?.trim() || r.filename || "(untitled)", 48),
+    kind: r.kind,
+    size: formatBytes(r.sizeBytes),
+    created: formatDate(r.createdAt),
+  }));
+
+  const widths = {
+    id: colWidth("ID", view, "id"),
+    title: colWidth("TITLE", view, "title"),
+    kind: colWidth("KIND", view, "kind"),
+    size: colWidth("SIZE", view, "size"),
+  };
+  const line = (v: {
+    id: string;
+    title: string;
+    kind: string;
+    size: string;
+    created: string;
+  }): string =>
+    [
+      padEnd(v.id, widths.id),
+      padEnd(v.title, widths.title),
+      padEnd(v.kind, widths.kind),
+      padEnd(v.size, widths.size),
+      v.created, // last column needs no trailing padding
+    ].join("  ");
+
+  console.log(
+    c.dim(
+      line({ id: "ID", title: "TITLE", kind: "KIND", size: "SIZE", created: "CREATED" }),
+    ),
+  );
+  for (const v of view) console.log(line(v));
+  console.log("");
+  console.log(c.dim(`  ${rows.length} doc${rows.length === 1 ? "" : "s"}`));
+}
+
+function colWidth(
+  header: string,
+  rows: Array<Record<string, string>>,
+  key: string,
+): number {
+  return Math.max(header.length, ...rows.map((r) => r[key]!.length));
+}
+
+function padEnd(s: string, width: number): string {
+  return s + " ".repeat(Math.max(0, width - s.length));
+}
+
+function truncate(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max - 1) + "…";
+}
+
+function formatBytes(n: number): string {
+  if (!n || n <= 0) return "—";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatDate(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toISOString().slice(0, 10);
 }
 
 /** Best-effort: pull a title from the document's <title> tag; null if unavailable. */

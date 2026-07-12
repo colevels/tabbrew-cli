@@ -85,6 +85,38 @@ export async function fetchUserInfo(): Promise<Record<string, unknown>> {
   return (await res.json()) as Record<string, unknown>;
 }
 
+// One row of the Docs list. Mirrors the server's HtmlFileDTO
+// (tabbrew-web/lib/html-files.ts) — kept a tolerant reader, so extra fields the
+// server may add later are ignored rather than breaking an older binary.
+export interface HtmlFileRow {
+  id: number;
+  title: string;
+  filename: string;
+  sizeBytes: number;
+  kind: "gcs" | "local";
+  localPath: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * List the signed-in user's HTML docs. Unlike the dual-token POST helper below,
+ * the read route authenticates with the OAuth login token (Authorization:
+ * Bearer), so this uses `authedFetch` directly like `fetchUserInfo`.
+ */
+export async function htmlFilesList(): Promise<HtmlFileRow[]> {
+  const res = await authedFetch(config.endpoints.htmlList);
+  if (!res.ok) {
+    const detail = await safeText(res);
+    throw new ApiError(
+      `docs list failed (HTTP ${res.status})` + (detail ? `: ${detail}` : ""),
+      res.status,
+    );
+  }
+  const body = (await res.json()) as { data?: HtmlFileRow[] };
+  return body.data ?? [];
+}
+
 // --- html_files (Docs view) ------------------------------------------------
 // These endpoints are their own auth subsystem: they currently accept only the
 // legacy `x-upload-token`, but the goal is to authenticate them with the OAuth

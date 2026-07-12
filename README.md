@@ -29,6 +29,7 @@ logout             Delete the stored token
 whoami             Verify the token works and print the user profile
 tools repo-info    Demo: orchestrate `git` (checked with which()) to report repo stats
 docs push <file>   Send an HTML file to the TabBrew sidepanel Docs view
+docs list          List the HTML docs you've pushed
 init               Install tabbrew-cli awareness into an AI agent (Claude Code)
 help               Show usage
 ```
@@ -90,7 +91,11 @@ tabbrew tools repo-info
 tabbrew docs push ./some.html
 tabbrew docs push ./some.html --cloud
 
-# 6. Sign out
+# 6. List the docs you've pushed
+tabbrew docs list
+tabbrew docs list --json
+
+# 7. Sign out
 tabbrew logout
 ```
 
@@ -139,7 +144,7 @@ existing `CLAUDE.md` prompts for confirmation (default **No**); non-interactive 
 decline unless `--yes` is passed, so it's safe in CI. The `AgentTarget` registry in
 `src/agents.ts` is the seam for adding Cursor/Codex/Gemini later.
 
-## Docs view (`docs push`)
+## Docs view (`docs push` / `docs list`)
 
 `tabbrew docs push <file>` sends an HTML file (a plan doc, report, or viewer) to
 TabBrew so it opens from the sidepanel **Docs** view. Two modes:
@@ -165,6 +170,20 @@ bearer with 401. The upload token is read from `TABBREW_UPLOAD_TOKEN` (wins) or
 `~/.config/tabbrew/upload-token`; generate one at
 `https://www.tabbrew.com/profile`. Once the server accepts the bearer for
 `/api/v1/html_files/*` the fallback becomes dead code and can be removed.
+
+### Listing docs (`docs list`)
+
+`tabbrew docs list` prints the docs on your account — id, title, kind
+(`gcs`/`local`), size, and created date:
+
+```bash
+tabbrew docs list          # aligned table
+tabbrew docs list --json   # raw JSON array (for scripting)
+```
+
+Unlike `docs push`, the list route already authenticates with the **OAuth login
+token** — the same one `whoami` uses — so it needs no upload token. It's the
+first `/api/v1/html_files/*` route to accept the bearer; `push` follows next.
 
 ## Credentials
 

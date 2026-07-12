@@ -4,7 +4,7 @@ import { login } from "./commands/login";
 import { logout } from "./commands/logout";
 import { whoami } from "./commands/whoami";
 import { repoInfo } from "./commands/tools";
-import { docsPush } from "./commands/docs";
+import { docsPush, docsList } from "./commands/docs";
 import { init } from "./commands/init";
 import { AuthError } from "./auth";
 import { ApiError, NotAuthenticatedError, TokenExpiredError } from "./api";
@@ -25,6 +25,8 @@ async function route(): Promise<void> {
       // docs push flags
       cloud: { type: "boolean" },
       title: { type: "string" },
+      // docs list flags
+      json: { type: "boolean" },
     },
     allowPositionals: true,
     strict: true,
@@ -69,8 +71,9 @@ async function route(): Promise<void> {
           cloud: values.cloud,
           title: values.title,
         });
+      if (sub === "list") return docsList({ json: values.json });
       console.error(
-        `Unknown docs subcommand: ${sub ?? "(none)"}. Try: tabbrew docs push <file.html>`,
+        `Unknown docs subcommand: ${sub ?? "(none)"}. Try: tabbrew docs push <file.html> | tabbrew docs list`,
       );
       process.exitCode = 1;
       return;
