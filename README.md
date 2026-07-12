@@ -50,6 +50,9 @@ installs `tabbrew` to `~/.local/bin` (override with `TABBREW_INSTALL_DIR`). Pref
 before you pipe? Read [`install.sh`](./install.sh), or download a binary directly from the
 [releases page](https://github.com/colevels/tabbrew-cli/releases/latest).
 
+Confirm it landed with `tabbrew --version`. From then on you never need the installer
+again — `tabbrew update` upgrades the binary in place (see [Updating](#updating)).
+
 ### From source
 
 Requires Bun ≥ 1.1.
