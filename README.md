@@ -29,7 +29,8 @@ logout             Delete the stored token
 whoami             Verify the token works and print the user profile
 tools repo-info    Demo: shell out to `git` (only if installed) to report repo stats
 docs push <file>   Send an HTML file to the TabBrew sidepanel Docs view
-docs list          List the HTML docs you've pushed
+docs list          List the HTML docs you've pushed (titles are click-to-open)
+docs open <id>     Open a pushed HTML doc in your browser
 init               Install tabbrew-cli awareness into an AI agent (Claude Code)
 update             Update the installed binary to the latest release
 help               Show usage
@@ -113,9 +114,10 @@ tabbrew tools repo-info
 tabbrew docs push ./some.html
 tabbrew docs push ./some.html --cloud
 
-# 6. List the docs you've pushed
+# 6. List the docs you've pushed (⌘/Ctrl-click a title to open), or open one by id
 tabbrew docs list
 tabbrew docs list --json
+tabbrew docs open 12
 
 # 7. Keep the binary current
 tabbrew update --check           # is there a newer release?
@@ -206,6 +208,20 @@ bearer with 401. The upload token is read from `TABBREW_UPLOAD_TOKEN` (wins) or
 tabbrew docs list          # aligned table
 tabbrew docs list --json   # raw JSON array (for scripting)
 ```
+
+Each **title is a clickable link** — ⌘/Ctrl-click it (in a hyperlink-capable
+terminal like iTerm2, Terminal.app, or VS Code) to open the doc in your default
+browser. Prefer a command? Open any doc by id:
+
+```bash
+tabbrew docs open 12       # open doc #12 in your browser
+```
+
+`docs open` (and the clickable titles) open a **local** doc as `file://` and a
+**cloud** doc via its owner-only `https://www.tabbrew.com/api/v1/html_files/<id>/view`
+URL — so a cloud doc only renders in a browser you're signed in to tabbrew.com with
+(i.e. your Chrome). Set `TABBREW_NO_BROWSER` to have `docs open` just print the URL
+instead of launching a browser.
 
 Unlike `docs push`, the list route already authenticates with the **OAuth login
 token** — the same one `whoami` uses — so it needs no upload token. It's the

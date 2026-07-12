@@ -1,8 +1,15 @@
 import { basename, extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { ApiError, htmlFilesList, htmlFilesPost } from "../api";
+import {
+  ApiError,
+  htmlFileViewUrl,
+  htmlFilesList,
+  htmlFilesPost,
+  type HtmlFileRow,
+} from "../api";
 import { config } from "../config";
-import { c } from "../ui";
+import { BIN, c, link } from "../ui";
+import { openBrowser } from "../util";
 
 // The cloud endpoint caps uploads at 2 MB (the server also enforces this with a
 // 413); we check up front to fail fast with a friendlier message.
@@ -118,6 +125,19 @@ export interface DocsListOptions {
 }
 
 /**
+ * The URL that opens a doc in a browser: a `local` doc is a `file://` path on this
+ * machine (from the list DTO's `localPath`); a cloud (`gcs`) doc is the owner-only
+ * tabbrew.com `/view` URL. Everything is derived from data `docs list` already
+ * returns — no extra request.
+ */
+function viewUrl(row: HtmlFileRow): string {
+  if (row.kind === "local" && row.localPath) {
+    return pathToFileURL(row.localPath).href;
+  }
+  return htmlFileViewUrl(row.id);
+}
+
+/**
  * `tabbrew docs list` — show the HTML docs registered/uploaded to the TabBrew
  * Docs view (id, title, kind, size, created). Authenticated with the same OAuth
  * login token as `whoami`. `--json` prints the raw array.
@@ -148,6 +168,8 @@ export async function docsList(opts: DocsListOptions): Promise<void> {
     kind: r.kind,
     size: formatBytes(r.sizeBytes),
     created: formatDate(r.createdAt),
+    // Full open URL; the title cell is wrapped in an OSC 8 link to it below.
+    url: viewUrl(r),
   }));
 
   const widths = {
@@ -162,10 +184,14 @@ export async function docsList(opts: DocsListOptions): Promise<void> {
     kind: string;
     size: string;
     created: string;
+    url?: string;
   }): string =>
     [
       padEnd(v.id, widths.id),
-      padEnd(v.title, widths.title),
+      // Link the title to its open URL (data rows only; the header passes no url).
+      // Padding is measured on the plain title, then applied outside the link so
+      // the OSC 8 escape bytes never skew column alignment.
+      padEndLink(v.title, widths.title, v.url),
       padEnd(v.kind, widths.kind),
       padEnd(v.size, widths.size),
       v.created, // last column needs no trailing padding
@@ -178,7 +204,56 @@ export async function docsList(opts: DocsListOptions): Promise<void> {
   );
   for (const v of view) console.log(line(v));
   console.log("");
+  // Only hint the interactive affordances on a TTY, so piped/scripted output
+  // stays quiet. (`docs open` still works everywhere.)
+  if (process.stdout.isTTY) {
+    console.log(
+      c.dim(`  ⌘/Ctrl-click a title to open, or: ${BIN} docs open <id>`),
+    );
+  }
   console.log(c.dim(`  ${rows.length} doc${rows.length === 1 ? "" : "s"}`));
+}
+
+/**
+ * `tabbrew docs open <id>` — open one of your pushed docs in the default browser.
+ * Resolves the doc from the list (there is no GET-by-id route) and opens its
+ * `file://` (local) or tabbrew.com `/view` (cloud) URL via `openBrowser`.
+ */
+export async function docsOpen(idArg: string | undefined): Promise<void> {
+  const id = Number(idArg);
+  if (!idArg || !Number.isInteger(id) || id <= 0) {
+    console.error(
+      c.red("✗ Invalid or missing id.") +
+        ` Usage: ${BIN} docs open <id>  ${c.dim(`(ids are shown by \`${BIN} docs list\`)`)}`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const row = (await htmlFilesList()).find((r) => r.id === id);
+  if (!row) {
+    console.error(
+      c.red(`✗ No doc with id ${id}.`) +
+        ` Run ${c.bold(`${BIN} docs list`)} to see your docs.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const url = viewUrl(row);
+  const title = row.title?.trim() || row.filename || `doc ${id}`;
+  const opened = await openBrowser(url);
+  console.log(
+    opened
+      ? `${c.green("✓ Opening")} ${c.bold(title)} ${c.dim("in your browser…")}`
+      : `${c.yellow("! Couldn't open a browser automatically.")} Open this URL:`,
+  );
+  console.log(`  ${url}`);
+  if (row.kind !== "local") {
+    console.log(
+      c.dim("  (cloud doc — renders only in a browser signed in to tabbrew.com)"),
+    );
+  }
 }
 
 // Terminal display width: CJK/emoji count as 2, Thai/combining marks as 0, and
@@ -197,6 +272,16 @@ function colWidth(
 
 function padEnd(s: string, w: number): string {
   return s + " ".repeat(Math.max(0, w - width(s)));
+}
+
+/**
+ * Like padEnd, but wraps the visible text in an OSC 8 hyperlink when `url` is
+ * given. The pad is computed from the plain text's display width, then appended
+ * *outside* the link, so the (zero-width) escape bytes never break alignment.
+ */
+function padEndLink(s: string, w: number, url?: string): string {
+  const pad = " ".repeat(Math.max(0, w - width(s)));
+  return (url ? link(url, s) : s) + pad;
 }
 
 /**

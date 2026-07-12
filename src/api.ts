@@ -117,6 +117,17 @@ export async function htmlFilesList(): Promise<HtmlFileRow[]> {
   return body.data ?? [];
 }
 
+/**
+ * Owner-only browser view URL for a cloud (`gcs`) doc — the same URL the TabBrew
+ * extension opens (`…/api/v1/html_files/<id>/view`). Derived from `config.baseUrl`
+ * so staging/local targets work without a new env var. It is gated by the
+ * tabbrew.com session cookie, so it only renders in a browser signed in to
+ * tabbrew.com. Local docs open via `file://` instead (see commands/docs.ts).
+ */
+export function htmlFileViewUrl(id: number): string {
+  return `${config.baseUrl}/api/v1/html_files/${id}/view`;
+}
+
 // --- html_files (Docs view) ------------------------------------------------
 // These endpoints are their own auth subsystem: they currently accept only the
 // legacy `x-upload-token`, but the goal is to authenticate them with the OAuth

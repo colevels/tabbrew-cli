@@ -20,6 +20,18 @@ export const c = {
   cyan: wrap(36),
 };
 
+/**
+ * Wrap text in an OSC 8 terminal hyperlink so a supporting terminal (iTerm2,
+ * Terminal.app, VS Code, WezTerm, …) makes it ⌘/Ctrl-clickable. Degrades to plain
+ * text when colors are off (non-TTY or NO_COLOR), so piped/CI output and `--json`
+ * carry no escape bytes. The visible text is returned unchanged in width, so
+ * callers can measure/pad on the plain string and link afterwards.
+ */
+export function link(url: string, text: string): string {
+  if (!useColor) return text;
+  return `\x1b]8;;${url}\x07${text}\x1b]8;;\x07`; // OSC 8 <url> BEL <text> OSC 8 BEL
+}
+
 export function indent(text: string, spaces = 2): string {
   const pad = " ".repeat(spaces);
   return text
@@ -41,7 +53,8 @@ export function printHelp(): void {
     "  whoami             Verify the token works and print the user profile",
     "  tools repo-info    Demo: orchestrate git (via Bun shell) to report repo stats",
     "  docs push <file>   Send an HTML file to the TabBrew sidepanel Docs view",
-    "  docs list          List the HTML docs you've pushed",
+    "  docs list          List the HTML docs you've pushed (titles are click-to-open)",
+    "  docs open <id>     Open a pushed HTML doc in your browser",
     "  init               Install tabbrew-cli awareness into an AI agent (Claude Code)",
     "  update             Update the installed binary to the latest release",
     "  help               Show this help",
