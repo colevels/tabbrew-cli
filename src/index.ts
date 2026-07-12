@@ -4,7 +4,7 @@ import { login } from "./commands/login";
 import { logout } from "./commands/logout";
 import { whoami } from "./commands/whoami";
 import { repoInfo } from "./commands/tools";
-import { docsPush, docsList } from "./commands/docs";
+import { docsPush, docsList, docsOpen } from "./commands/docs";
 import { init } from "./commands/init";
 import { update } from "./commands/update";
 import { AuthError } from "./auth";
@@ -76,8 +76,9 @@ async function route(): Promise<void> {
           title: values.title,
         });
       if (sub === "list") return docsList({ json: values.json });
+      if (sub === "open") return docsOpen(positionals[2]);
       console.error(
-        `Unknown docs subcommand: ${sub ?? "(none)"}. Try: tabbrew docs push <file.html> | tabbrew docs list`,
+        `Unknown docs subcommand: ${sub ?? "(none)"}. Try: tabbrew docs push <file.html> | tabbrew docs list | tabbrew docs open <id>`,
       );
       process.exitCode = 1;
       return;
