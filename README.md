@@ -27,7 +27,7 @@ straight into your browser's Docs view, where you read it.
 login              Sign in via OAuth device flow and store the token
 logout             Delete the stored token
 whoami             Verify the token works and print the user profile
-tools repo-info    Demo: orchestrate `git` (checked with which()) to report repo stats
+tools repo-info    Demo: shell out to `git` (only if installed) to report repo stats
 docs push <file>   Send an HTML file to the TabBrew sidepanel Docs view
 docs list          List the HTML docs you've pushed
 init               Install tabbrew-cli awareness into an AI agent (Claude Code)
@@ -97,7 +97,7 @@ elsewhere to update from a fork or mirror.
 ## Usage
 
 ```bash
-# 1. Point at your server (defaults to https://www.tabbrew.com)
+# 1. (Optional) point at a custom server — defaults to https://www.tabbrew.com
 export TABBREW_BASE_URL="https://your-auth-server.example.com"
 
 # 2. Sign in — prints a user code + URL, opens your browser, then polls
@@ -109,7 +109,7 @@ tabbrew whoami
 # 4. External-tool demo — shells out to git only if it's installed
 tabbrew tools repo-info
 
-# 5. Send an HTML file to the Docs view (local register, then cloud upload)
+# 5. Send an HTML file to the Docs view (local register by default; --cloud uploads it)
 tabbrew docs push ./some.html
 tabbrew docs push ./some.html --cloud
 
