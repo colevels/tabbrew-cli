@@ -33,7 +33,7 @@ docs list          List the HTML docs you've pushed (titles are click-to-open)
 docs open <id>     Open a pushed HTML doc in your browser
 init               Install tabbrew-cli awareness into an AI agent (Claude Code)
 update             Update the installed binary to the latest release
-help               Show usage
+help               Show usage (add --all for per-command flags + env overrides)
 ```
 
 ## Install

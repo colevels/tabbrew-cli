@@ -18,6 +18,7 @@ async function route(): Promise<void> {
     options: {
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
+      all: { type: "boolean" },
       // init flags (parseArgs is strict, so every accepted flag must be declared)
       global: { type: "boolean", short: "g" },
       "dry-run": { type: "boolean" },
@@ -43,7 +44,7 @@ async function route(): Promise<void> {
     return;
   }
   if (values.help || command === "help" || command === undefined) {
-    printHelp();
+    printHelp(values.all);
     return;
   }
 
