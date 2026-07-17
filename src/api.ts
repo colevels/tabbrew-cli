@@ -1,7 +1,7 @@
 // Authenticated API calls. Every call attaches the bearer token and turns a 401
 // into a friendly "please log in again" message.
 import { config } from "./config";
-import { resolveToken, resolveUploadToken } from "./credentials";
+import { resolveToken } from "./credentials";
 import { fetchWithTimeout, safeText } from "./util";
 
 export class NotAuthenticatedError extends Error {
@@ -100,9 +100,9 @@ export interface HtmlFileRow {
 }
 
 /**
- * List the signed-in user's HTML docs. Unlike the dual-token POST helper below,
- * the read route authenticates with the OAuth login token (Authorization:
- * Bearer), so this uses `authedFetch` directly like `fetchUserInfo`.
+ * List the signed-in user's HTML docs. Like the POST helper below, the read
+ * route authenticates with the OAuth login token (Authorization: Bearer), so
+ * this uses `authedFetch` directly like `fetchUserInfo`.
  */
 export async function htmlFilesList(): Promise<HtmlFileRow[]> {
   const res = await authedFetch(config.endpoints.htmlList);
@@ -129,11 +129,11 @@ export function htmlFileViewUrl(id: number): string {
 }
 
 // --- html_files (Docs view) ------------------------------------------------
-// These endpoints are their own auth subsystem: they currently accept only the
-// legacy `x-upload-token`, but the goal is to authenticate them with the OAuth
-// login token (Authorization: Bearer) like the rest of the CLI. htmlFilesPost
-// tries the login token first and falls back to the upload token, so it works
-// today and "just works" once the server accepts bearer for these routes.
+// These endpoints authenticate with the OAuth login token (Authorization:
+// Bearer) like the rest of the CLI, so htmlFilesPost delegates to authedFetch
+// (as htmlFilesList does) and only layers on the Docs-specific response
+// handling below. (They once also accepted a legacy per-feature x-upload-token;
+// the server dropped that, so the CLI no longer sends it.)
 
 export interface HtmlFilesResponse {
   success: boolean;
@@ -151,75 +151,23 @@ export interface HtmlFilesResponse {
   [key: string]: unknown;
 }
 
-interface AuthAttempt {
-  label: string;
-  headers: Record<string, string>;
-}
-
 /**
- * POST to an html_files (Docs) endpoint. Authenticates with the OAuth login
- * token (Authorization: Bearer) first, falling back to the legacy x-upload-token
- * when the server answers a bearer attempt with 401. `makeBody` is invoked once
- * per attempt so a consumed body (e.g. a multipart stream) is rebuilt for a retry.
+ * POST to an html_files (Docs) endpoint with the OAuth login token, then apply
+ * the Docs-specific response handling. `authedFetch` supplies the bearer,
+ * timeout, and typed auth errors (NotAuthenticatedError when logged out,
+ * TokenExpiredError on a 401), so this only builds the request and hands the
+ * response to `handleHtmlFilesResponse`.
  */
 export async function htmlFilesPost(
   url: string,
-  makeBody: () => { body: string | FormData; headers?: Record<string, string> },
+  built: { body: string | FormData; headers?: Record<string, string> },
 ): Promise<HtmlFilesResponse> {
-  const attempts: AuthAttempt[] = [];
-  const login = await resolveToken();
-  if (login)
-    attempts.push({
-      label: "login token",
-      headers: { Authorization: `Bearer ${login.token}` },
-    });
-  const upload = await resolveUploadToken();
-  if (upload)
-    attempts.push({
-      label: "upload token",
-      headers: { "x-upload-token": upload.token },
-    });
-
-  if (attempts.length === 0) {
-    throw new NotAuthenticatedError(
-      "Not authenticated for TabBrew Docs. Run `tabbrew login`, or generate an " +
-        "upload token at https://www.tabbrew.com/profile and save it to " +
-        "~/.config/tabbrew/upload-token.",
-    );
-  }
-
-  let lastRejection: Response | null = null;
-  for (const attempt of attempts) {
-    const built = makeBody();
-    let res: Response;
-    try {
-      res = await fetchWithTimeout(
-        url,
-        {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            ...(built.headers ?? {}),
-            ...attempt.headers,
-          },
-          body: built.body,
-        },
-        config.timeoutMs,
-      );
-    } catch (err) {
-      throw new ApiError(`Could not reach ${url}: ${(err as Error).message}`, 0);
-    }
-    if (res.status !== 401) return handleHtmlFilesResponse(res);
-    lastRejection = res; // 401 → this credential was rejected; try the next one
-  }
-
-  const detail = lastRejection ? await safeText(lastRejection) : "";
-  throw new TokenExpiredError(
-    "TabBrew rejected every available credential (401) for Docs uploads" +
-      (detail ? `: ${detail}` : "") +
-      ". Run `tabbrew login` again, or refresh your upload token at " +
-      "https://www.tabbrew.com/profile.",
-  );
+  const res = await authedFetch(url, {
+    method: "POST",
+    headers: built.headers,
+    body: built.body,
+  });
+  return handleHtmlFilesResponse(res);
 }
 
 async function handleHtmlFilesResponse(

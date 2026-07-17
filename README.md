@@ -199,13 +199,10 @@ tabbrew docs push ./doc.html --title "Auth plan" # override the Docs-list title
 
 The title defaults to the document's `<title>`, falling back to the filename.
 
-**Auth.** These endpoints are moving to the same OAuth login token as the rest of
-the CLI, so `docs push` tries the **login token** (`Authorization: Bearer`) first
-and falls back to a legacy per-feature **upload token** if the server rejects the
-bearer with 401. The upload token is read from `TABBREW_UPLOAD_TOKEN` (wins) or
-`~/.config/tabbrew/upload-token`; generate one at
-`https://www.tabbrew.com/profile`. Once the server accepts the bearer for
-`/api/v1/html_files/*` the fallback becomes dead code and can be removed.
+**Auth.** These endpoints use the same OAuth **login token** as the rest of the
+CLI — `docs push` authenticates with `Authorization: Bearer` (from `tabbrew login`,
+or `TABBREW_TOKEN` for CI/CD), exactly like `whoami` and `docs list`. If you aren't
+logged in, or the token is rejected with a 401, run `tabbrew login`.
 
 ### Listing docs (`docs list`)
 
@@ -231,9 +228,9 @@ URL — so a cloud doc only renders in a browser you're signed in to tabbrew.com
 (i.e. your Chrome). Set `TABBREW_NO_BROWSER` to have `docs open` just print the URL
 instead of launching a browser.
 
-Unlike `docs push`, the list route already authenticates with the **OAuth login
-token** — the same one `whoami` uses — so it needs no upload token. It's the
-first `/api/v1/html_files/*` route to accept the bearer; `push` follows next.
+Like `docs push`, the list route authenticates with the **OAuth login token** —
+the same one `whoami` uses. Every `/api/v1/html_files/*` route the CLI calls now
+accepts the bearer.
 
 ## Credentials
 

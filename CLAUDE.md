@@ -65,19 +65,17 @@ The codebase is three loosely-coupled subsystems that share only `config`, `ui`,
 `/api/v1/html_files/*` endpoints so it shows up in the sidepanel **Docs** view —
 `local` mode (default) registers the absolute path as JSON; `--cloud` uploads the
 content as multipart (≤ 2 MB, checked client-side before sending). These endpoints
-are a **dual-token seam**: they currently accept only a legacy per-feature
-`x-upload-token` (from `TABBREW_UPLOAD_TOKEN` or `~/.config/tabbrew/upload-token`,
-resolved by `resolveUploadToken()`), but the goal is the OAuth login token. So
-`htmlFilesPost` tries `Authorization: Bearer` **first** and falls back to
-`x-upload-token` on a 401 (rebuilding the body per attempt via a `makeBody` thunk so
-a consumed multipart stream is regenerated). Once the server accepts the bearer for
-these routes the fallback is dead code — remove it then.
+authenticate with the OAuth **login token** like the rest of the CLI, so
+`htmlFilesPost` delegates to `authedFetch` (`Authorization: Bearer`) and only layers
+on `handleHtmlFilesResponse` for the Docs-specific 413 / `success:false` cases.
+(They once also accepted a legacy per-feature `x-upload-token`; the server dropped
+that route, so the CLI's fallback — and `resolveUploadToken`/`TABBREW_UPLOAD_TOKEN` —
+were removed. See issue #19.)
 
 `commands/docs.ts` also has `tabbrew docs list` (`GET /api/v1/html_files`), which
-prints the account's docs as a hand-padded table (`--json` for the raw array). It
-is **not** part of the dual-token seam: the read route already accepts the OAuth
-login token, so `htmlFilesList()` in `api.ts` uses `authedFetch` directly (like
-`fetchUserInfo`). Its `HtmlFileRow` mirrors the server's `HtmlFileDTO`
+prints the account's docs as a hand-padded table (`--json` for the raw array).
+`htmlFilesList()` in `api.ts` authenticates the same way — `authedFetch` with the
+OAuth login token (like `fetchUserInfo`). Its `HtmlFileRow` mirrors the server's `HtmlFileDTO`
 (`tabbrew-web/lib/html-files.ts`) and stays a tolerant reader — extra server
 fields are ignored, not fatal.
 
@@ -109,7 +107,7 @@ It writes a slim `TABBREW-CLI.md` doc plus a version-tagged managed block in
 
 **3. `update` — self-updating binary**
 `tabbrew update` replaces the running compiled binary with the newest GitHub Release.
-It is **not** part of the web-API/dual-token seams — it talks only to GitHub Releases,
+It is **not** part of the web-API auth path — it talks only to GitHub Releases,
 so its config lives in `config.update` (`TABBREW_REPO` / `TABBREW_RELEASE_URL` /
 `TABBREW_DOWNLOAD_BASE_URL` / `TABBREW_DOWNLOAD_TIMEOUT_MS`), separate from the auth
 endpoints. `update.ts` is the IO/protocol module (like `api.ts`); `commands/update.ts`
@@ -177,7 +175,6 @@ hosted TabBrew server at `https://www.tabbrew.com`:
 | `TABBREW_DOWNLOAD_BASE_URL` | `github.com/$REPO/releases/latest/download` | Override the `update` release-asset download base |
 | `TABBREW_DOWNLOAD_TIMEOUT_MS` | `120000` | `update` binary-download timeout (separate from `TABBREW_TIMEOUT_MS`) |
 | `TABBREW_TOKEN` | *(unset)* | Use this token directly; **wins over the stored file** (for CI/CD) |
-| `TABBREW_UPLOAD_TOKEN` | *(unset)* | `docs push` upload token; **wins over** `~/.config/tabbrew/upload-token` |
 | `TABBREW_NO_BROWSER` | *(unset)* | Set to skip auto-opening the browser during `login` |
 | `TABBREW_TIMEOUT_MS` | `15000` | Per-request timeout in milliseconds (device code / poll / whoami) |
 | `TABBREW_DEBUG` | *(unset)* | Print stack traces on unexpected errors |

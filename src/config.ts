@@ -48,8 +48,6 @@ export interface CliConfig {
   };
   /** Env var the CLI reads a token from (CI/CD), overriding the stored file. */
   tokenEnvVar: string;
-  /** Env var the CLI reads the html_files upload token from, overriding the file. */
-  uploadTokenEnvVar: string;
   /** Per-request timeout in milliseconds. */
   timeoutMs: number;
 }
@@ -93,6 +91,5 @@ export const config: CliConfig = {
     ),
   },
   tokenEnvVar: "TABBREW_TOKEN",
-  uploadTokenEnvVar: "TABBREW_UPLOAD_TOKEN",
   timeoutMs: parsePositiveInt(process.env.TABBREW_TIMEOUT_MS, 15000),
 };

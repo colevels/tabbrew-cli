@@ -72,10 +72,10 @@ export async function docsPush(
 
 /** Local mode: register the absolute path only; the file stays on this machine. */
 async function pushLocal(absPath: string, title: string): Promise<void> {
-  await htmlFilesPost(config.endpoints.htmlLocal, () => ({
+  await htmlFilesPost(config.endpoints.htmlLocal, {
     body: JSON.stringify({ path: absPath, title }),
     headers: { "content-type": "application/json" },
-  }));
+  });
 
   console.log(`${c.green("✓ Registered with TabBrew")} ${c.dim("(local)")}`);
   console.log(`  title: ${title}`);
@@ -99,15 +99,12 @@ async function pushCloud(absPath: string, title: string): Promise<void> {
     );
   }
 
-  // Read once; the request body is rebuilt per auth attempt from these bytes.
   const bytes = await Bun.file(absPath).arrayBuffer();
   const name = basename(absPath);
-  const result = await htmlFilesPost(config.endpoints.htmlUpload, () => {
-    const form = new FormData();
-    form.append("file", new Blob([bytes], { type: "text/html" }), name);
-    form.append("title", title);
-    return { body: form };
-  });
+  const form = new FormData();
+  form.append("file", new Blob([bytes], { type: "text/html" }), name);
+  form.append("title", title);
+  const result = await htmlFilesPost(config.endpoints.htmlUpload, { body: form });
 
   console.log(`${c.green("✓ Uploaded to TabBrew")} ${c.dim("(cloud)")}`);
   console.log(`  title: ${title}`);
