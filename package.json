@@ -1,6 +1,6 @@
 {
   "name": "tabbrew-cli",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Push HTML docs into TabBrew from your terminal — a Bun + TypeScript CLI.",
   "type": "module",
   "license": "MIT",
