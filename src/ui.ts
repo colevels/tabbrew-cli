@@ -105,7 +105,6 @@ export function printHelp(full = false): void {
       "  TABBREW_HTML_UPLOAD_URL   Override the docs-push cloud-upload endpoint",
       "  TABBREW_HTML_LIST_URL     Override the docs-list endpoint",
       "  TABBREW_TOKEN             Use this token directly (for CI/CD); wins over stored file",
-      "  TABBREW_UPLOAD_TOKEN      Docs-push upload token; wins over ~/.config/tabbrew/upload-token",
       "  TABBREW_NO_BROWSER        Set to skip auto-opening the browser during login",
       "  TABBREW_TIMEOUT_MS        Per-request timeout in ms (default 15000)",
       "  TABBREW_REPO              GitHub owner/name for `update` (default colevels/tabbrew-cli)",
