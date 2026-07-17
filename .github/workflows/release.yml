@@ -18,7 +18,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -40,7 +40,7 @@ jobs:
         run: shasum -a 256 tabbrew-darwin-arm64 tabbrew-darwin-x64 tabbrew-linux-arm64 tabbrew-linux-x64 > checksums.txt
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             dist/tabbrew-darwin-arm64
