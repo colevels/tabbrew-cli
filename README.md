@@ -51,6 +51,14 @@ installs `tabbrew` to `~/.local/bin` (override with `TABBREW_INSTALL_DIR`). Pref
 before you pipe? Read [`install.sh`](./install.sh), or download a binary directly from the
 [releases page](https://github.com/colevels/tabbrew-cli/releases/latest).
 
+Every release is built in GitHub Actions — not on a laptop — and carries a signed SLSA
+**build-provenance** attestation tying the binary to the exact commit and workflow run.
+Verify a download with the [GitHub CLI](https://cli.github.com):
+
+```bash
+gh attestation verify tabbrew-darwin-arm64 --repo colevels/tabbrew-cli
+```
+
 Confirm it landed with `tabbrew --version`. From then on you never need the installer
 again — `tabbrew update` upgrades the binary in place (see [Updating](#updating)).
 
