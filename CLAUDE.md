@@ -20,8 +20,10 @@ bun run typecheck                  # tsc --noEmit — the only automated check
 bun run build                      # → dist/tabbrew (self-contained compiled binary)
 ```
 
-There is **no test runner and no linter configured**; `typecheck` is the whole CI
-surface. "Testing" a subcommand means running it against a real/staging server by
+There is **no test runner and no linter configured**; `typecheck` + `build` (in
+`.github/workflows/ci.yml`) is the whole *check* CI surface — releases are cut by the
+separate `.github/workflows/release.yml` (see **Releasing**). "Testing" a subcommand
+means running it against a real/staging server by
 pointing `TABBREW_BASE_URL` at it (see README "Testing each subcommand"). Set
 `TABBREW_TOKEN` to exercise authed commands without an interactive `login`.
 
@@ -114,6 +116,8 @@ endpoints. `update.ts` is the IO/protocol module (like `api.ts`); `commands/upda
 is the thin presentation layer. Design constraints worth preserving:
 - **Version discovery uses the `releases/latest` 302 redirect**, not the REST API — no
   token, no 60/hr rate limit, and no coupling to API JSON. Same trick `install.sh` uses.
+  (The producer side — how those releases are built, signed, and published — is
+  **Releasing** below.)
 - **Compiled-vs-dev is gated on `import.meta.url` containing `/$bunfs/`** (a compiled
   standalone runs its entry from Bun's virtual FS; `bun run src/…` is a real `file://`).
   `update` refuses in dev so it never overwrites the `bun` binary. `process.execpath`
@@ -200,3 +204,37 @@ Cross-compile for another target with `--target` (see `bun build --help`), e.g.:
 ```bash
 bun build src/index.ts --compile --target=bun-linux-x64 --outfile dist/tabbrew-linux
 ```
+
+## Releasing
+
+Releases are **automated** — `.github/workflows/release.yml` builds and publishes on a
+`v*` tag push; **do not hand-build release binaries** (a laptop build has no provenance
+and isn't reproducible). Cutting a release is two steps:
+
+1. Bump `package.json` `version` via PR → squash-merge to `main`. `VERSION` is read from
+   `package.json` at compile time (`ui.ts`), so this bump is what makes `tabbrew update`
+   see a newer build.
+2. Tag `main` and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+The workflow then runs on one `ubuntu-latest` runner (Bun cross-compiles all targets —
+no OS matrix) and:
+- builds the four targets — asset names are `tabbrew-<os>-<arch>` and **must** match
+  `assetName()` in `update.ts` and `install.sh` exactly;
+- writes `checksums.txt` (`<sha256>  <asset>` lines — the format `update.ts`'s
+  `downloadAndVerify` and `install.sh` both parse);
+- records a signed **SLSA build-provenance** attestation via
+  `actions/attest-build-provenance` (keyless Sigstore over OIDC), so a download can be
+  verified with `gh attestation verify <bin> --repo colevels/tabbrew-cli`;
+- creates the GitHub Release with `gh release create --generate-notes` + the assets.
+
+Constraints worth preserving:
+- The release must publish as the non-draft, non-prerelease **"latest"** so the
+  `releases/latest` 302 redirect that `tabbrew update` follows resolves to it (the
+  consumer side is the `update` subsystem above).
+- **Bun is pinned** (`bun-version: 1.3.5`) in **both** `ci.yml` and `release.yml` for
+  reproducible builds — bump the two together.
+- The workflow needs `contents: write` (create the release), `id-token: write` (OIDC
+  token the attestation signs with), and `attestations: write`.
+- Manual fallback (only if Actions is down): build the four targets + `checksums.txt`
+  locally and `gh release create vX.Y.Z --target main --generate-notes …` — but the
+  result carries **no** provenance attestation, so prefer re-running the workflow.
