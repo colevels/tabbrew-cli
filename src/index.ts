@@ -14,7 +14,7 @@ import { AuthError } from "./auth";
 import { ApiError, NotAuthenticatedError, TokenExpiredError } from "./api";
 import { UpdateError } from "./update";
 import { assertFlagsAllowed, findCommand, UsageError } from "./registry";
-import { c, printHelp, VERSION } from "./ui";
+import { c, printCommandHelp, printHelp, VERSION } from "./ui";
 
 async function route(): Promise<void> {
   const { values, positionals } = parseArgs({
@@ -51,7 +51,17 @@ async function route(): Promise<void> {
     console.log(VERSION);
     return;
   }
+  const cmd = findCommand(positionals);
   if (values.help || command === "help" || command === undefined) {
+    // Asking for help *about a command* gets that command's help — both
+    // `tabbrew tabs push --help` and `tabbrew help tabs push`. Bare `--help`,
+    // `help`, `help --all`, an unknown command, and `help` itself all fall
+    // through to the full listing.
+    const target = command === "help" ? findCommand(positionals.slice(1)) : cmd;
+    if (target && target.name !== "help") {
+      printCommandHelp(target);
+      return;
+    }
     printHelp(values.all);
     return;
   }
@@ -59,7 +69,7 @@ async function route(): Promise<void> {
   // `parseArgs` runs one flat option table (Node needs every flag declared up
   // front), so on its own it happily accepts `docs push --port 99`. The registry
   // is the second gate that binds each flag to the command that implements it.
-  assertFlagsAllowed(findCommand(positionals), values);
+  assertFlagsAllowed(cmd, values);
 
   switch (command) {
     case "login":
