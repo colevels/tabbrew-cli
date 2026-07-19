@@ -5,8 +5,11 @@ import { logout } from "./commands/logout";
 import { whoami } from "./commands/whoami";
 import { repoInfo } from "./commands/tools";
 import { docsPush, docsList, docsOpen } from "./commands/docs";
+import { tabsCheck, tabsPrompt, TabsInputError } from "./commands/tabs";
 import { init } from "./commands/init";
 import { update } from "./commands/update";
+import { serve, ServeError } from "./commands/serve";
+import { run, RunError } from "./commands/run";
 import { AuthError } from "./auth";
 import { ApiError, NotAuthenticatedError, TokenExpiredError } from "./api";
 import { UpdateError } from "./update";
@@ -25,13 +28,21 @@ async function route(): Promise<void> {
       uninstall: { type: "boolean" },
       yes: { type: "boolean", short: "y" },
       agent: { type: "string" },
+      skill: { type: "string" },
+      "no-skill": { type: "boolean" },
       // docs push flags
       cloud: { type: "boolean" },
       title: { type: "string" },
-      // docs list flags
+      // docs list / tabs check flags
       json: { type: "boolean" },
+      // tabs flags
+      variant: { type: "string" },
+      snapshot: { type: "string" },
       // update flags
       check: { type: "boolean" },
+      // serve flags
+      port: { type: "string" },
+      out: { type: "string" },
     },
     allowPositionals: true,
     strict: true,
@@ -62,6 +73,8 @@ async function route(): Promise<void> {
         uninstall: values.uninstall,
         yes: values.yes,
         agent: values.agent,
+        skill: values.skill,
+        noSkill: values["no-skill"],
       });
     case "tools":
       if (sub === "repo-info") return repoInfo();
@@ -83,8 +96,27 @@ async function route(): Promise<void> {
       );
       process.exitCode = 1;
       return;
+    case "tabs":
+      if (sub === "check")
+        return tabsCheck(positionals[2], {
+          snapshot: values.snapshot,
+          json: values.json,
+        });
+      if (sub === "prompt") return tabsPrompt({ variant: values.variant });
+      console.error(
+        `Unknown tabs subcommand: ${sub ?? "(none)"}. Try: tabbrew tabs check <file> | tabbrew tabs prompt`,
+      );
+      process.exitCode = 1;
+      return;
     case "update":
       return update({ check: values.check, json: values.json });
+    case "serve":
+      return serve({
+        port: values.port ? Number(values.port) : undefined,
+        out: values.out,
+      });
+    case "run":
+      return run(positionals[1]);
     default:
       console.error(`Unknown command: ${command}\n`);
       printHelp();
@@ -99,7 +131,10 @@ route().catch((err: unknown) => {
     err instanceof ApiError ||
     err instanceof NotAuthenticatedError ||
     err instanceof TokenExpiredError ||
-    err instanceof UpdateError;
+    err instanceof UpdateError ||
+    err instanceof TabsInputError ||
+    err instanceof ServeError ||
+    err instanceof RunError;
 
   if (known) {
     console.error(`\n${c.red("✗")} ${(err as Error).message}`);

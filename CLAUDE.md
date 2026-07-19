@@ -44,7 +44,8 @@ once into the exported `config` object. Endpoints derive from `TABBREW_BASE_URL`
 unless individually overridden. Nothing else reads `process.env` for configuration —
 route new config through here.
 
-The codebase is three loosely-coupled subsystems that share only `config`, `ui`, and `util`:
+The codebase is four loosely-coupled subsystems that share only `config`, `ui`, and `util`
+(the fourth, `tabs`, is offline — it touches neither `config` nor the network):
 
 **1. Auth / API (the original purpose)**
 - `auth.ts` — device-flow protocol: request a device code, then `pollForToken`
@@ -89,7 +90,12 @@ fields are ignored, not fatal.
 **2. `init` — agent-awareness installer**
 `tabbrew init` teaches an AI agent (currently only Claude Code) that this CLI exists.
 It writes a slim `TABBREW-CLI.md` doc plus a version-tagged managed block in
-`CLAUDE.md` that `@import`s it. Design constraints worth preserving:
+`CLAUDE.md` that `@import`s it, **and** installs the `tabbrew-tabs` skill (the interactive
+NL→TabBrew-Script prompt) into the agent's skills dir — `resolveSkillsDir` on the
+`AgentTarget` (`.claude/skills/tabbrew-tabs/` locally, `<config>/skills/…` global). The
+skill content is bundled from `tabbrew-script/skills.ts`; `--skill <variant>` picks
+compact/standard/full (default full) and `--no-skill` skips it (`--uninstall` removes it).
+Design constraints worth preserving:
 - `awareness.ts` is **filesystem-free** — the awareness doc and all block-manipulation
   are pure string constants/functions so they survive `bun build --compile` (no
   runtime file reads). Disk I/O lives in `fsops.ts`; orchestration in `commands/init.ts`.
@@ -130,6 +136,36 @@ is the thin presentation layer. Design constraints worth preserving:
   the full form has **no confirmation prompt** (the command *is* the intent) and is a
   no-op when already current. Throw `UpdateError` for any user-facing failure.
 
+**4. `tabs` — local DSL toolbox (offline; no server, no Chrome)**
+`tabbrew tabs` turns the CLI into the validator/teacher for the "agent generates a TabBrew
+Script" workflow. It makes **no network calls** and never touches `chrome.*` — execution
+and live snapshots stay in the extension.
+- `commands/tabs.ts` — `tabsCheck` parses a generated script (`parseTabbrewScript`), prints
+  line-numbered errors (**exit 1** on any), and — when `--snapshot` is given — runs
+  `simulateBatch` for a before/after preview. `tabsPrompt` prints the interactive skill
+  prompt. Script input is a file arg or stdin (`-`, accepts a whole ` ```tabbrew ` block);
+  `TabsInputError` (registered in the `index.ts` boundary) carries file/snapshot problems.
+- `tabbrew-script/` — a **curated, Chrome-free vendor** of the DSL runtime. `parser.ts` +
+  `simulate.ts` + `types.ts` are copied from `tabbrew-skill/runtime/src`; the snapshot
+  *types* are pulled into `types.ts` so nothing imports the `chrome.*`-using `snapshot.ts`.
+  The only edits vs. upstream are the retargeted import and `!` assertions forced by
+  `noUncheckedIndexedAccess` (see each file's header). `render.ts` is **CLI-native, not a
+  mirror**: the `parseSnapshotMarkdown` reverse-parser (Copy-AI-Prompt markdown →
+  `SnapshotPayload`), a copy of `extract.ts`'s fenced-block extractor, and the summary /
+  preview renderers.
+- `SKILL.{compact,standard,full}.md` are verbatim copies of the `tabbrew-api` portable skill
+  variants, embedded via `import … with { type: "text" }` — a compile-time inline (no
+  runtime FS read, survives `--compile`; `assets.d.ts` types the import). `skills.ts` is the
+  bundling module `init` and `tabs prompt` both read.
+
+> **Cross-repo (this is a 4th copy):** the vendored `parser.ts`/`simulate.ts`/`types.ts` and
+> the `SKILL.*.md` prompts have their **source of truth in the `tabbrew` monorepo**
+> (`tabbrew-api/src/tabbrew-script` + `tabbrew-skill/runtime/src`, and
+> `tabbrew-api/src/skill/portable/*`). Never edit them here as the primary copy — re-sync on
+> any DSL grammar / phase-order change. `simulate.ts` MUST mirror the extension executor's
+> phase order (`DEL → UNPIN → UNGROUP → GROUP → PIN → MOVE`), and a new verb touches every
+> copy (see the monorepo `CLAUDE.md`'s "four-place change" note).
+
 `ui.ts` centralizes colors (disabled when non-TTY or `NO_COLOR`) and reads the version
 from `package.json` (bundled at compile time). The repo/package name is `tabbrew-cli`;
 the user-facing binary/command is `tabbrew` (`BIN` in `ui.ts`).
@@ -146,11 +182,19 @@ src/
   update.ts           # self-update: release lookup, download+checksum, atomic binary swap
   util.ts             # sleep, which(), safeText, open-browser
   ui.ts               # colors, help text, version
-  agents.ts           # init: AgentTarget registry (Claude Code; extensible)
+  agents.ts           # init: AgentTarget registry (Claude Code; extensible) + skills dir
   awareness.ts        # init: bundled awareness doc + managed-block string ops
   fsops.ts            # init: atomic write, writeIfChanged, backup, safe read/remove
+  assets.d.ts         # ambient `declare module "*.md"` for the text-import skill assets
+  tabbrew-script/     # tabs: offline DSL toolbox
+    types.ts            #   vendored DSL + snapshot types (Chrome-free)
+    parser.ts           #   vendored parseTabbrewScript
+    simulate.ts         #   vendored simulateBatch (mirrors executor phase order)
+    render.ts           #   CLI-native: snapshot reverse-parser, fenced extractor, renderers
+    skills.ts           #   bundled interactive skill prompts (text imports)
+    SKILL.{compact,standard,full}.md  # verbatim tabbrew-api portable variants (source of truth upstream)
   commands/
-    login.ts logout.ts whoami.ts tools.ts docs.ts init.ts update.ts
+    login.ts logout.ts whoami.ts tools.ts docs.ts tabs.ts init.ts update.ts
 ```
 
 ## Configuration
