@@ -15,6 +15,7 @@ import {
   SKILL_VARIANTS,
   type SkillVariant,
 } from "../tabbrew-script/skills";
+import { TabsInputError } from "./tabs";
 import {
   atomicWrite,
   backupFile,
@@ -29,8 +30,12 @@ export interface InitOptions {
   uninstall?: boolean;
   yes?: boolean;
   agent?: string;
-  /** Skill variant to install (compact|standard|full; default full). */
-  skill?: string;
+  /**
+   * Skill variant to install (compact|standard|full; default full). Named to
+   * match `tabs prompt --variant`, which selects from the same three prompts —
+   * `--skill`/`--no-skill` is the install-or-not switch, `--variant` is which.
+   */
+  variant?: string;
   /** Skip installing the tabbrew-tabs skill. */
   noSkill?: boolean;
 }
@@ -68,7 +73,9 @@ export async function init(opts: InitOptions): Promise<void> {
 function resolveVariant(v: string | undefined): SkillVariant {
   const variant = (v ?? DEFAULT_SKILL_VARIANT).toLowerCase();
   if (!isSkillVariant(variant)) {
-    throw new Error(`Unknown --skill "${v}". Choose one of: compact, standard, full.`);
+    throw new TabsInputError(
+      `Unknown --variant "${v}". Choose one of: compact, standard, full.`,
+    );
   }
   return variant;
 }
@@ -78,8 +85,8 @@ async function install(paths: Paths, opts: InitOptions): Promise<void> {
   const dryRun = !!opts.dryRun;
 
   const installSkill = !opts.noSkill;
-  // Resolve (and validate) the variant up front so a bad --skill fails before any write.
-  const skillContent = installSkill ? SKILL_VARIANTS[resolveVariant(opts.skill)] : null;
+  // Resolve (and validate) the variant up front so a bad --variant fails before any write.
+  const skillContent = installSkill ? SKILL_VARIANTS[resolveVariant(opts.variant)] : null;
 
   const currentAwareness = await readFileOrNull(awarenessPath);
   const currentClaude = await readFileOrNull(instructionsPath);

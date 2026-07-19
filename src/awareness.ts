@@ -17,9 +17,10 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
 - The user asks for \`tabbrew tools\` output (e.g. repo-info).
 - The user wants to send an HTML file (plan, report, viewer) to TabBrew so it
   opens from the sidepanel Docs view ("send this to tabbrew", "ส่งเข้า tabbrew").
-- The user pastes their tabs (from the extension's **Copy AI Prompt** button) and
-  wants them organized/closed/grouped — generate a TabBrew Script and validate it
-  with \`tabbrew tabs check\` before they run it (see **Managing tabs** below).
+- The user pastes their tabs (from the extension's **Copy AI Prompt** button) or sends
+  them via the local bridge, and wants them organized/closed/grouped — generate a
+  TabBrew Script, validate it with \`tabbrew tabs check\`, then \`tabbrew tabs push\` it
+  for them to run (see **Managing tabs** below).
 
 ## Commands
 - \`tabbrew login\`   — sign in via device flow (opens a browser; prints a code).
@@ -39,20 +40,38 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
   (accepts a whole \`\`\`tabbrew fenced block). Add \`--snapshot <file>\` (the Copy-AI-Prompt
   markdown, or a \`.json\` payload) for a simulated before/after preview; \`--json\` for
   machine output. Runs locally — no server, no browser.
+- \`tabbrew tabs push <file|->\` — validate a script, then hand it to the extension to
+  preview. Requires \`tabbrew tabs serve\` already running (\`--port\` must match if it
+  isn't on the default 49227). This does **not** run the script: it lands in the
+  extension's panel and the user clicks **Run** themselves.
+- \`tabbrew tabs serve\` — start the local bridge (127.0.0.1 only) the extension exports
+  its open tabs to and polls for pushed scripts. Long-running; it blocks until Ctrl+C,
+  so start it in a background/second shell, never in the foreground of a task you
+  need to finish.
+- \`tabbrew tabs list\` — show the tabs the extension last exported (\`--json\` for the raw
+  saved payload: \`{ savedAt, count, tabs }\`). Check \`savedAt\` before trusting the tab
+  ids — it's a snapshot on disk and can be stale.
 - \`tabbrew tabs prompt [--variant full|standard|compact]\` — print the interactive
   skill prompt (same one \`tabbrew init\` installs as a skill).
 
 ## Managing tabs (generate a TabBrew Script)
 The DSL has six verbs, one per line: \`DEL\` \`PIN\` \`UNPIN\` \`GROUP\` \`UNGROUP\` \`MOVE\`.
-When the user pastes their tabs data (the extension's **Copy AI Prompt** output, which
-contains \`# Goal / # Cross-window / # Windows / # Groups / # Tabs\` sections):
+Where the tabs come from — either works:
+- The user pastes the extension's **Copy AI Prompt** output (\`# Goal / # Cross-window /
+  # Windows / # Groups / # Tabs\` sections), or
+- The bridge is running and the user clicked **Send to Claude Code**, so
+  \`tabbrew tabs list\` shows the tabs directly.
+
+Then:
 1. Follow the installed \`tabbrew-tabs\` skill to generate a script — clarify a vague
    goal, list every \`DEL\` target and confirm before closing, emit one \`\`\`tabbrew block.
 2. Validate it: save the script and the pasted snapshot to files, then
    \`tabbrew tabs check script.tbrew --snapshot snapshot.md\`. Fix any parse errors and
    review the preview (especially closes and dropped stale ids).
-3. Tell the user to paste the script into the extension's developer mode and click **Run** —
-   execution happens in the browser, not here. The CLI never touches their tabs.
+3. Get it in front of the user — \`tabbrew tabs push script.tbrew\` if the bridge is
+   running, otherwise tell them to paste the script into the extension's developer mode.
+4. Either way **they** click **Run**. Execution happens in the browser, never here —
+   nothing the CLI does can change their tabs, so never report tabs as closed/grouped.
 
 ## Non-interactive / CI
 Set \`TABBREW_TOKEN\` to authenticate without a login prompt (it wins over the stored

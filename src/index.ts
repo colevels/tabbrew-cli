@@ -5,14 +5,15 @@ import { logout } from "./commands/logout";
 import { whoami } from "./commands/whoami";
 import { repoInfo } from "./commands/tools";
 import { docsPush, docsList, docsOpen } from "./commands/docs";
-import { tabsCheck, tabsPrompt, TabsInputError } from "./commands/tabs";
+import { tabsCheck, tabsList, tabsPrompt, TabsInputError } from "./commands/tabs";
 import { init } from "./commands/init";
 import { update } from "./commands/update";
-import { serve, ServeError } from "./commands/serve";
-import { run, RunError } from "./commands/run";
+import { tabsServe, ServeError } from "./commands/tabs-serve";
+import { tabsPush, TabsPushError } from "./commands/tabs-push";
 import { AuthError } from "./auth";
 import { ApiError, NotAuthenticatedError, TokenExpiredError } from "./api";
 import { UpdateError } from "./update";
+import { assertFlagsAllowed, findCommand, UsageError } from "./registry";
 import { c, printHelp, VERSION } from "./ui";
 
 async function route(): Promise<void> {
@@ -22,25 +23,21 @@ async function route(): Promise<void> {
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
       all: { type: "boolean" },
-      // init flags (parseArgs is strict, so every accepted flag must be declared)
+      // parseArgs is strict and takes one flat table, so every flag any command
+      // accepts must be declared here. Which command may actually use each one
+      // is enforced separately, from the registry — see assertFlagsAllowed.
       global: { type: "boolean", short: "g" },
       "dry-run": { type: "boolean" },
       uninstall: { type: "boolean" },
       yes: { type: "boolean", short: "y" },
       agent: { type: "string" },
-      skill: { type: "string" },
       "no-skill": { type: "boolean" },
-      // docs push flags
       cloud: { type: "boolean" },
       title: { type: "string" },
-      // docs list / tabs check flags
       json: { type: "boolean" },
-      // tabs flags
       variant: { type: "string" },
       snapshot: { type: "string" },
-      // update flags
       check: { type: "boolean" },
-      // serve flags
       port: { type: "string" },
       out: { type: "string" },
     },
@@ -59,6 +56,11 @@ async function route(): Promise<void> {
     return;
   }
 
+  // `parseArgs` runs one flat option table (Node needs every flag declared up
+  // front), so on its own it happily accepts `docs push --port 99`. The registry
+  // is the second gate that binds each flag to the command that implements it.
+  assertFlagsAllowed(findCommand(positionals), values);
+
   switch (command) {
     case "login":
       return login();
@@ -73,7 +75,7 @@ async function route(): Promise<void> {
         uninstall: values.uninstall,
         yes: values.yes,
         agent: values.agent,
-        skill: values.skill,
+        variant: values.variant,
         noSkill: values["no-skill"],
       });
     case "tools":
@@ -102,21 +104,24 @@ async function route(): Promise<void> {
           snapshot: values.snapshot,
           json: values.json,
         });
+      if (sub === "push")
+        return tabsPush(positionals[2], {
+          port: values.port === undefined ? undefined : Number(values.port),
+        });
+      if (sub === "serve")
+        return tabsServe({
+          port: values.port === undefined ? undefined : Number(values.port),
+          out: values.out,
+        });
+      if (sub === "list") return tabsList({ json: values.json });
       if (sub === "prompt") return tabsPrompt({ variant: values.variant });
       console.error(
-        `Unknown tabs subcommand: ${sub ?? "(none)"}. Try: tabbrew tabs check <file> | tabbrew tabs prompt`,
+        `Unknown tabs subcommand: ${sub ?? "(none)"}. Try: tabbrew tabs check <file> | tabs push <file> | tabs serve | tabs list | tabs prompt`,
       );
       process.exitCode = 1;
       return;
     case "update":
       return update({ check: values.check, json: values.json });
-    case "serve":
-      return serve({
-        port: values.port ? Number(values.port) : undefined,
-        out: values.out,
-      });
-    case "run":
-      return run(positionals[1]);
     default:
       console.error(`Unknown command: ${command}\n`);
       printHelp();
@@ -134,7 +139,8 @@ route().catch((err: unknown) => {
     err instanceof UpdateError ||
     err instanceof TabsInputError ||
     err instanceof ServeError ||
-    err instanceof RunError;
+    err instanceof TabsPushError ||
+    err instanceof UsageError;
 
   if (known) {
     console.error(`\n${c.red("✗")} ${(err as Error).message}`);
