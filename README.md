@@ -28,28 +28,32 @@ TabBrew Script, and drops it into the extension for you to run.
 ## Commands
 
 ```
-ACCOUNT
-  login              Sign in via OAuth device flow and store the token
-  logout             Delete the stored token
-  whoami             Verify the token works and print the user profile
+TABS  organize your Chrome tabs
+  tabs serve         Start the local bridge the extension exports your tabs to
+  tabs list          Show the tabs the extension last exported
+  tabs check <file>  Validate a TabBrew Script (--snapshot for a preview)
+  tabs push <file>   Send a script to the extension to preview & run
+  tabs prompt        Print the interactive TabBrew Script skill prompt
 
-DOCS
+DOCS  send HTML into the sidepanel
   docs push <file>   Send an HTML file to the TabBrew sidepanel Docs view
   docs list          List the HTML docs you've pushed (titles are click-to-open)
   docs open <id>     Open a pushed HTML doc in your browser
 
-TABS
-  tabs check <file>  Validate a generated TabBrew Script (add --snapshot for a preview)
-  tabs push <file>   Send a validated TabBrew Script to the extension to preview & run
-  tabs serve         Start the local bridge the extension exports your tabs to
-  tabs list          Show the tabs the extension last exported
-  tabs prompt        Print the interactive TabBrew Script skill prompt
+ACCOUNT
+  login              Sign in via OAuth device flow and store the token
+  whoami             Print the signed-in user (exit 1 if signed out)
+  logout             Delete the stored token
 
 SETUP
-  init               Install tabbrew-cli awareness + the tabbrew-tabs skill into an AI agent
+  init               Set up an AI agent to use tabbrew (+ the tabs skill)
   update             Update the installed binary to the latest release
-  help               Show usage (add --all for per-command flags + env overrides)
+  help               Show this help
 ```
+
+`tabbrew <cmd> --help` prints one command in depth — its options plus the caveat the
+one-liner has no room for. `tabbrew help --all` prints everything: hidden commands,
+every per-command flag, and the environment overrides.
 
 Every `tabs` command is offline except `push`/`serve`, which only ever talk to
 `127.0.0.1`. **None of them can change your tabs** — the browser does that, after you

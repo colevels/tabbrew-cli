@@ -23,8 +23,9 @@ bun run build                      # → dist/tabbrew (self-contained compiled b
 
 There is **no linter configured**, and the test suite is deliberately narrow: `bun test`
 (Bun's built-in runner, so still zero deps) covers only the pure functions where a wrong
-answer is invisible in review — currently `src/table.test.ts` for display-width
-measurement. Everything that touches the network, the filesystem, or a real terminal is
+answer is invisible in review — `src/table.test.ts` for display-width measurement, and
+`src/registry.test.ts` for the help layout (an over-long summary looks fine in the source
+and wraps in the terminal). Everything that touches the network, the filesystem, or a real terminal is
 still verified by hand. `typecheck` + `test` + `build` (in `.github/workflows/ci.yml`) is
 the whole *check* CI surface — releases are cut by the separate
 `.github/workflows/release.yml` (see **Releasing**). "Testing" a subcommand
@@ -213,12 +214,27 @@ summary, and the flags it accepts. Both `ui.ts`'s `printHelp` and `index.ts`'s
 leaking into another. `parseArgs` still needs one flat option table (Node's API), so the
 registry is the *second* gate: declare a new flag in `index.ts` **and** attach it to its
 command in `registry.ts`, or it will be rejected at runtime. Adding a command = a row here
-+ a `case` in `index.ts`; help follows automatically. Help is **two-tier**: the default
-prints grouped commands (`GROUPS`) + `GLOBAL_FLAGS` only, while `help --all` adds
-per-command flags and the two env tables (`COMMON_ENV` = what a normal user reaches for,
-`DEV_ENV` = endpoint/plumbing overrides) and reveals `hidden: true` rows (currently
-`tools repo-info`). Keep the env tables in sync with `config.ts` and with the
-**Configuration** table below — three places, no generator.
++ a `case` in `index.ts`; help follows automatically.
+
+Help is **three views** over that one table:
+- the **default** (`printHelp()`) — grouped commands (`GROUPS`, ordered by what the CLI is
+  *for*, so `tabs` leads) + non-`hidden` `GLOBAL_FLAGS` + the `GETTING_STARTED` block that
+  carries onboarding now that the groups aren't journey-ordered;
+- **per-command** (`printCommandHelp()`, reached by `tabbrew <cmd> --help` or
+  `tabbrew help <cmd>`) — that command's flags plus its optional `details` prose, the
+  caveat a one-line `summary` has no room for;
+- **`help --all`** (`printHelp(true)`) — adds per-command flags, the two env tables
+  (`COMMON_ENV` = what a normal user reaches for, `DEV_ENV` = endpoint/plumbing overrides),
+  `FILES`, and reveals `hidden: true` rows (currently `tools repo-info` and `--all` itself).
+
+`index.ts` resolves `--help` through `findCommand` *before* dispatching, which is what
+makes the per-command view reachable — don't move that check back above it.
+
+Every rendered row must fit **80 columns**; `SUMMARY_MAX` encodes the budget a command
+summary gets after the label column, and `src/registry.test.ts` renders all three views and
+fails on any line over 80. That's why the summaries are terse and the long form lives in
+`details`. Keep the env tables in sync with `config.ts` and with the **Configuration**
+table below — three places, no generator — and `FILES` with `credentials.ts`/`config.ts`.
 
 `ui.ts` centralizes colors (disabled when non-TTY or `NO_COLOR`), holds `link()` (OSC 8
 hyperlinks), renders help from the registry, and reads the version from `package.json`
@@ -245,7 +261,8 @@ src/
   update.ts           # self-update: release lookup, download+checksum, atomic binary swap
   util.ts             # sleep, which(), safeText, open-browser
   registry.ts         # command surface as data: groups, summaries, per-command flags, env tables
-  ui.ts               # colors, OSC 8 links, version, help (two-tier) rendered from registry.ts
+  registry.test.ts    # bun test — help fits 80 cols, groups intact, findCommand precedence
+  ui.ts               # colors, OSC 8 links, version, help (3 views) rendered from registry.ts
   table.ts            # display-width column padding shared by docs list / tabs list
   table.test.ts       # bun test — pins down width() (CJK, emoji, marks, escapes)
   agents.ts           # init: AgentTarget registry (Claude Code; extensible) + skills dir
