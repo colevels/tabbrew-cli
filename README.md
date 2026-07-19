@@ -223,8 +223,8 @@ round trip over `127.0.0.1`:
 3. Validate it locally before running:
 
    ```bash
-   tabbrew tabs check script.tbrew                       # parse only — syntax, unknown verbs, DEL count
-   tabbrew tabs check script.tbrew --snapshot snap.md    # + before/after preview from the pasted snapshot
+   tabbrew tabs check script.txt                       # parse only — syntax, unknown verbs, DEL count
+   tabbrew tabs check script.txt --snapshot snap.md    # + before/after preview from the pasted snapshot
    printf 'DEL 101 102\nGROUP 103 104 "Code"\n' | tabbrew tabs check -   # or pipe it (accepts a fenced block)
    ```
 
@@ -321,7 +321,7 @@ step as `tabs check`) and then queues it; the extension picks it up while its
 preview:
 
 ```bash
-tabbrew tabs push ./group-tabs.tbrew
+tabbrew tabs push ./group-tabs.txt
 ```
 
 **`tabs push` does not run anything.** It has no access to your browser — the

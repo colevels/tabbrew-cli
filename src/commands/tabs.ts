@@ -245,7 +245,7 @@ export async function readScriptInput(fileArg: string | undefined): Promise<stri
   }
   if (process.stdin.isTTY) {
     throw new TabsInputError(
-      `No script given. Pass a file (${BIN} tabs check script.tbrew) or pipe one (… | ${BIN} tabs check -).`,
+      `No script given. Pass a file (${BIN} tabs check script.txt) or pipe one (… | ${BIN} tabs check -).`,
     );
   }
   return await Bun.stdin.text();
