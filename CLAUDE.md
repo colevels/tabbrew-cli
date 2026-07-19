@@ -36,21 +36,27 @@ pointing `TABBREW_BASE_URL` at it (see README "Testing each subcommand"). Set
 
 `src/index.ts` is the command router: it parses `Bun.argv`, dispatches on the first
 positional, and wraps everything in a **single error boundary**. That boundary only
-prints a clean message (no stack trace) for the CLI's four typed error classes —
-`AuthError` (`auth.ts`), `ApiError` / `NotAuthenticatedError` / `TokenExpiredError`
-(`api.ts`). Throw one of these for any user-facing failure; anything else surfaces a
-generic message unless `TABBREW_DEBUG` is set. Because `parseArgs` runs in `strict`
-mode, **every accepted flag must be declared in `index.ts`** — even flags only used
-by one subcommand (all the `init` flags are declared there).
+prints a clean message (no stack trace) for the CLI's typed error classes — `AuthError`
+(`auth.ts`), `ApiError` / `NotAuthenticatedError` / `TokenExpiredError` (`api.ts`),
+`UpdateError` (`update.ts`), `TabsInputError` (`commands/tabs.ts`), `ServeError`
+(`commands/tabs-serve.ts`), `TabsPushError` (`commands/tabs-push.ts`), and `UsageError`
+(`registry.ts`). Throw one of these for any user-facing failure, and **register a new
+class in the boundary's `known` list** — anything unlisted surfaces a generic message
+unless `TABBREW_DEBUG` is set. Because `parseArgs` runs in `strict` mode, **every
+accepted flag must be declared in `index.ts`** — even flags only used by one subcommand
+(all the `init` flags are declared there).
 
 `src/config.ts` is the seam that makes the same binary target prod/staging/local:
 all configuration comes from `TABBREW_*` env vars with sensible defaults, resolved
 once into the exported `config` object. Endpoints derive from `TABBREW_BASE_URL`
-unless individually overridden. Nothing else reads `process.env` for configuration —
-route new config through here.
+unless individually overridden. Route new config through here — the only deliberate
+exceptions are the non-`TABBREW_*` presentation/agent knobs read at their point of use
+(`NO_COLOR` in `ui.ts`, `TABBREW_DEBUG` in `index.ts`, `CLAUDE_CONFIG_DIR` in
+`agents.ts`, which belongs to the agent target, not to TabBrew).
 
 The codebase is four loosely-coupled subsystems that share only `config`, `ui`, and `util`
-(the fourth, `tabs`, is offline — it touches neither `config` nor the network):
+(the fourth, `tabs`, never talks to the TabBrew server — its only `config` use is
+`config.serve`, the loopback port/output path):
 
 **1. Auth / API (the original purpose)**
 - `auth.ts` — device-flow protocol: request a device code, then `pollForToken`
@@ -84,6 +90,14 @@ prints the account's docs as a hand-padded table (`--json` for the raw array).
 OAuth login token (like `fetchUserInfo`). Its `HtmlFileRow` mirrors the server's `HtmlFileDTO`
 (`tabbrew-web/lib/html-files.ts`) and stays a tolerant reader — extra server
 fields are ignored, not fatal.
+
+`tabbrew docs open <id>` completes the loop: it reuses `htmlFilesList()` to find the row
+(no per-id endpoint), resolves it with the same `viewUrl()` the list uses — `file://` for
+`kind: "local"`, `htmlFileViewUrl()`'s `/api/v1/html_files/<id>/view` for cloud — and hands
+it to `openBrowser`. `docs list` makes the same URLs clickable in place by wrapping each
+title in an **OSC 8 hyperlink** (`link()` in `ui.ts`, applied via `padEndLink` in
+`table.ts`), so `docs open` is the fallback for terminals that don't support them. The
+escape bytes are why `table.ts` measures width on escape-stripped text — see below.
 
 > **Cross-repo:** the server routes + wire contract for every `docs`/API-backed
 > command live in the `tabbrew` monorepo (`tabbrew-web`), which is their source of
@@ -199,12 +213,18 @@ summary, and the flags it accepts. Both `ui.ts`'s `printHelp` and `index.ts`'s
 leaking into another. `parseArgs` still needs one flat option table (Node's API), so the
 registry is the *second* gate: declare a new flag in `index.ts` **and** attach it to its
 command in `registry.ts`, or it will be rejected at runtime. Adding a command = a row here
-+ a `case` in `index.ts`; help follows automatically.
++ a `case` in `index.ts`; help follows automatically. Help is **two-tier**: the default
+prints grouped commands (`GROUPS`) + `GLOBAL_FLAGS` only, while `help --all` adds
+per-command flags and the two env tables (`COMMON_ENV` = what a normal user reaches for,
+`DEV_ENV` = endpoint/plumbing overrides) and reveals `hidden: true` rows (currently
+`tools repo-info`). Keep the env tables in sync with `config.ts` and with the
+**Configuration** table below — three places, no generator.
 
-`ui.ts` centralizes colors (disabled when non-TTY or `NO_COLOR`), renders help from the
-registry, and reads the version from `package.json` (bundled at compile time). `table.ts`
-holds the shared column formatting for `docs list`/`tabs list` — it measures **terminal
-display width** (CJK/emoji 2, combining marks 0), so never pad on `.length`.
+`ui.ts` centralizes colors (disabled when non-TTY or `NO_COLOR`), holds `link()` (OSC 8
+hyperlinks), renders help from the registry, and reads the version from `package.json`
+(bundled at compile time). `table.ts` holds the shared column formatting for `docs
+list`/`tabs list` — it measures **terminal display width** (CJK/emoji 2, combining marks 0,
+CSI/OSC escapes 0), so never pad on `.length`.
 `Bun.stringWidth` is the base, but its mark table is wrong in both directions, so `width()`
 walks grapheme clusters and corrects it: a combining mark (`Mn`/`Me`/`Cf`) is always 0
 (Bun gives Arabic harakat 1) and a spacing character is never 0 (Bun gives Thai/Lao `า`/`ำ`
@@ -224,9 +244,10 @@ src/
   api.ts              # authed fetch wrapper + 401 handling + userinfo + html_files client
   update.ts           # self-update: release lookup, download+checksum, atomic binary swap
   util.ts             # sleep, which(), safeText, open-browser
-  registry.ts         # command surface as data: groups, summaries, per-command flags
-  ui.ts               # colors, version, help rendered from registry.ts
+  registry.ts         # command surface as data: groups, summaries, per-command flags, env tables
+  ui.ts               # colors, OSC 8 links, version, help (two-tier) rendered from registry.ts
   table.ts            # display-width column padding shared by docs list / tabs list
+  table.test.ts       # bun test — pins down width() (CJK, emoji, marks, escapes)
   agents.ts           # init: AgentTarget registry (Claude Code; extensible) + skills dir
   awareness.ts        # init: bundled awareness doc + managed-block string ops
   fsops.ts            # init: atomic write, writeIfChanged, backup, safe read/remove
@@ -239,7 +260,8 @@ src/
     skills.ts           #   bundled interactive skill prompts (text imports)
     SKILL.{compact,standard,full}.md  # verbatim tabbrew-api portable variants (source of truth upstream)
   commands/
-    login.ts logout.ts whoami.ts tools.ts docs.ts init.ts update.ts
+    login.ts logout.ts whoami.ts tools.ts init.ts update.ts
+    docs.ts             # docs push / list / open
     tabs.ts             # tabs check / prompt / list  (offline)
     tabs-serve.ts       # tabs serve — the 127.0.0.1 bridge; owns resolveServePort()
     tabs-push.ts        # tabs push  — validate, then queue on the bridge
@@ -266,11 +288,14 @@ hosted TabBrew server at `https://www.tabbrew.com`:
 | `TABBREW_RELEASE_URL` | `github.com/$REPO/releases/latest` | Override the `update` latest-release redirect URL |
 | `TABBREW_DOWNLOAD_BASE_URL` | `github.com/$REPO/releases/latest/download` | Override the `update` release-asset download base |
 | `TABBREW_DOWNLOAD_TIMEOUT_MS` | `120000` | `update` binary-download timeout (separate from `TABBREW_TIMEOUT_MS`) |
+| `TABBREW_SERVE_PORT` | `49227` | Loopback port shared by `tabs serve` (listens) and `tabs push` (connects) |
+| `TABBREW_TABS_PATH` | `~/.config/tabbrew/tabs.json` | Where `tabs serve` saves the exported tabs (read by `tabs list`) |
 | `TABBREW_TOKEN` | *(unset)* | Use this token directly; **wins over the stored file** (for CI/CD) |
 | `TABBREW_NO_BROWSER` | *(unset)* | Set to skip auto-opening the browser during `login` |
 | `TABBREW_TIMEOUT_MS` | `15000` | Per-request timeout in milliseconds (device code / poll / whoami) |
 | `TABBREW_DEBUG` | *(unset)* | Print stack traces on unexpected errors |
 | `NO_COLOR` | *(unset)* | Disable ANSI colors |
+| `CLAUDE_CONFIG_DIR` | `~/.claude` | Agent-owned, not TabBrew's: the global dir `init --global` writes to (read in `agents.ts`) |
 
 The server is expected to implement RFC 8628:
 
