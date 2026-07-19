@@ -9,6 +9,7 @@
 //   - the op-summary and before/after preview renderers.
 
 import { c } from "../ui";
+import { truncate } from "../table";
 import type {
   GroupSnapshot,
   Op,
@@ -186,8 +187,9 @@ export const renderSummary = (stats: OpStats): string => {
 
 const fmtTab = (t: TabSnapshot): string => {
   const title = stripCountPrefix(t.title).trim() || compactUrl(t.url) || "(untitled)";
-  const short = title.length > 34 ? title.slice(0, 33) + "…" : title;
-  return `#${t.id} ${short}`;
+  // truncate(), not slice() — a code-unit cut splits an emoji's surrogate pair
+  // into mojibake and orphans a Thai vowel from its consonant.
+  return `#${t.id} ${truncate(title, 34)}`;
 };
 
 const joinCapped = (items: string[], cap = 6): string =>

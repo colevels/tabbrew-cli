@@ -2,19 +2,56 @@
 // `tabs list`). No table dependency — the repo has zero runtime deps.
 //
 // Everything measures **terminal display width**, not string length: CJK and
-// emoji occupy two columns, Thai vowels and combining marks occupy zero, and
-// ANSI escapes occupy none. Padding on `.length` would visibly skew a column the
-// moment a non-Latin title showed up. Bun ships `stringWidth` natively, so this
-// costs nothing.
+// emoji occupy two columns, combining marks occupy zero, and ANSI escapes occupy
+// none. Padding on `.length` would visibly skew a column the moment a non-Latin
+// title showed up.
 //
 // Colors are applied to whole lines by the caller, never inside a padded cell —
 // otherwise the escape bytes land in the middle of a measured string.
 
 import { link } from "./ui";
 
+// `Bun.stringWidth` is the base measurement — it is right about the hard parts
+// (East-Asian wide, emoji, ZWJ sequences, flags, skin-tone modifiers) — but its
+// table is wrong for marks in both directions, so `width()` corrects it:
+//
+//   ่ ี  Thai/Lao nonspacing marks   Bun 0   terminal 0   ✓
+//   า ำ  Thai/Lao SARA AA / AM (Lo)  Bun 0   terminal 1   ✗ over-pads, row shifts right
+//   ि    Indic spacing matras (Mc)   Bun 0   terminal 1   ✗ over-pads
+//   ـَ    Arabic/Hebrew harakat (Mn)  Bun 1   terminal 0   ✗ under-pads, row shifts left
+//
+// Two rules fix all of it: a combining mark is always 0, and a spacing character
+// is never 0. Bun still supplies the 2 for everything wide.
+
+/** CSI (colors) + OSC (hyperlinks) — the only escapes this CLI emits. */
+const ANSI = /\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
+const ASCII = /^[\x20-\x7e]*$/;
+/** Nonspacing/enclosing marks, format chars and controls occupy no columns. */
+const ZERO = /^[\p{Mn}\p{Me}\p{Cf}\p{Cc}]$/u;
+/** A cluster that may be emoji: hand the whole cluster to Bun, which gets it right. */
+const PICTO = /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u;
+
+let segmenter: Intl.Segmenter | undefined;
+
 /** Display width in terminal columns (CJK/emoji 2, combining marks 0, ANSI 0). */
 export function width(s: string): number {
-  return Bun.stringWidth(s);
+  if (ASCII.test(s)) return s.length; // fast path — nearly every cell
+  const plain = s.includes("\x1b") ? s.replace(ANSI, "") : s;
+  segmenter ??= new Intl.Segmenter();
+  let w = 0;
+  for (const { segment } of segmenter.segment(plain)) w += clusterWidth(segment);
+  return w;
+}
+
+/** Width of one grapheme cluster. */
+function clusterWidth(cluster: string): number {
+  if (PICTO.test(cluster)) return Bun.stringWidth(cluster); // 👩‍💻 / 🇹🇭 / 👍🏽 → 2
+  let w = 0;
+  for (const ch of cluster) {
+    if (ZERO.test(ch)) continue; // combining mark → 0
+    w += Math.max(1, Bun.stringWidth(ch)); // Bun for wide (2); floor spacing at 1
+  }
+  return w;
 }
 
 /** Width of a column: the header, or the widest cell under it. */
@@ -49,7 +86,8 @@ export function truncate(s: string, max: number): string {
   if (width(s) <= max) return s;
   let out = "";
   let w = 0;
-  for (const { segment } of new Intl.Segmenter().segment(s)) {
+  segmenter ??= new Intl.Segmenter();
+  for (const { segment } of segmenter.segment(s)) {
     const sw = width(segment);
     if (w + sw > max - 1) break; // leave room for the "…"
     out += segment;

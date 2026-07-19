@@ -16,13 +16,18 @@ Bun's shell (`Bun.$` / `Bun.which`).
 bun install                        # requires Bun ≥ 1.1
 bun run src/index.ts <cmd>         # run in dev, e.g. `... whoami`
 bun start -- <cmd>                 # same, via the start script
-bun run typecheck                  # tsc --noEmit — the only automated check
+bun run typecheck                  # tsc --noEmit
+bun run test                       # bun test — pure-logic unit tests (src/*.test.ts)
 bun run build                      # → dist/tabbrew (self-contained compiled binary)
 ```
 
-There is **no test runner and no linter configured**; `typecheck` + `build` (in
-`.github/workflows/ci.yml`) is the whole *check* CI surface — releases are cut by the
-separate `.github/workflows/release.yml` (see **Releasing**). "Testing" a subcommand
+There is **no linter configured**, and the test suite is deliberately narrow: `bun test`
+(Bun's built-in runner, so still zero deps) covers only the pure functions where a wrong
+answer is invisible in review — currently `src/table.test.ts` for display-width
+measurement. Everything that touches the network, the filesystem, or a real terminal is
+still verified by hand. `typecheck` + `test` + `build` (in `.github/workflows/ci.yml`) is
+the whole *check* CI surface — releases are cut by the separate
+`.github/workflows/release.yml` (see **Releasing**). "Testing" a subcommand
 means running it against a real/staging server by
 pointing `TABBREW_BASE_URL` at it (see README "Testing each subcommand"). Set
 `TABBREW_TOKEN` to exercise authed commands without an interactive `login`.
@@ -199,8 +204,13 @@ command in `registry.ts`, or it will be rejected at runtime. Adding a command = 
 `ui.ts` centralizes colors (disabled when non-TTY or `NO_COLOR`), renders help from the
 registry, and reads the version from `package.json` (bundled at compile time). `table.ts`
 holds the shared column formatting for `docs list`/`tabs list` — it measures **terminal
-display width** via `Bun.stringWidth` (CJK/emoji 2, Thai/combining marks 0), so never pad
-on `.length`. The repo/package name is `tabbrew-cli`; the user-facing binary/command is
+display width** (CJK/emoji 2, combining marks 0), so never pad on `.length`.
+`Bun.stringWidth` is the base, but its mark table is wrong in both directions, so `width()`
+walks grapheme clusters and corrects it: a combining mark (`Mn`/`Me`/`Cf`) is always 0
+(Bun gives Arabic harakat 1) and a spacing character is never 0 (Bun gives Thai/Lao `า`/`ำ`
+and the Indic matras 0 — that bug shifted a Thai tab title's whole row two columns right).
+Emoji clusters are still delegated to Bun, which gets ZWJ/flag/skin-tone sequences right;
+`src/table.test.ts` pins all of it down. The repo/package name is `tabbrew-cli`; the user-facing binary/command is
 `tabbrew` (`BIN` in `ui.ts`).
 
 ## Project layout
