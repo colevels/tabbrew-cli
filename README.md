@@ -343,14 +343,28 @@ expect the extension side not to follow.
 
 A departure from every other command, which is OAuth-gated: `tabs serve` binds
 **`127.0.0.1` only** (hardcoded, not configurable) and requires **no token** — the
-loopback-only bind is the entire security boundary. Anything already running as
-you on this machine can reach it.
+loopback-only bind is the entire boundary against the network. Anything already
+running as you on this machine can reach it.
 
-It also rejects any request whose `Origin` header is present and isn't
-`chrome-extension://…`. That's cheap defense-in-depth against a stray webpage's
-JS hitting the port — it blocks a drive-by `POST /tabs` from writing to your
-disk, since browsers always attach `Origin` to non-GET requests. It's a no-op for
-plain `curl`/scripts, which send no `Origin` at all.
+Two header checks keep a *browser* from being used as the way in:
+
+- **`Host` must be `127.0.0.1:<port>` or `localhost:<port>`.** This is what stops
+  [DNS rebinding](https://en.wikipedia.org/wiki/DNS_rebinding): a page on
+  `http://evil.com` whose DNS is flipped to `127.0.0.1` reaches this server while
+  keeping its own origin, making its requests *same-origin* — and browsers omit
+  `Origin` on same-origin GETs, so the check below alone would let it read a
+  queued script. The browser sets `Host` from the URL the page asked for, and
+  page JS can't forge it (it's a forbidden header name).
+- **`Origin`, when present, must be `chrome-extension://…`.** Browsers always
+  attach `Origin` to non-GET requests, so this is what blocks a drive-by
+  `POST /tabs` from writing to your disk.
+
+Neither affects `curl` or scripts run by you, which address `127.0.0.1` directly
+and send no `Origin`.
+
+The saved `tabs.json` is written **`chmod 600`**, like `credentials.json` — it
+holds the URL and title of every open tab, which is browsing history and doesn't
+become un-leaked the way a revoked token does.
 
 A queued script is claimed by exactly one poll, so if the extension isn't
 connected yet it simply waits; pushing again replaces whatever is still pending.

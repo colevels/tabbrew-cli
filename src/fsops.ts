@@ -48,15 +48,26 @@ async function resolveWriteTarget(path: string): Promise<string> {
  * Atomic write: temp file in the target's own directory, then rename over it.
  * Same-directory rename is atomic on POSIX; a failed write leaves no temp litter.
  * The parent directory must already exist.
+ *
+ * `mode` (e.g. 0o600) applies to the temp file at creation, so the content is
+ * never briefly readable at the default 0644 — and because `rename` makes that
+ * temp inode *become* the target, the mode survives even when the target already
+ * existed with looser permissions. No follow-up `chmod` is needed here, unlike
+ * the non-atomic write in credentials.ts. Omit it for files that should follow
+ * the umask, like the docs `init` writes.
  */
-export async function atomicWrite(path: string, content: string): Promise<void> {
+export async function atomicWrite(
+  path: string,
+  content: string,
+  mode?: number,
+): Promise<void> {
   const target = await resolveWriteTarget(path);
   const tmp = join(
     dirname(target),
     `.${basename(target)}.tmp-${process.pid}-${randomUUID()}`,
   );
   try {
-    await writeFile(tmp, content);
+    await writeFile(tmp, content, mode === undefined ? undefined : { mode });
     await rename(tmp, target);
   } catch (err) {
     await unlink(tmp).catch(() => {});
