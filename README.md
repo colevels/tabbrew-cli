@@ -16,34 +16,44 @@ This CLI does a few things:
 
 - **Sign in** to your TabBrew account from the terminal — `login` / `whoami` / `logout`
 - **Push HTML docs** (a plan, a report, a viewer) into the sidepanel Docs view — `docs push`
-- **Check tab scripts** — validate (and preview) a generated TabBrew Script before you run it — `tabs check`
-- **Serve tabs locally** — run a local server the extension POSTs your open tabs to, saved as JSON — `serve`
-- **Run tab scripts from the terminal** — queue a validated TabBrew Script for the extension to preview & run — `run`
+- **Work with your tabs** — export them from the extension, validate a generated TabBrew
+  Script, and send it back for you to run — `tabs serve` / `tabs list` / `tabs check` / `tabs push`
 - **Teach your AI agent** that TabBrew exists and how to generate tab scripts — `init` (installs the
   awareness doc *and* the `tabbrew-tabs` skill)
 
 The payoff: an AI agent working in your repo generates a report as HTML and pushes it
-straight into your browser's Docs view — or turns your pasted tabs into a validated
-TabBrew Script you run from the extension.
+straight into your browser's Docs view — or takes your open tabs, writes a validated
+TabBrew Script, and drops it into the extension for you to run.
 
 ## Commands
 
 ```
-login              Sign in via OAuth device flow and store the token
-logout             Delete the stored token
-whoami             Verify the token works and print the user profile
-tools repo-info    Demo: shell out to `git` (only if installed) to report repo stats
-docs push <file>   Send an HTML file to the TabBrew sidepanel Docs view
-docs list          List the HTML docs you've pushed (titles are click-to-open)
-docs open <id>     Open a pushed HTML doc in your browser
-tabs check <file>  Validate a generated TabBrew Script (add --snapshot for a preview)
-tabs prompt        Print the interactive TabBrew Script skill prompt
-serve              Start a local server for the extension to export tabs as JSON
-run <file>         Queue a validated TabBrew Script for the extension to preview & run
-init               Install tabbrew-cli awareness + the tabbrew-tabs skill into an AI agent (Claude Code)
-update             Update the installed binary to the latest release
-help               Show usage (add --all for per-command flags + env overrides)
+ACCOUNT
+  login              Sign in via OAuth device flow and store the token
+  logout             Delete the stored token
+  whoami             Verify the token works and print the user profile
+
+DOCS
+  docs push <file>   Send an HTML file to the TabBrew sidepanel Docs view
+  docs list          List the HTML docs you've pushed (titles are click-to-open)
+  docs open <id>     Open a pushed HTML doc in your browser
+
+TABS
+  tabs check <file>  Validate a generated TabBrew Script (add --snapshot for a preview)
+  tabs push <file>   Send a validated TabBrew Script to the extension to preview & run
+  tabs serve         Start the local bridge the extension exports your tabs to
+  tabs list          Show the tabs the extension last exported
+  tabs prompt        Print the interactive TabBrew Script skill prompt
+
+SETUP
+  init               Install tabbrew-cli awareness + the tabbrew-tabs skill into an AI agent
+  update             Update the installed binary to the latest release
+  help               Show usage (add --all for per-command flags + env overrides)
 ```
+
+Every `tabs` command is offline except `push`/`serve`, which only ever talk to
+`127.0.0.1`. **None of them can change your tabs** — the browser does that, after you
+click **Run**.
 
 ## Install
 
@@ -192,7 +202,7 @@ decline unless `--yes` is passed, so it's safe in CI. The `AgentTarget` registry
 `init` also installs the **`tabbrew-tabs` skill** (the interactive prompt that teaches
 the agent to generate TabBrew Scripts) into the agent's skills dir —
 `./.claude/skills/tabbrew-tabs/SKILL.md` locally, `~/.claude/skills/…` with `--global`.
-Pick a smaller prompt with `--skill standard|compact` (default `full`), or skip it with
+Pick a smaller prompt with `--variant standard|compact` (default `full`), or skip it with
 `--no-skill`. `--uninstall` removes it too. (You can also install the skill standalone
 with `npx skills add colevels/tabbrew-skill`, the plugin form — the two are complementary.)
 
@@ -203,7 +213,9 @@ no server round-trip. This CLI is the local toolbox around that: it teaches the 
 DSL (`init` / `tabs prompt`) and validates what it produced (`tabs check`). It never reads
 or changes your tabs — the browser does that.
 
-The end-to-end loop (no server, no automation of your browser):
+The copy-paste loop (no bridge, no automation of your browser). If you'd rather not
+copy-paste, [the local bridge](#the-local-bridge-tabs-serve--tabs-push) does the same
+round trip over `127.0.0.1`:
 
 1. In the extension, click **Copy AI Prompt** and paste the result into your agent (it
    contains your live tabs as `# Windows` / `# Groups` / `# Tabs` sections).
@@ -283,48 +295,65 @@ Like `docs push`, the list route authenticates with the **OAuth login token** �
 the same one `whoami` uses. Every `/api/v1/html_files/*` route the CLI calls now
 accepts the bearer.
 
-## Exporting tabs from the extension (`serve`)
+## The local bridge (`tabs serve` / `tabs push`)
 
-`tabbrew serve` starts a local HTTP server the TabBrew Chrome extension can POST
-your open tabs to — saved as JSON on disk for use in terminal scripts:
-
-```bash
-tabbrew serve                        # listens on http://127.0.0.1:49227
-tabbrew serve --port 5555            # use a different port
-tabbrew serve --out ./tabs.json      # save somewhere other than the default
-```
-
-The saved file defaults to `~/.config/tabbrew/tabs.json` and looks like:
-
-```json
-{ "savedAt": "2026-07-19T12:00:00.000Z", "count": 2, "tabs": [ /* ... */ ] }
-```
-
-**Security model.** This is a departure from every other command, which is
-OAuth-gated: `serve` binds **`127.0.0.1` only** (hardcoded, not configurable) and
-requires **no token** — the loopback-only bind is the entire security boundary. It
-also rejects any request whose `Origin` header is present and isn't
-`chrome-extension://…`, as cheap defense-in-depth against a stray webpage's JS
-hitting the port; that check is a no-op for plain `curl`/scripts, which send no
-`Origin` header at all.
-
-## Running scripts from the CLI (`run`)
-
-`tabbrew run <file>` validates a TabBrew Script (the same parse step as `tabs
-check`) and queues it on the already-running `tabbrew serve` server. The
-extension polls for it while its **Developer mode → TabBrew Script** panel is
-open, populates the script into the panel for you to preview, and only runs it
-once you click **Run** yourself — `run` never executes anything itself, it just
-hands the script to the browser to look at:
+The bridge replaces the copy-paste round trip with a loopback one. `tabbrew tabs
+serve` starts a small HTTP server on `127.0.0.1` that does two things: the
+extension **POSTs your open tabs to it** (saved as JSON on disk), and it **hands
+back a script** you send with `tabbrew tabs push`.
 
 ```bash
-tabbrew serve                  # in one terminal — must already be running
-tabbrew run ./group-tabs.tbrew # in another — queues the script
+tabbrew tabs serve                   # listens on 127.0.0.1:49227 — leave it running
+tabbrew tabs serve --out ./tabs.json # save somewhere other than the default
 ```
 
-Requires `tabbrew serve` to be running first (same port, same `127.0.0.1`-only,
-no-token security model described above); a script is claimed by exactly one
-poll, so if the extension isn't open to that panel yet, it just waits.
+Then, in Chrome, click **Send to Claude Code** in the sidepanel (or **Send to CLI**
+in Developer mode → Tab List). Your tabs land on disk:
+
+```bash
+tabbrew tabs list          # human-readable, with how stale the export is
+tabbrew tabs list --json   # { "savedAt": "…", "count": 2, "tabs": [ /* … */ ] }
+```
+
+Hand a script back the same way. `tabs push` validates it first (the same parse
+step as `tabs check`) and then queues it; the extension picks it up while its
+**Developer mode → TabBrew Script** panel is connected, and shows it to you as a
+preview:
+
+```bash
+tabbrew tabs push ./group-tabs.tbrew
+```
+
+**`tabs push` does not run anything.** It has no access to your browser — the
+script sits in the panel until *you* click **Run**. That's the whole reason this
+command isn't called `run`.
+
+### Ports
+
+Both commands default to **49227** and take a matching `--port` (or
+`TABBREW_SERVE_PORT`) — if they disagree, `tabs push` reports that nothing is
+listening rather than quietly sending your script somewhere else.
+
+⚠️ **The extension only ever talks to 49227.** The port is baked into its
+`optional_host_permissions`, so a non-default port works for your own scripts but
+reads as "bridge isn't running" in the UI. Change it only if 49227 is taken, and
+expect the extension side not to follow.
+
+### Security model
+
+A departure from every other command, which is OAuth-gated: `tabs serve` binds
+**`127.0.0.1` only** (hardcoded, not configurable) and requires **no token** — the
+loopback-only bind is the entire security boundary. Anything already running as
+you on this machine can reach it.
+
+It also rejects any request whose `Origin` header is present and isn't
+`chrome-extension://…`. That's cheap defense-in-depth against a stray webpage's
+JS hitting the port — it blocks a drive-by `POST /tabs` from writing to your
+disk, since browsers always attach `Origin` to non-GET requests. It's a no-op for
+plain `curl`/scripts, which send no `Origin` at all.
+
+A queued script is claimed by exactly one poll, so if the extension isn't
+connected yet it simply waits; pushing again replaces whatever is still pending.
 
 ## Credentials
 

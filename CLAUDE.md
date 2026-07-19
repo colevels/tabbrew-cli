@@ -93,8 +93,10 @@ It writes a slim `TABBREW-CLI.md` doc plus a version-tagged managed block in
 `CLAUDE.md` that `@import`s it, **and** installs the `tabbrew-tabs` skill (the interactive
 NL→TabBrew-Script prompt) into the agent's skills dir — `resolveSkillsDir` on the
 `AgentTarget` (`.claude/skills/tabbrew-tabs/` locally, `<config>/skills/…` global). The
-skill content is bundled from `tabbrew-script/skills.ts`; `--skill <variant>` picks
+skill content is bundled from `tabbrew-script/skills.ts`; `--variant` picks
 compact/standard/full (default full) and `--no-skill` skips it (`--uninstall` removes it).
+`--variant` is deliberately the same flag name `tabs prompt` uses — it selects from the
+same three prompts, and `--no-skill` is the separate install-or-not switch.
 Design constraints worth preserving:
 - `awareness.ts` is **filesystem-free** — the awareness doc and all block-manipulation
   are pure string constants/functions so they survive `bun build --compile` (no
@@ -136,15 +138,29 @@ is the thin presentation layer. Design constraints worth preserving:
   the full form has **no confirmation prompt** (the command *is* the intent) and is a
   no-op when already current. Throw `UpdateError` for any user-facing failure.
 
-**4. `tabs` — local DSL toolbox (offline; no server, no Chrome)**
-`tabbrew tabs` turns the CLI into the validator/teacher for the "agent generates a TabBrew
-Script" workflow. It makes **no network calls** and never touches `chrome.*` — execution
-and live snapshots stay in the extension.
+**4. `tabs` — DSL toolbox + the local bridge**
+`tabbrew tabs` is the validator/teacher for the "agent generates a TabBrew Script"
+workflow, plus the loopback bridge to the extension. It never touches `chrome.*` —
+execution and live snapshots stay in the extension, and **no `tabs` command can change a
+user's tabs**. `check`/`prompt`/`list` are fully offline; `serve`/`push` only ever talk to
+`127.0.0.1`.
 - `commands/tabs.ts` — `tabsCheck` parses a generated script (`parseTabbrewScript`), prints
   line-numbered errors (**exit 1** on any), and — when `--snapshot` is given — runs
   `simulateBatch` for a before/after preview. `tabsPrompt` prints the interactive skill
-  prompt. Script input is a file arg or stdin (`-`, accepts a whole ` ```tabbrew ` block);
-  `TabsInputError` (registered in the `index.ts` boundary) carries file/snapshot problems.
+  prompt. `tabsList` renders the file `tabs serve` wrote. Script input is a file arg or
+  stdin (`-`, accepts a whole ` ```tabbrew ` block); `TabsInputError` (registered in the
+  `index.ts` boundary) carries file/snapshot problems.
+- `commands/tabs-serve.ts` — the bridge. `resolveServePort()` lives here and is the **one**
+  place a port is decided; `tabs-push.ts` calls it too, so the listener and the client can't
+  disagree (they used to: `push` ignored `--port` and silently queued onto the default).
+- `commands/tabs-push.ts` — validates, then POSTs to the bridge. Deliberately **not** named
+  `run`: it cannot execute anything, and the old name had users believing their tabs had
+  already changed. Rejects a zero-op script locally rather than letting the server's
+  empty-body guard answer with a misleading `invalid_payload`.
+- `tabs list` is a **tolerant reader** — two extension surfaces POST different shapes (raw
+  `chrome.Tab` from the developer-mode panel, leaner `TabSnapshot` from the side panel), so
+  it reads only the fields common to both and ignores the rest. Note `chrome.Tab.groupId`
+  is `-1` for ungrouped while `TabSnapshot` omits the key.
 - `tabbrew-script/` — a **curated, Chrome-free vendor** of the DSL runtime. `parser.ts` +
   `simulate.ts` + `types.ts` are copied from `tabbrew-skill/runtime/src`; the snapshot
   *types* are pulled into `types.ts` so nothing imports the `chrome.*`-using `snapshot.ts`.
@@ -166,9 +182,20 @@ and live snapshots stay in the extension.
 > phase order (`DEL → UNPIN → UNGROUP → GROUP → PIN → MOVE`), and a new verb touches every
 > copy (see the monorepo `CLAUDE.md`'s "four-place change" note).
 
-`ui.ts` centralizes colors (disabled when non-TTY or `NO_COLOR`) and reads the version
-from `package.json` (bundled at compile time). The repo/package name is `tabbrew-cli`;
-the user-facing binary/command is `tabbrew` (`BIN` in `ui.ts`).
+`registry.ts` is **the command surface as data** — every command's name, help group,
+summary, and the flags it accepts. Both `ui.ts`'s `printHelp` and `index.ts`'s
+`assertFlagsAllowed` read it, which is what keeps help honest and stops one command's flag
+leaking into another. `parseArgs` still needs one flat option table (Node's API), so the
+registry is the *second* gate: declare a new flag in `index.ts` **and** attach it to its
+command in `registry.ts`, or it will be rejected at runtime. Adding a command = a row here
++ a `case` in `index.ts`; help follows automatically.
+
+`ui.ts` centralizes colors (disabled when non-TTY or `NO_COLOR`), renders help from the
+registry, and reads the version from `package.json` (bundled at compile time). `table.ts`
+holds the shared column formatting for `docs list`/`tabs list` — it measures **terminal
+display width** via `Bun.stringWidth` (CJK/emoji 2, Thai/combining marks 0), so never pad
+on `.length`. The repo/package name is `tabbrew-cli`; the user-facing binary/command is
+`tabbrew` (`BIN` in `ui.ts`).
 
 ## Project layout
 
@@ -181,7 +208,9 @@ src/
   api.ts              # authed fetch wrapper + 401 handling + userinfo + html_files client
   update.ts           # self-update: release lookup, download+checksum, atomic binary swap
   util.ts             # sleep, which(), safeText, open-browser
-  ui.ts               # colors, help text, version
+  registry.ts         # command surface as data: groups, summaries, per-command flags
+  ui.ts               # colors, version, help rendered from registry.ts
+  table.ts            # display-width column padding shared by docs list / tabs list
   agents.ts           # init: AgentTarget registry (Claude Code; extensible) + skills dir
   awareness.ts        # init: bundled awareness doc + managed-block string ops
   fsops.ts            # init: atomic write, writeIfChanged, backup, safe read/remove
@@ -194,7 +223,10 @@ src/
     skills.ts           #   bundled interactive skill prompts (text imports)
     SKILL.{compact,standard,full}.md  # verbatim tabbrew-api portable variants (source of truth upstream)
   commands/
-    login.ts logout.ts whoami.ts tools.ts docs.ts tabs.ts init.ts update.ts
+    login.ts logout.ts whoami.ts tools.ts docs.ts init.ts update.ts
+    tabs.ts             # tabs check / prompt / list  (offline)
+    tabs-serve.ts       # tabs serve — the 127.0.0.1 bridge; owns resolveServePort()
+    tabs-push.ts        # tabs push  — validate, then queue on the bridge
 ```
 
 ## Configuration

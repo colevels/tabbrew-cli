@@ -53,9 +53,12 @@ export interface CliConfig {
   tokenEnvVar: string;
   /** Per-request timeout in milliseconds. */
   timeoutMs: number;
-  /** `tabbrew serve` — local HTTP server the Chrome extension POSTs tabs to. */
+  /** `tabbrew tabs serve` — local HTTP bridge the Chrome extension POSTs tabs to. */
   serve: {
-    /** Bind port. Host is always 127.0.0.1 (hardcoded in the command, not here). */
+    /**
+     * Bind port, shared by `tabs serve` (listens) and `tabs push` (connects).
+     * Host is always 127.0.0.1 (hardcoded in the command, not here).
+     */
     port: number;
     /** Where the posted tabs JSON is saved. */
     outPath: string;

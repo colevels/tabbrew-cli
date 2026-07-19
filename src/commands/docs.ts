@@ -8,7 +8,15 @@ import {
   type HtmlFileRow,
 } from "../api";
 import { config } from "../config";
-import { BIN, c, link } from "../ui";
+import { BIN, c } from "../ui";
+import {
+  colWidth,
+  formatBytes,
+  formatDate,
+  padEnd,
+  padEndLink,
+  truncate,
+} from "../table";
 import { openBrowser } from "../util";
 
 // The cloud endpoint caps uploads at 2 MB (the server also enforces this with a
@@ -251,65 +259,6 @@ export async function docsOpen(idArg: string | undefined): Promise<void> {
       c.dim("  (cloud doc — renders only in a browser signed in to tabbrew.com)"),
     );
   }
-}
-
-// Terminal display width: CJK/emoji count as 2, Thai/combining marks as 0, and
-// ANSI escapes as 0. Bun ships this natively, so no dependency is needed.
-function width(s: string): number {
-  return Bun.stringWidth(s);
-}
-
-function colWidth(
-  header: string,
-  rows: Array<Record<string, string>>,
-  key: string,
-): number {
-  return Math.max(width(header), ...rows.map((r) => width(r[key]!)));
-}
-
-function padEnd(s: string, w: number): string {
-  return s + " ".repeat(Math.max(0, w - width(s)));
-}
-
-/**
- * Like padEnd, but wraps the visible text in an OSC 8 hyperlink when `url` is
- * given. The pad is computed from the plain text's display width, then appended
- * *outside* the link, so the (zero-width) escape bytes never break alignment.
- */
-function padEndLink(s: string, w: number, url?: string): string {
-  const pad = " ".repeat(Math.max(0, w - width(s)));
-  return (url ? link(url, s) : s) + pad;
-}
-
-/**
- * Truncate to a display width of `max` columns (not code units), appending "…".
- * Walks grapheme clusters (Intl.Segmenter) so a wide char, emoji, or Thai vowel
- * is never cut in half — and reserves one column for the ellipsis.
- */
-function truncate(s: string, max: number): string {
-  if (width(s) <= max) return s;
-  let out = "";
-  let w = 0;
-  for (const { segment } of new Intl.Segmenter().segment(s)) {
-    const sw = width(segment);
-    if (w + sw > max - 1) break; // leave room for the "…"
-    out += segment;
-    w += sw;
-  }
-  return out + "…";
-}
-
-function formatBytes(n: number): string {
-  if (!n || n <= 0) return "—";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function formatDate(iso: string): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toISOString().slice(0, 10);
 }
 
 /** Best-effort: pull a title from the document's <title> tag; null if unavailable. */
