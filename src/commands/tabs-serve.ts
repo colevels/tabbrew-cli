@@ -78,7 +78,13 @@ interface PendingSuggestion {
   queuedAt: string;
 }
 
-type DecisionKind = "accepted" | "denied" | "stale";
+/**
+ * `failed` is not a user decision — it's "the user said yes and Chrome refused".
+ * It exists because the alternative was reporting `accepted` for a batch that
+ * errored, which tells a watching agent its plan worked when the tabs never
+ * moved, and it will happily build the next suggestion on that fiction.
+ */
+type DecisionKind = "accepted" | "denied" | "stale" | "failed";
 
 interface Verdict {
   id: string;
@@ -89,7 +95,7 @@ interface Verdict {
 }
 
 const isDecision = (v: unknown): v is DecisionKind =>
-  v === "accepted" || v === "denied" || v === "stale";
+  v === "accepted" || v === "denied" || v === "stale" || v === "failed";
 
 /**
  * `tabbrew tabs serve` — a local HTTP server the TabBrew Chrome extension talks
@@ -313,7 +319,7 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
       return json(
         {
           error: "invalid_payload",
-          detail: "expected { decision: 'accepted'|'denied'|'stale' }",
+          detail: "expected { decision: 'accepted'|'denied'|'stale'|'failed' }",
         },
         400,
       );
@@ -425,7 +431,18 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
 
   let server: ReturnType<typeof Bun.serve>;
   try {
-    server = Bun.serve({ hostname: "127.0.0.1", port, fetch: handleRequest });
+    server = Bun.serve({
+      hostname: "127.0.0.1",
+      port,
+      // `Bun.serve` defaults to a 10-SECOND idle timeout and kills any request
+      // that quiet — which is every long-poll this server exists to hold open.
+      // The symptom is nasty and misleading: the socket dies mid-wait, the
+      // client's fetch rejects, and `tabs watch` reports "nothing is listening"
+      // about a server that is running fine. 0 disables it; the handlers cap
+      // their own wait at MAX_WAIT_MS, so nothing here can park forever.
+      idleTimeout: 0,
+      fetch: handleRequest,
+    });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     throw new ServeError(`Couldn't start the server on port ${port}: ${detail}`);
@@ -466,6 +483,22 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
   });
+}
+
+/**
+ * Is the bridge up? Used by the long-polling clients to tell "the server is
+ * gone" apart from "this one connection dropped" — two situations with opposite
+ * correct responses (report an error vs. quietly poll again).
+ */
+export async function pingBridge(port: number): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/health`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 /**

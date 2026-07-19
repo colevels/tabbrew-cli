@@ -3,7 +3,7 @@ import { readFileOrNull } from "../fsops";
 import { formatAge } from "../table";
 import { compactUrl, stripCountPrefix } from "../tabbrew-script/render";
 import type { TabDelta } from "../tabs-history";
-import { resolveServePort } from "./tabs-serve";
+import { pingBridge, resolveServePort } from "./tabs-serve";
 import { TabsPushError } from "./tabs-push";
 import { BIN, c } from "../ui";
 
@@ -51,22 +51,35 @@ export async function tabsWatch(opts: TabsWatchOptions): Promise<void> {
   );
   const waitMs = timeoutS * 1000;
 
-  const url = `http://127.0.0.1:${port}/tabs?since=${since}&wait=${waitMs}`;
+  const deadline = Date.now() + waitMs;
+  let res: Response | null = null;
 
-  let res: Response;
-  try {
-    // No AbortSignal.timeout here: the server holds the request open on
-    // purpose, and it already caps `wait` at its own ceiling. A client-side
-    // timer would just race that and report a false failure.
-    res = await fetch(url);
-  } catch {
-    throw new TabsPushError(
-      `Nothing is listening on 127.0.0.1:${port} — start the bridge with \`${BIN} tabs serve\` first` +
-        (opts.port === undefined ? "." : ", or pass a matching --port."),
-    );
+  // Retry loop, not a single fetch: a long-held connection can be dropped by
+  // something in the middle (a proxy, a laptop suspending) without the server
+  // having gone anywhere. Blaming "nothing is listening" in that case sends the
+  // user off to restart a bridge that is running fine, so confirm with /health
+  // before saying it — and otherwise just re-poll with the time that's left.
+  for (;;) {
+    const remaining = deadline - Date.now();
+    const url = `http://127.0.0.1:${port}/tabs?since=${since}&wait=${Math.max(remaining, 0)}`;
+    try {
+      // No AbortSignal.timeout here: the server holds the request open on
+      // purpose, and it already caps `wait` at its own ceiling. A client-side
+      // timer would just race that and report a false failure.
+      res = await fetch(url);
+      break;
+    } catch {
+      if (!(await pingBridge(port))) {
+        throw new TabsPushError(
+          `Nothing is listening on 127.0.0.1:${port} — start the bridge with \`${BIN} tabs serve\` first` +
+            (opts.port === undefined ? "." : ", or pass a matching --port."),
+        );
+      }
+      if (Date.now() >= deadline) break;
+    }
   }
 
-  if (res.status === 204) {
+  if (res === null || res.status === 204) {
     if (opts.json) {
       console.log(JSON.stringify({ ok: true, changed: false, since }, null, 2));
       return;

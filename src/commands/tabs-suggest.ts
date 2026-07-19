@@ -7,7 +7,7 @@ import {
   renderParseErrors,
   summarizeOps,
 } from "../tabbrew-script/render";
-import { resolveServePort } from "./tabs-serve";
+import { pingBridge, resolveServePort } from "./tabs-serve";
 import { TabsPushError } from "./tabs-push";
 import { BIN, c } from "../ui";
 
@@ -168,6 +168,13 @@ export async function tabsSuggest(
     );
     return;
   }
+  if (verdict.decision === "failed") {
+    // Accepted by the user, refused by the browser. Distinct from a denial:
+    // they wanted this, so fix the script rather than dropping the idea.
+    console.log(`${c.red("✗ Accepted, but it didn't run")}${verdict.reason ? ` — ${verdict.reason}` : "."}`);
+    console.log(c.dim("  The tabs are unchanged. Re-read them before trying again."));
+    return;
+  }
   console.log(`${c.red("✗ Denied")}${verdict.reason ? ` — ${verdict.reason}` : ""}`);
   console.log(c.dim("  Nothing changed. Don't re-send this one."));
 }
@@ -191,7 +198,11 @@ async function waitForDecision(
     try {
       res = await fetch(url);
     } catch {
-      return null;
+      // A dropped connection isn't an answer. Only give up if the bridge is
+      // actually gone — otherwise keep waiting with the time that's left, since
+      // the suggestion is still sitting on the user's screen.
+      if (!(await pingBridge(port))) return null;
+      continue;
     }
     if (res.status === 204) continue;
     if (!res.ok) return null;
