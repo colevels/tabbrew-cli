@@ -1,6 +1,9 @@
 // Central configuration. Everything is overridable via environment variables so
 // the same binary can point at prod, staging, or a local device-flow server.
 
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 const stripTrailingSlash = (u: string): string => u.replace(/\/+$/, "");
 
 const baseUrl = stripTrailingSlash(
@@ -50,6 +53,13 @@ export interface CliConfig {
   tokenEnvVar: string;
   /** Per-request timeout in milliseconds. */
   timeoutMs: number;
+  /** `tabbrew serve` — local HTTP server the Chrome extension POSTs tabs to. */
+  serve: {
+    /** Bind port. Host is always 127.0.0.1 (hardcoded in the command, not here). */
+    port: number;
+    /** Where the posted tabs JSON is saved. */
+    outPath: string;
+  };
 }
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
@@ -92,4 +102,10 @@ export const config: CliConfig = {
   },
   tokenEnvVar: "TABBREW_TOKEN",
   timeoutMs: parsePositiveInt(process.env.TABBREW_TIMEOUT_MS, 15000),
+  serve: {
+    port: parsePositiveInt(process.env.TABBREW_SERVE_PORT, 49227),
+    outPath:
+      process.env.TABBREW_TABS_PATH ??
+      join(homedir(), ".config", "tabbrew", "tabs.json"),
+  },
 };

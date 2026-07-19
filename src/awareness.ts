@@ -17,6 +17,9 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
 - The user asks for \`tabbrew tools\` output (e.g. repo-info).
 - The user wants to send an HTML file (plan, report, viewer) to TabBrew so it
   opens from the sidepanel Docs view ("send this to tabbrew", "ส่งเข้า tabbrew").
+- The user pastes their tabs (from the extension's **Copy AI Prompt** button) and
+  wants them organized/closed/grouped — generate a TabBrew Script and validate it
+  with \`tabbrew tabs check\` before they run it (see **Managing tabs** below).
 
 ## Commands
 - \`tabbrew login\`   — sign in via device flow (opens a browser; prints a code).
@@ -31,6 +34,25 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
   an array of \`{ id, title, filename, sizeBytes, kind: "gcs"|"local", localPath, createdAt,
   updatedAt }\` (ISO-8601 dates, raw byte counts; empty list is \`[]\`). The default table is
   for humans and is lossy — parse the JSON, not the table.
+- \`tabbrew tabs check <file|->\` — validate a TabBrew Script you generated
+  (line-numbered parse errors, exit 1 on any). Pass the script as a file or on stdin
+  (accepts a whole \`\`\`tabbrew fenced block). Add \`--snapshot <file>\` (the Copy-AI-Prompt
+  markdown, or a \`.json\` payload) for a simulated before/after preview; \`--json\` for
+  machine output. Runs locally — no server, no browser.
+- \`tabbrew tabs prompt [--variant full|standard|compact]\` — print the interactive
+  skill prompt (same one \`tabbrew init\` installs as a skill).
+
+## Managing tabs (generate a TabBrew Script)
+The DSL has six verbs, one per line: \`DEL\` \`PIN\` \`UNPIN\` \`GROUP\` \`UNGROUP\` \`MOVE\`.
+When the user pastes their tabs data (the extension's **Copy AI Prompt** output, which
+contains \`# Goal / # Cross-window / # Windows / # Groups / # Tabs\` sections):
+1. Follow the installed \`tabbrew-tabs\` skill to generate a script — clarify a vague
+   goal, list every \`DEL\` target and confirm before closing, emit one \`\`\`tabbrew block.
+2. Validate it: save the script and the pasted snapshot to files, then
+   \`tabbrew tabs check script.tbrew --snapshot snapshot.md\`. Fix any parse errors and
+   review the preview (especially closes and dropped stale ids).
+3. Tell the user to paste the script into the extension's developer mode and click **Run** —
+   execution happens in the browser, not here. The CLI never touches their tabs.
 
 ## Non-interactive / CI
 Set \`TABBREW_TOKEN\` to authenticate without a login prompt (it wins over the stored
