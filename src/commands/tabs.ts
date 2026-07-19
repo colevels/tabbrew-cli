@@ -1,6 +1,8 @@
 import { resolve } from "node:path";
 import { BIN, c } from "../ui";
 import { config } from "../config";
+import { removeFileIfExists } from "../fsops";
+import { readHistory } from "../tabs-history";
 import { colWidth, formatAge, padEnd, truncate } from "../table";
 import { parseTabbrewScript } from "../tabbrew-script/parser";
 import { simulateBatch, type SimResult } from "../tabbrew-script/simulate";
@@ -232,6 +234,86 @@ export async function tabsList(opts: TabsListOptions): Promise<void> {
     );
   }
 }
+
+// ── tabbrew tabs history ─────────────────────────────────────────────────────
+
+export interface TabsHistoryOptions {
+  limit?: number;
+  json?: boolean;
+  clear?: boolean;
+}
+
+/**
+ * Show (or wipe) the per-version change log `tabs serve` appends — the "what
+ * changed" counterpart to `tabs list`'s "what's open". An agent starting a
+ * watch loop reads this once to catch up on everything that happened before it
+ * was looking.
+ *
+ * Reads the file directly, like `tabs list`: no bridge needed, and `--clear`
+ * has to work even when nothing is running (it's the escape hatch for "delete
+ * the browsing history this thing kept about me").
+ */
+export async function tabsHistory(opts: TabsHistoryOptions): Promise<void> {
+  const path = config.serve.historyPath;
+
+  if (opts.clear) {
+    const removed = await removeFileIfExists(path);
+    console.log(
+      removed
+        ? `${c.green("✓ Cleared")} ${c.dim(path)}`
+        : c.dim(`Nothing to clear — ${path} doesn't exist.`),
+    );
+    return;
+  }
+
+  const all = await readHistory(path);
+
+  if (opts.json) {
+    console.log(JSON.stringify({ path, count: all.length, deltas: all }, null, 2));
+    return;
+  }
+
+  if (all.length === 0) {
+    console.log(
+      c.dim("No changes recorded yet.") +
+        ` Start the bridge with ${c.bold(`${BIN} tabs serve`)} and turn on ${c.bold("Auto mode")} in the TabBrew sidepanel.`,
+    );
+    return;
+  }
+
+  const limit = Math.max(1, opts.limit ?? 20);
+  const shown = all.slice(-limit);
+  const hidden = all.length - shown.length;
+
+  console.log(
+    `${c.bold(String(all.length))} recorded change${all.length === 1 ? "" : "s"} ${c.dim("·")} ${path}`,
+  );
+  if (hidden > 0) console.log(c.dim(`  showing the newest ${shown.length}`));
+  console.log("");
+
+  for (const d of shown) {
+    const counts = [
+      d.added.length > 0 ? c.green(`+${d.added.length + (d.more?.added ?? 0)}`) : c.dim("+0"),
+      d.removed.length > 0 ? c.red(`-${d.removed.length + (d.more?.removed ?? 0)}`) : c.dim("-0"),
+      c.dim(`~${d.changed.length + (d.more?.changed ?? 0)}`),
+    ].join(" ");
+    console.log(
+      `${c.bold(`v${d.v}`)}  ${c.dim(formatAge(d.at).padEnd(10))} ${counts}  ${c.dim(`${d.counts.tabs} tabs`)}`,
+    );
+    for (const t of d.added.slice(0, 4)) {
+      console.log(`      ${c.green("+")} ${truncate(deltaLabel(t.title, t.url), 68)}`);
+    }
+    for (const t of d.removed.slice(0, 4)) {
+      console.log(`      ${c.red("-")} ${truncate(deltaLabel(t.title, t.url), 68)}`);
+    }
+  }
+}
+
+const deltaLabel = (title: string, url: string): string => {
+  const t = stripCountPrefix(title).trim();
+  const u = compactUrl(url);
+  return t ? `${t}  ${u}` : u || "(untitled)";
+};
 
 // ── input helpers ─────────────────────────────────────────────────────────────
 

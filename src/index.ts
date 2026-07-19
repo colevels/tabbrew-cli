@@ -5,11 +5,19 @@ import { logout } from "./commands/logout";
 import { whoami } from "./commands/whoami";
 import { repoInfo } from "./commands/tools";
 import { docsPush, docsList, docsOpen } from "./commands/docs";
-import { tabsCheck, tabsList, tabsPrompt, TabsInputError } from "./commands/tabs";
+import {
+  tabsCheck,
+  tabsHistory,
+  tabsList,
+  tabsPrompt,
+  TabsInputError,
+} from "./commands/tabs";
 import { init } from "./commands/init";
 import { update } from "./commands/update";
 import { tabsServe, ServeError } from "./commands/tabs-serve";
 import { tabsPush, TabsPushError } from "./commands/tabs-push";
+import { tabsWatch } from "./commands/tabs-watch";
+import { tabsSuggest } from "./commands/tabs-suggest";
 import { AuthError } from "./auth";
 import { ApiError, NotAuthenticatedError, TokenExpiredError } from "./api";
 import { UpdateError } from "./update";
@@ -40,6 +48,15 @@ async function route(): Promise<void> {
       check: { type: "boolean" },
       port: { type: "string" },
       out: { type: "string" },
+      "no-history": { type: "boolean" },
+      since: { type: "string" },
+      timeout: { type: "string" },
+      "changes-only": { type: "boolean" },
+      note: { type: "string" },
+      wait: { type: "string" },
+      "no-wait": { type: "boolean" },
+      limit: { type: "string" },
+      clear: { type: "boolean" },
     },
     allowPositionals: true,
     strict: true,
@@ -118,15 +135,38 @@ async function route(): Promise<void> {
         return tabsPush(positionals[2], {
           port: values.port === undefined ? undefined : Number(values.port),
         });
+      if (sub === "suggest")
+        return tabsSuggest(positionals[2], {
+          port: values.port === undefined ? undefined : Number(values.port),
+          note: values.note,
+          wait: values.wait === undefined ? undefined : Number(values.wait),
+          noWait: values["no-wait"],
+          json: values.json,
+        });
+      if (sub === "watch")
+        return tabsWatch({
+          port: values.port === undefined ? undefined : Number(values.port),
+          since: values.since === undefined ? undefined : Number(values.since),
+          timeout: values.timeout === undefined ? undefined : Number(values.timeout),
+          changesOnly: values["changes-only"],
+          json: values.json,
+        });
       if (sub === "serve")
         return tabsServe({
           port: values.port === undefined ? undefined : Number(values.port),
           out: values.out,
+          noHistory: values["no-history"],
         });
       if (sub === "list") return tabsList({ json: values.json });
+      if (sub === "history")
+        return tabsHistory({
+          limit: values.limit === undefined ? undefined : Number(values.limit),
+          json: values.json,
+          clear: values.clear,
+        });
       if (sub === "prompt") return tabsPrompt({ variant: values.variant });
       console.error(
-        `Unknown tabs subcommand: ${sub ?? "(none)"}. Try: tabbrew tabs check <file> | tabs push <file> | tabs serve | tabs list | tabs prompt`,
+        `Unknown tabs subcommand: ${sub ?? "(none)"}. Try: tabbrew tabs watch | tabs suggest <file> | tabs check <file> | tabs push <file> | tabs serve | tabs list | tabs history | tabs prompt`,
       );
       process.exitCode = 1;
       return;
