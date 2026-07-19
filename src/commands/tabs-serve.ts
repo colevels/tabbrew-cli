@@ -70,7 +70,13 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
     }
 
     const payload = { savedAt: new Date().toISOString(), count: tabs.length, tabs };
-    await atomicWrite(outPath, JSON.stringify(payload, null, 2) + "\n");
+    // 0600, like credentials.json. This is the URL and title of every open tab —
+    // browsing state, which is arguably worse to leak than the token: a token is
+    // revocable, a history isn't, and full URLs carry more than hostnames
+    // (account paths, doc links, share links with tokens in the query string).
+    // The default umask would leave it 0644, and the config dir is not reliably
+    // 0700, so the file mode is the only thing actually protecting it.
+    await atomicWrite(outPath, JSON.stringify(payload, null, 2) + "\n", 0o600);
 
     return json({ ok: true, path: outPath, count: tabs.length });
   }
@@ -99,12 +105,29 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
     try {
       const url = new URL(req.url);
 
-      // --- BEGIN origin hardening (optional, delete this block to disable) ---
+      // --- BEGIN origin/host hardening (optional, delete this block to disable) ---
+      // Host pinning is what stops DNS rebinding. A page on http://evil.com
+      // whose DNS is flipped to 127.0.0.1 reaches this server while keeping its
+      // own origin, so its requests are *same-origin* — and the Fetch spec omits
+      // `Origin` on same-origin GET/HEAD, which would sail past the check below
+      // and let the page read the response (no CORS between same origins). The
+      // browser sets `Host` from the URL it asked for (`evil.com:<port>`) and
+      // page JS cannot forge it — `Host` is a forbidden header name. Real
+      // extension traffic is addressed to 127.0.0.1 and passes untouched.
+      const host = req.headers.get("host");
+      if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) {
+        return json({ error: "forbidden_host" }, 403);
+      }
+
+      // Origin still carries its own weight: browsers always attach it to
+      // non-GET/HEAD requests, so this is what blocks a drive-by `POST /tabs`
+      // from a random page writing to the user's disk. It's a no-op for
+      // curl/scripts, which send no Origin at all.
       const origin = req.headers.get("origin");
       if (origin && !origin.startsWith("chrome-extension://")) {
         return json({ error: "forbidden_origin" }, 403);
       }
-      // --- END origin hardening ---
+      // --- END origin/host hardening ---
 
       if (req.method === "POST" && url.pathname === "/tabs") {
         return await handlePostTabs(req);

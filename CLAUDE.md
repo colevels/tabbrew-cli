@@ -153,6 +153,12 @@ user's tabs**. `check`/`prompt`/`list` are fully offline; `serve`/`push` only ev
 - `commands/tabs-serve.ts` — the bridge. `resolveServePort()` lives here and is the **one**
   place a port is decided; `tabs-push.ts` calls it too, so the listener and the client can't
   disagree (they used to: `push` ignored `--port` and silently queued onto the default).
+  Security model: loopback-only bind, **no token**, plus two header gates — `Host` must be
+  `127.0.0.1|localhost:<port>` (this is the anti-DNS-rebinding one: a rebound page's GETs are
+  *same-origin*, so they carry no `Origin` and the check below can't see them), and `Origin`,
+  when present, must be `chrome-extension://` (blocks a drive-by `POST /tabs`). Keep both —
+  they cover different halves. `tabs.json` is written `0o600` via `atomicWrite`'s `mode` arg:
+  it's browsing history, the config dir is not reliably `0700`, and umask alone gives `0644`.
 - `commands/tabs-push.ts` — validates, then POSTs to the bridge. Deliberately **not** named
   `run`: it cannot execute anything, and the old name had users believing their tabs had
   already changed. Rejects a zero-op script locally rather than letting the server's
