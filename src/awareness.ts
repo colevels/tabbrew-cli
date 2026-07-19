@@ -66,9 +66,9 @@ Then:
 1. Follow the installed \`tabbrew-tabs\` skill to generate a script — clarify a vague
    goal, list every \`DEL\` target and confirm before closing, emit one \`\`\`tabbrew block.
 2. Validate it: save the script and the pasted snapshot to files, then
-   \`tabbrew tabs check script.tbrew --snapshot snapshot.md\`. Fix any parse errors and
+   \`tabbrew tabs check script.txt --snapshot snapshot.md\`. Fix any parse errors and
    review the preview (especially closes and dropped stale ids).
-3. Get it in front of the user — \`tabbrew tabs push script.tbrew\` if the bridge is
+3. Get it in front of the user — \`tabbrew tabs push script.txt\` if the bridge is
    running, otherwise tell them to paste the script into the extension's developer mode.
 4. Either way **they** click **Run**. Execution happens in the browser, never here —
    nothing the CLI does can change their tabs, so never report tabs as closed/grouped.
