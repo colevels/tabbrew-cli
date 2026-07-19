@@ -1,7 +1,7 @@
 import { mkdir, rmdir } from "node:fs/promises";
 import { join } from "node:path";
 import { c } from "../ui";
-import { resolveAgent, type AgentTarget, type Scope } from "../agents";
+import { resolveAgent, SKILL_AUTO, type AgentTarget, type Scope } from "../agents";
 import {
   TABBREW_CLI_MD,
   buildManagedBlock,
@@ -10,6 +10,7 @@ import {
   upsertManagedBlock,
 } from "../awareness";
 import {
+  AUTO_SKILL,
   DEFAULT_SKILL_VARIANT,
   isSkillVariant,
   SKILL_VARIANTS,
@@ -36,8 +37,16 @@ export interface InitOptions {
    * `--skill`/`--no-skill` is the install-or-not switch, `--variant` is which.
    */
   variant?: string;
-  /** Skip installing the tabbrew-tabs skill. */
+  /** Skip installing the skills (both of them). */
   noSkill?: boolean;
+}
+
+/** One skill to write: where it goes and what goes in it. */
+interface SkillPlan {
+  name: string;
+  dir: string;
+  path: string;
+  content: string;
 }
 
 interface Paths {
@@ -46,23 +55,31 @@ interface Paths {
   dir: string;
   awarenessPath: string;
   instructionsPath: string;
-  skillDir: string;
-  skillPath: string;
+  skills: SkillPlan[];
 }
 
 export async function init(opts: InitOptions): Promise<void> {
   const target = resolveAgent(opts.agent ?? "claude");
   const scope: Scope = opts.global ? "global" : "local";
   const dir = target.resolveDir(scope);
-  const skillDir = target.resolveSkillsDir(scope);
+  // Resolve (and validate) the variant up front so a bad --variant fails before
+  // any write — it only applies to tabbrew-tabs, the one skill that has variants.
+  const variant = resolveVariant(opts.variant);
   const paths: Paths = {
     target,
     scope,
     dir,
     awarenessPath: join(dir, target.awarenessFile),
     instructionsPath: join(dir, target.instructionsFile),
-    skillDir,
-    skillPath: join(skillDir, target.skillFile),
+    skills: target.skillNames.map((name) => {
+      const skillDir = target.resolveSkillsDir(scope, name);
+      return {
+        name,
+        dir: skillDir,
+        path: join(skillDir, target.skillFile),
+        content: name === SKILL_AUTO ? AUTO_SKILL : SKILL_VARIANTS[variant],
+      };
+    }),
   };
 
   if (opts.uninstall) return uninstall(paths, opts);
@@ -81,16 +98,13 @@ function resolveVariant(v: string | undefined): SkillVariant {
 }
 
 async function install(paths: Paths, opts: InitOptions): Promise<void> {
-  const { target, scope, dir, awarenessPath, instructionsPath, skillDir, skillPath } = paths;
+  const { target, scope, dir, awarenessPath, instructionsPath, skills } = paths;
   const dryRun = !!opts.dryRun;
 
-  const installSkill = !opts.noSkill;
-  // Resolve (and validate) the variant up front so a bad --variant fails before any write.
-  const skillContent = installSkill ? SKILL_VARIANTS[resolveVariant(opts.variant)] : null;
+  const installSkills = !opts.noSkill;
 
   const currentAwareness = await readFileOrNull(awarenessPath);
   const currentClaude = await readFileOrNull(instructionsPath);
-  const currentSkill = installSkill ? await readFileOrNull(skillPath) : null;
 
   const block = buildManagedBlock(target.importRef(target.awarenessFile, scope));
   const { content: nextClaude } = upsertManagedBlock(currentClaude ?? "", block); // may throw on malformed
@@ -102,12 +116,18 @@ async function install(paths: Paths, opts: InitOptions): Promise<void> {
     const lines = [
       statusLine(target.awarenessFile, awarenessPath, awarenessAction),
       statusLine(target.instructionsFile, instructionsPath, claudeAction),
-      statusLine(
-        target.skillFile,
-        skillPath,
-        installSkill ? plan(currentSkill, skillContent as string) : "skipped (--no-skill)",
-      ),
     ];
+    for (const skill of skills) {
+      lines.push(
+        statusLine(
+          skill.name,
+          skill.path,
+          installSkills
+            ? plan(await readFileOrNull(skill.path), skill.content)
+            : "skipped (--no-skill)",
+        ),
+      );
+    }
     console.log(lines.join("\n"));
     console.log(c.dim("[dry-run] Nothing written."));
     return;
@@ -136,30 +156,33 @@ async function install(paths: Paths, opts: InitOptions): Promise<void> {
   }
   lines.push(statusLine(target.instructionsFile, instructionsPath, await writeIfChanged(instructionsPath, nextClaude)));
 
-  // Skill (the interactive NL→TabBrew-Script prompt) in its own skills dir.
-  if (installSkill && skillContent !== null) {
-    await mkdir(skillDir, { recursive: true });
-    lines.push(statusLine(target.skillFile, skillPath, await writeIfChanged(skillPath, skillContent)));
-  } else {
-    lines.push(statusLine(target.skillFile, skillPath, "skipped (--no-skill)"));
+  // Each skill in its own skills/<name>/ dir — one for one-off requests, one for
+  // the watch loop.
+  for (const skill of skills) {
+    if (!installSkills) {
+      lines.push(statusLine(skill.name, skill.path, "skipped (--no-skill)"));
+      continue;
+    }
+    await mkdir(skill.dir, { recursive: true });
+    lines.push(statusLine(skill.name, skill.path, await writeIfChanged(skill.path, skill.content)));
   }
 
   console.log(lines.join("\n"));
   console.log("");
   console.log(`${c.green("✓")} tabbrew-cli awareness installed for ${c.bold(target.displayName)} ${c.dim(`(${scope})`)}.`);
-  if (installSkill) {
-    console.log(c.dim(`  Includes the ${c.bold(target.skillName)} skill — generate + \`tabbrew tabs check\` a TabBrew Script.`));
+  if (installSkills) {
+    console.log(c.dim(`  ${c.bold("tabbrew-tabs")} — turn one request into a TabBrew Script.`));
+    console.log(c.dim(`  ${c.bold("tabbrew-auto")} — watch your tabs and propose changes you accept or deny.`));
   }
   console.log(c.dim(`  ${target.displayName} picks it up on its next run.`));
 }
 
 async function uninstall(paths: Paths, opts: InitOptions): Promise<void> {
-  const { target, scope, awarenessPath, instructionsPath, skillDir, skillPath } = paths;
+  const { target, scope, awarenessPath, instructionsPath, skills } = paths;
   const dryRun = !!opts.dryRun;
 
   const currentAwareness = await readFileOrNull(awarenessPath);
   const currentClaude = await readFileOrNull(instructionsPath);
-  const currentSkill = await readFileOrNull(skillPath);
 
   // Compute the CLAUDE.md outcome up front (may throw on a malformed block).
   let nextClaude: string | null = null;
@@ -174,13 +197,15 @@ async function uninstall(paths: Paths, opts: InitOptions): Promise<void> {
   if (dryRun) {
     const claudeStatus =
       currentClaude === null ? "absent" : !blockRemoved ? "no block" : claudeEmpties ? "delete (empty)" : "updated";
-    console.log(
-      [
-        statusLine(target.instructionsFile, instructionsPath, claudeStatus),
-        statusLine(target.awarenessFile, awarenessPath, currentAwareness === null ? "absent" : "removed"),
-        statusLine(target.skillFile, skillPath, currentSkill === null ? "absent" : "removed"),
-      ].join("\n"),
-    );
+    const lines = [
+      statusLine(target.instructionsFile, instructionsPath, claudeStatus),
+      statusLine(target.awarenessFile, awarenessPath, currentAwareness === null ? "absent" : "removed"),
+    ];
+    for (const skill of skills) {
+      const current = await readFileOrNull(skill.path);
+      lines.push(statusLine(skill.name, skill.path, current === null ? "absent" : "removed"));
+    }
+    console.log(lines.join("\n"));
     console.log(c.dim("[dry-run] Nothing written."));
     return;
   }
@@ -203,11 +228,13 @@ async function uninstall(paths: Paths, opts: InitOptions): Promise<void> {
   const removedDoc = await removeFileIfExists(awarenessPath);
   lines.push(statusLine(target.awarenessFile, awarenessPath, removedDoc ? "removed" : "absent"));
 
-  const removedSkill = await removeFileIfExists(skillPath);
-  lines.push(statusLine(target.skillFile, skillPath, removedSkill ? "removed" : "absent"));
-  // Best-effort: drop the now-empty skills/<name>/ dir. Silently ignores a
-  // non-empty dir (ENOTEMPTY) or an already-absent one.
-  if (removedSkill) await rmdir(skillDir).catch(() => {});
+  for (const skill of skills) {
+    const removedSkill = await removeFileIfExists(skill.path);
+    lines.push(statusLine(skill.name, skill.path, removedSkill ? "removed" : "absent"));
+    // Best-effort: drop the now-empty skills/<name>/ dir. Silently ignores a
+    // non-empty dir (ENOTEMPTY) or an already-absent one.
+    if (removedSkill) await rmdir(skill.dir).catch(() => {});
+  }
 
   console.log(lines.join("\n"));
   console.log("");

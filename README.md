@@ -18,8 +18,10 @@ This CLI does a few things:
 - **Push HTML docs** (a plan, a report, a viewer) into the sidepanel Docs view — `docs push`
 - **Work with your tabs** — export them from the extension, validate a generated TabBrew
   Script, and send it back for you to run — `tabs serve` / `tabs list` / `tabs check` / `tabs push`
+- **Or let the agent watch** — it sees your tabs change and proposes edits with a plain-language
+  note you Accept or Deny in the panel — `tabs watch` / `tabs suggest` / `tabs history`
 - **Teach your AI agent** that TabBrew exists and how to generate tab scripts — `init` (installs the
-  awareness doc *and* the `tabbrew-tabs` skill)
+  awareness doc *and* the `tabbrew-tabs` / `tabbrew-auto` skills)
 
 The payoff: an AI agent working in your repo generates a report as HTML and pushes it
 straight into your browser's Docs view — or takes your open tabs, writes a validated
@@ -29,35 +31,38 @@ TabBrew Script, and drops it into the extension for you to run.
 
 ```
 TABS  organize your Chrome tabs
-  tabs serve         Start the local bridge the extension exports your tabs to
-  tabs list          Show the tabs the extension last exported
-  tabs check <file>  Validate a TabBrew Script (--snapshot for a preview)
-  tabs push <file>   Send a script to the extension to preview & run
-  tabs prompt        Print the interactive TabBrew Script skill prompt
+  tabs serve           Start the local bridge the extension exports your tabs to
+  tabs watch           Wait for the extension to report a tab change
+  tabs list            Show the tabs the extension last exported
+  tabs check <file>    Validate a TabBrew Script (--snapshot for a preview)
+  tabs push <file>     Send a script to the extension to preview & run
+  tabs suggest <file>  Propose a script with a note, and wait for the answer
+  tabs history         Show what changed between exported tab states
+  tabs prompt          Print the interactive TabBrew Script skill prompt
 
 DOCS  send HTML into the sidepanel
-  docs push <file>   Send an HTML file to the TabBrew sidepanel Docs view
-  docs list          List the HTML docs you've pushed (titles are click-to-open)
-  docs open <id>     Open a pushed HTML doc in your browser
+  docs push <file>     Send an HTML file to the TabBrew sidepanel Docs view
+  docs list            List your pushed docs (titles are click-to-open)
+  docs open <id>       Open a pushed HTML doc in your browser
 
 ACCOUNT
-  login              Sign in via OAuth device flow and store the token
-  whoami             Print the signed-in user (exit 1 if signed out)
-  logout             Delete the stored token
+  login                Sign in via OAuth device flow and store the token
+  whoami               Print the signed-in user (exit 1 if signed out)
+  logout               Delete the stored token
 
 SETUP
-  init               Set up an AI agent to use tabbrew (+ the tabs skill)
-  update             Update the installed binary to the latest release
-  help               Show this help
+  init                 Set up an AI agent to use tabbrew (+ the tab skills)
+  update               Update the installed binary to the latest release
+  help                 Show this help
 ```
 
 `tabbrew <cmd> --help` prints one command in depth — its options plus the caveat the
 one-liner has no room for. `tabbrew help --all` prints everything: hidden commands,
 every per-command flag, and the environment overrides.
 
-Every `tabs` command is offline except `push`/`serve`, which only ever talk to
-`127.0.0.1`. **None of them can change your tabs** — the browser does that, after you
-click **Run**.
+Every `tabs` command is offline except `serve`/`push`/`suggest`/`watch`, which only ever
+talk to `127.0.0.1`. **None of them can change your tabs** — the browser does that, after
+you click **Run** (or **Accept**).
 
 ## Install
 
@@ -203,12 +208,20 @@ existing `CLAUDE.md` prompts for confirmation (default **No**); non-interactive 
 decline unless `--yes` is passed, so it's safe in CI. The `AgentTarget` registry in
 `src/agents.ts` is the seam for adding Cursor/Codex/Gemini later.
 
-`init` also installs the **`tabbrew-tabs` skill** (the interactive prompt that teaches
-the agent to generate TabBrew Scripts) into the agent's skills dir —
-`./.claude/skills/tabbrew-tabs/SKILL.md` locally, `~/.claude/skills/…` with `--global`.
-Pick a smaller prompt with `--variant standard|compact` (default `full`), or skip it with
-`--no-skill`. `--uninstall` removes it too. (You can also install the skill standalone
-with `npx skills add colevels/tabbrew-skill`, the plugin form — the two are complementary.)
+`init` also installs **two skills** into the agent's skills dir
+(`./.claude/skills/<name>/SKILL.md` locally, `~/.claude/skills/…` with `--global`):
+
+- **`tabbrew-tabs`** — the interactive prompt that turns one request ("group my tabs")
+  into a TabBrew Script. `--variant standard|compact` picks a smaller prompt (default
+  `full`).
+- **`tabbrew-auto`** — the watch loop: `tabs watch` → decide → `tabs suggest --note` →
+  read the Accept/Deny answer. It deliberately *contradicts* the first skill on one
+  point — no in-chat confirmation before closing tabs — because in auto mode the panel's
+  Accept button is the confirmation.
+
+`--no-skill` skips both; `--uninstall` removes everything. (You can also install the
+interactive skill standalone with `npx skills add colevels/tabbrew-skill`, the plugin
+form — the two are complementary.)
 
 ## Managing tabs (`tabs check` / `tabs prompt`)
 
@@ -302,9 +315,11 @@ accepts the bearer.
 ## The local bridge (`tabs serve` / `tabs push`)
 
 The bridge replaces the copy-paste round trip with a loopback one. `tabbrew tabs
-serve` starts a small HTTP server on `127.0.0.1` that does two things: the
-extension **POSTs your open tabs to it** (saved as JSON on disk), and it **hands
-back a script** you send with `tabbrew tabs push`.
+serve` starts a small HTTP server on `127.0.0.1` that does three things: the
+extension **POSTs your open tabs to it** (saved as JSON on disk), it **hands back
+a script** you send with `tabbrew tabs push`, and — in [auto
+mode](#auto-mode-tabs-watch--tabs-suggest) — it carries your **Accept/Deny answer
+back** to whoever suggested it.
 
 ```bash
 tabbrew tabs serve                   # listens on 127.0.0.1:49227 — leave it running
@@ -316,7 +331,7 @@ in Developer mode → Tab List). Your tabs land on disk:
 
 ```bash
 tabbrew tabs list          # human-readable, with how stale the export is
-tabbrew tabs list --json   # { "savedAt": "…", "count": 2, "tabs": [ /* … */ ] }
+tabbrew tabs list --json   # { "savedAt": "…", "version": 3, "count": 2, "tabs": [ /* … */ ] }
 ```
 
 Hand a script back the same way. `tabs push` validates it first (the same parse
@@ -331,6 +346,72 @@ tabbrew tabs push ./group-tabs.txt
 **`tabs push` does not run anything.** It has no access to your browser — the
 script sits in the panel until *you* click **Run**. That's the whole reason this
 command isn't called `run`.
+
+### Auto mode (`tabs watch` / `tabs suggest`)
+
+`push` is a one-shot: you ask, the agent answers, done. Auto mode is the same
+bridge run as a loop — the extension streams your tabs as they change, and the
+agent proposes edits you accept or deny, without you asking each time.
+
+Turn **Auto mode** on in the sidepanel's *Send to Claude Code* card (it only runs
+while the panel is open). Then, in the agent's shell:
+
+```bash
+tabbrew tabs watch --timeout 60     # blocks until your tabs actually change
+```
+
+It prints what moved (`+ opened`, `- closed`, `~ regrouped`) plus the current
+snapshot in the same format the skill reads. A timeout prints nothing and still
+exits 0, so a loop can branch on empty output rather than on an exit code.
+
+When the agent sees something worth doing, it proposes it — with a sentence you
+can actually read:
+
+```bash
+tabbrew tabs suggest ./plan.txt \
+  --note "ปิดแท็บ YouTube ที่ค้าง 6 อัน แล้วรวม github 5 แท็บเป็นกลุ่ม Code" \
+  --wait 300 --json
+```
+
+`--note` is **required**. It's the only thing most people read before deciding, so
+a suggestion nobody asked for has to explain itself. The card in the panel shows
+that note, the simulated preview, and **Accept** / **Deny** — and Deny takes an
+optional reason, which comes straight back to the agent:
+
+```json
+{ "id": "s_4f3a", "decision": "denied", "reason": "อย่าปิด youtube เปิดฟังเพลงอยู่" }
+```
+
+That round trip is the point: without it a loop re-proposes the thing you just
+rejected, forever. `tabs suggest` always exits 0 — a Deny is an answer, not a
+failure.
+
+`tabbrew init` installs the **`tabbrew-auto`** skill, which is the loop written
+down: watch → decide (default: do nothing) → check → suggest → listen, plus the
+rules for writing a note and for treating a denial as a standing instruction.
+
+#### What changed, not just what's open (`tabs history`)
+
+`tabs.json` only answers "what is open right now". `tabs serve` also appends one
+line per version to `~/.config/tabbrew/tabs-history.jsonl` — a **delta**, not a
+snapshot (500 snapshots of 200 tabs would be a 20 MB file; a delta is a few
+hundred bytes):
+
+```bash
+tabbrew tabs history --limit 20   # v13  2m ago  +2 -1 ~2   187 tabs
+tabbrew tabs history --json       # the raw lines
+tabbrew tabs history --clear      # delete the log
+```
+
+⚠️ This log is the one place the CLI accumulates browsing history **at rest**:
+`tabs.json` is overwritten and only ever holds currently-open tabs, while the
+deltas keep the titles and URLs of tabs you have since closed. So it's `chmod
+600`, capped at `TABBREW_TABS_HISTORY_MAX` entries (default 500), and easy to
+switch off:
+
+```bash
+tabbrew tabs serve --no-history   # or TABBREW_TABS_HISTORY=0
+```
 
 ### Ports
 
@@ -368,7 +449,10 @@ and send no `Origin`.
 
 The saved `tabs.json` is written **`chmod 600`**, like `credentials.json` — it
 holds the URL and title of every open tab, which is browsing history and doesn't
-become un-leaked the way a revoked token does.
+become un-leaked the way a revoked token does. `tabs-history.jsonl` is the same
+mode and a strictly bigger version of that concern (it remembers tabs you closed),
+which is why it's capped and can be turned off — see
+[`tabs history`](#what-changed-not-just-whats-open-tabs-history).
 
 A queued script is claimed by exactly one poll, so if the extension isn't
 connected yet it simply waits; pushing again replaces whatever is still pending.

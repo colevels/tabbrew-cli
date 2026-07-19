@@ -329,11 +329,13 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "init",
     group: "setup",
-    summary: "Set up an AI agent to use tabbrew (+ the tabs skill)",
+    summary: "Set up an AI agent to use tabbrew (+ the tab skills)",
     details:
       "Writes a TABBREW-CLI.md awareness doc plus a managed block in the agent's " +
-      "CLAUDE.md that imports it, and installs the tabbrew-tabs skill. Idempotent — " +
-      "a re-run reports `unchanged`. --uninstall removes all three.",
+      "CLAUDE.md that imports it, and installs two skills: tabbrew-tabs (turn one " +
+      "request into a script) and tabbrew-auto (watch your tabs and propose changes " +
+      "you accept or deny). Idempotent — a re-run reports `unchanged`. --uninstall " +
+      "removes all of it.",
     flags: [
       {
         name: "global",
@@ -343,7 +345,7 @@ export const COMMANDS: readonly CommandSpec[] = [
       { name: "dry-run", summary: "Print what would change; write nothing" },
       {
         name: "uninstall",
-        summary: "Remove the awareness doc, managed block, and skill",
+        summary: "Remove the awareness doc, managed block, and skills",
       },
       {
         name: "yes",
@@ -352,7 +354,7 @@ export const COMMANDS: readonly CommandSpec[] = [
       },
       { name: "agent", value: "<id>", summary: "Target agent (default claude)" },
       VARIANT_FLAG,
-      { name: "no-skill", summary: "Don't install the tabbrew-tabs skill" },
+      { name: "no-skill", summary: "Don't install the two tabbrew skills" },
     ],
   },
   {
