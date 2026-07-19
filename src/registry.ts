@@ -94,11 +94,11 @@ const VARIANT_FLAG: FlagSpec = {
 
 /**
  * Longest a `summary` may be. The help row is 2 spaces + the label column +
- * 2 spaces + the summary, and the longest label is `tabs check <file>` (17), so
- * anything past this wraps on an 80-column terminal — which reads as broken
+ * 2 spaces + the summary, and the longest label is `tabs suggest <file>` (19),
+ * so anything past this wraps on an 80-column terminal — which reads as broken
  * output, not as a long sentence. Pinned by registry.test.ts.
  */
-export const SUMMARY_MAX = 59;
+export const SUMMARY_MAX = 57;
 
 // Display order *is* array order (ui.ts filters by group, it never sorts), so
 // these are grouped and sequenced deliberately. Within `tabs` that means
@@ -119,6 +119,38 @@ export const COMMANDS: readonly CommandSpec[] = [
         name: "out",
         value: "<path>",
         summary: "Where to save the received tabs JSON",
+      },
+      {
+        name: "no-history",
+        summary: "Don't log what changed between tab states",
+      },
+    ],
+  },
+  {
+    name: "tabs watch",
+    group: "tabs",
+    summary: "Wait for the extension to report a tab change",
+    details:
+      "Blocks until the tabs actually change, then prints what moved plus the " +
+      "current snapshot — the eye of an agent loop. Needs `tabs serve` running and " +
+      "Auto mode on in the sidepanel. A timeout prints nothing and still exits 0.",
+    flags: [
+      {
+        name: "timeout",
+        value: "<s>",
+        summary: "Seconds to wait before giving up (default 60)",
+      },
+      {
+        name: "since",
+        value: "<n>",
+        summary: "Only report versions newer than this one",
+      },
+      { name: "changes-only", summary: "Print just what changed, not the tabs" },
+      { name: "json", summary: "Print structured JSON instead of text" },
+      {
+        name: "port",
+        value: "<n>",
+        summary: "Port `tabs serve` is listening on (default 49227)",
       },
     ],
   },
@@ -174,6 +206,55 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
   },
   {
+    name: "tabs suggest",
+    args: "<file>",
+    group: "tabs",
+    summary: "Propose a script with a note, and wait for the answer",
+    details:
+      "The auto-mode sibling of `tabs push`. --note is required: it's the plain " +
+      "sentence the user reads before deciding, so say what changes and lead with " +
+      "anything that closes tabs. Waits for Accept or Deny and prints the verdict " +
+      "(with the user's reason, if they gave one). Always exits 0 — a Deny is an " +
+      "answer, not a failure.",
+    flags: [
+      {
+        name: "note",
+        value: "<text>",
+        summary: "Required. What this does, in the user's language",
+      },
+      {
+        name: "wait",
+        value: "<s>",
+        summary: "Seconds to wait for an answer (default 300)",
+      },
+      { name: "no-wait", summary: "Queue it and return immediately" },
+      { name: "json", summary: "Print structured JSON instead of text" },
+      {
+        name: "port",
+        value: "<n>",
+        summary: "Port `tabs serve` is listening on (default 49227)",
+      },
+    ],
+  },
+  {
+    name: "tabs history",
+    group: "tabs",
+    summary: "Show what changed between exported tab states",
+    details:
+      "Reads the delta log `tabs serve` appends — one line per tab-state version, " +
+      "newest last. It holds titles and URLs of tabs you have since closed, so " +
+      "`--clear` deletes it and `tabs serve --no-history` never writes it.",
+    flags: [
+      {
+        name: "limit",
+        value: "<n>",
+        summary: "How many recent changes to show (default 20)",
+      },
+      { name: "json", summary: "Print the raw delta lines" },
+      { name: "clear", summary: "Delete the change log" },
+    ],
+  },
+  {
     name: "tabs prompt",
     group: "tabs",
     summary: "Print the interactive TabBrew Script skill prompt",
@@ -209,7 +290,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "docs list",
     group: "docs",
-    summary: "List the HTML docs you've pushed (titles are click-to-open)",
+    summary: "List your pushed docs (titles are click-to-open)",
     flags: [
       { name: "json", summary: "Print the raw JSON array instead of a table" },
     ],
@@ -248,11 +329,13 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "init",
     group: "setup",
-    summary: "Set up an AI agent to use tabbrew (+ the tabs skill)",
+    summary: "Set up an AI agent to use tabbrew (+ the tab skills)",
     details:
       "Writes a TABBREW-CLI.md awareness doc plus a managed block in the agent's " +
-      "CLAUDE.md that imports it, and installs the tabbrew-tabs skill. Idempotent — " +
-      "a re-run reports `unchanged`. --uninstall removes all three.",
+      "CLAUDE.md that imports it, and installs two skills: tabbrew-tabs (turn one " +
+      "request into a script) and tabbrew-auto (watch your tabs and propose changes " +
+      "you accept or deny). Idempotent — a re-run reports `unchanged`. --uninstall " +
+      "removes all of it.",
     flags: [
       {
         name: "global",
@@ -262,7 +345,7 @@ export const COMMANDS: readonly CommandSpec[] = [
       { name: "dry-run", summary: "Print what would change; write nothing" },
       {
         name: "uninstall",
-        summary: "Remove the awareness doc, managed block, and skill",
+        summary: "Remove the awareness doc, managed block, and skills",
       },
       {
         name: "yes",
@@ -271,7 +354,7 @@ export const COMMANDS: readonly CommandSpec[] = [
       },
       { name: "agent", value: "<id>", summary: "Target agent (default claude)" },
       VARIANT_FLAG,
-      { name: "no-skill", summary: "Don't install the tabbrew-tabs skill" },
+      { name: "no-skill", summary: "Don't install the two tabbrew skills" },
     ],
   },
   {
@@ -295,7 +378,7 @@ export const COMMANDS: readonly CommandSpec[] = [
     name: "tools repo-info",
     group: "setup",
     hidden: true,
-    summary: "Demo: orchestrate git (via Bun shell) to report repo stats",
+    summary: "Demo: orchestrate git via Bun shell for repo stats",
     flags: [],
   },
   {
@@ -326,6 +409,7 @@ export const GETTING_STARTED: ReadonlyArray<[string, string]> = [
 export const FILES: ReadonlyArray<[string, string]> = [
   ["~/.config/tabbrew/credentials.json", "Stored login token (chmod 600)"],
   ["~/.config/tabbrew/tabs.json", "Tabs `tabs serve` received (mode 0600)"],
+  ["~/.config/tabbrew/tabs-history.jsonl", "What changed between them (mode 0600)"],
 ];
 
 /** Environment overrides a normal user might reach for. */
@@ -333,6 +417,8 @@ export const COMMON_ENV: ReadonlyArray<[string, string]> = [
   ["TABBREW_TOKEN", "Use this token; wins over the stored file"],
   ["TABBREW_SERVE_PORT", "Port for `tabs serve`/`tabs push` (default 49227)"],
   ["TABBREW_TABS_PATH", "Where `tabs serve` saves the tabs it receives"],
+  ["TABBREW_TABS_HISTORY", "Set to 0 to never log what changed"],
+  ["TABBREW_TABS_HISTORY_MAX", "Change-log entries to keep (default 500)"],
   ["TABBREW_NO_BROWSER", "Set to skip auto-opening the browser during login"],
   ["TABBREW_DEBUG", "Set to print stack traces on unexpected errors"],
   ["NO_COLOR", "Disable ANSI colors"],
@@ -354,6 +440,7 @@ export const DEV_ENV: ReadonlyArray<[string, string]> = [
   ["TABBREW_RELEASE_URL", "Override the releases/latest URL used by `update`"],
   ["TABBREW_DOWNLOAD_BASE_URL", "Override the release-asset download base URL"],
   ["TABBREW_DOWNLOAD_TIMEOUT_MS", "Binary-download timeout in ms (default 120000)"],
+  ["TABBREW_TABS_HISTORY_PATH", "Where `tabs serve` writes the change log"],
   ["CLAUDE_CONFIG_DIR", "Global agent dir used by `init --global`"],
 ];
 

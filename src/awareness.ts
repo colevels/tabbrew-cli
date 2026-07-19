@@ -21,6 +21,9 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
   them via the local bridge, and wants them organized/closed/grouped — generate a
   TabBrew Script, validate it with \`tabbrew tabs check\`, then \`tabbrew tabs push\` it
   for them to run (see **Managing tabs** below).
+- The user wants you to **keep watching** their tabs and suggest changes as they go
+  ("auto mode", "เฝ้าแท็บให้หน่อย") — that's the loop in the \`tabbrew-auto\` skill:
+  \`tabs watch\` → decide → \`tabs suggest --note\` → they Accept or Deny.
 
 ## Commands
 - \`tabbrew login\`   — sign in via device flow (opens a browser; prints a code).
@@ -44,13 +47,28 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
   preview. Requires \`tabbrew tabs serve\` already running (\`--port\` must match if it
   isn't on the default 49227). This does **not** run the script: it lands in the
   extension's panel and the user clicks **Run** themselves.
+- \`tabbrew tabs suggest <file|-> --note "…"\` — the auto-mode sibling of \`push\`.
+  \`--note\` is **required**: one plain sentence, in the user's own language, leading
+  with anything destructive ("ปิดแท็บ YouTube 6 อัน แล้วรวม github เป็นกลุ่ม Code") — it's
+  the only thing they read before deciding. Waits for their answer by default and
+  prints the verdict (\`--json\`: \`{ decision: "accepted"|"denied"|"stale", reason }\`).
+  A Deny is an answer, not a failure — it always exits 0. Never re-send a denied one.
 - \`tabbrew tabs serve\` — start the local bridge (127.0.0.1 only) the extension exports
   its open tabs to and polls for pushed scripts. Long-running; it blocks until Ctrl+C,
   so start it in a background/second shell, never in the foreground of a task you
   need to finish.
+- \`tabbrew tabs watch [--timeout 60] [--changes-only]\` — block until the extension
+  reports a tab change, then print what moved plus the current snapshot (in the exact
+  \`# Goal / # Windows / # Groups / # Tabs\` format the skill reads). No output means
+  nothing changed; it still exits 0. Needs \`tabs serve\` running **and** Auto mode on
+  in the sidepanel.
 - \`tabbrew tabs list\` — show the tabs the extension last exported (\`--json\` for the raw
-  saved payload: \`{ savedAt, count, tabs }\`). Check \`savedAt\` before trusting the tab
-  ids — it's a snapshot on disk and can be stale.
+  saved payload: \`{ savedAt, version, count, tabs, groups, windows }\`). Check \`savedAt\`
+  before trusting the tab ids — it's a snapshot on disk and can be stale.
+- \`tabbrew tabs history [--limit 20] [--clear]\` — what changed between exported tab
+  states, one line per version. Read it once when starting a watch loop to catch up.
+  It holds titles/URLs of tabs the user has since closed, so \`--clear\` deletes it
+  (and \`tabs serve --no-history\` never writes it).
 - \`tabbrew tabs prompt [--variant full|standard|compact]\` — print the interactive
   skill prompt (same one \`tabbrew init\` installs as a skill).
 
@@ -72,6 +90,17 @@ Then:
    running, otherwise tell them to paste the script into the extension's developer mode.
 4. Either way **they** click **Run**. Execution happens in the browser, never here —
    nothing the CLI does can change their tabs, so never report tabs as closed/grouped.
+
+## Auto mode (the watch loop)
+When the user wants you to keep an eye on their tabs rather than answer one request,
+follow the installed \`tabbrew-auto\` skill. In short: they start \`tabbrew tabs serve\`
+and switch **Auto mode** on in the sidepanel; you loop \`tabbrew tabs watch\` → decide
+whether anything is worth doing (**default: nothing**) → \`tabbrew tabs check\` →
+\`tabbrew tabs suggest --note "…"\` → read the verdict. A denial, especially with a
+reason, is a standing rule — never propose that thing again.
+
+Unlike the one-off flow above, do **not** ask for DEL confirmation in chat: the panel's
+Accept/Deny card is the confirmation, and the note is where you say what gets closed.
 
 ## Non-interactive / CI
 Set \`TABBREW_TOKEN\` to authenticate without a login prompt (it wins over the stored

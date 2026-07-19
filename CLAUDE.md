@@ -110,13 +110,16 @@ escape bytes are why `table.ts` measures width on escape-stripped text — see b
 **2. `init` — agent-awareness installer**
 `tabbrew init` teaches an AI agent (currently only Claude Code) that this CLI exists.
 It writes a slim `TABBREW-CLI.md` doc plus a version-tagged managed block in
-`CLAUDE.md` that `@import`s it, **and** installs the `tabbrew-tabs` skill (the interactive
-NL→TabBrew-Script prompt) into the agent's skills dir — `resolveSkillsDir` on the
-`AgentTarget` (`.claude/skills/tabbrew-tabs/` locally, `<config>/skills/…` global). The
-skill content is bundled from `tabbrew-script/skills.ts`; `--variant` picks
-compact/standard/full (default full) and `--no-skill` skips it (`--uninstall` removes it).
-`--variant` is deliberately the same flag name `tabs prompt` uses — it selects from the
-same three prompts, and `--no-skill` is the separate install-or-not switch.
+`CLAUDE.md` that `@import`s it, **and** installs **two skills** into the agent's skills
+dir — `resolveSkillsDir(scope, name)` on the `AgentTarget`, iterating `skillNames`
+(`.claude/skills/<name>/` locally, `<config>/skills/…` global):
+`tabbrew-tabs` (the interactive NL→TabBrew-Script prompt) and `tabbrew-auto` (the
+watch→propose→listen loop). Skill content is bundled from `tabbrew-script/skills.ts`;
+`--variant` picks compact/standard/full (default full) and applies **only** to
+`tabbrew-tabs` — the loop's instructions don't get cheaper with more tabs. `--no-skill`
+skips both (`--uninstall` removes everything). `--variant` is deliberately the same flag
+name `tabs prompt` uses — it selects from the same three prompts, and `--no-skill` is the
+separate install-or-not switch.
 Design constraints worth preserving:
 - `awareness.ts` is **filesystem-free** — the awareness doc and all block-manipulation
   are pure string constants/functions so they survive `bun build --compile` (no
@@ -162,8 +165,16 @@ is the thin presentation layer. Design constraints worth preserving:
 `tabbrew tabs` is the validator/teacher for the "agent generates a TabBrew Script"
 workflow, plus the loopback bridge to the extension. It never touches `chrome.*` —
 execution and live snapshots stay in the extension, and **no `tabs` command can change a
-user's tabs**. `check`/`prompt`/`list` are fully offline; `serve`/`push` only ever talk to
-`127.0.0.1`.
+user's tabs**. `check`/`prompt`/`list`/`history` are fully offline; `serve`/`push`/
+`suggest`/`watch` only ever talk to `127.0.0.1`.
+
+The bridge speaks **protocol 2** (`PROTOCOL` in `tabs-serve.ts`, echoed by `GET /health`).
+Both ends move independently — the extension updates via the Web Store, the CLI via
+`tabbrew update` — so **neither may assume the other is current**, and this is the one
+place in the repo where compatibility runs in *both* directions. `POST /tabs` and
+`GET /script` keep their protocol-1 shapes byte for byte; a new extension feature-detects
+by falling back from `/suggestion` to `/script` on a 404. Never repurpose an existing
+route's shape — add a new one.
 - `commands/tabs.ts` — `tabsCheck` parses a generated script (`parseTabbrewScript`), prints
   line-numbered errors (**exit 1** on any), and — when `--snapshot` is given — runs
   `simulateBatch` for a before/after preview. `tabsPrompt` prints the interactive skill
@@ -179,10 +190,28 @@ user's tabs**. `check`/`prompt`/`list` are fully offline; `serve`/`push` only ev
   when present, must be `chrome-extension://` (blocks a drive-by `POST /tabs`). Keep both —
   they cover different halves. `tabs.json` is written `0o600` via `atomicWrite`'s `mode` arg:
   it's browsing history, the config dir is not reliably `0700`, and umask alone gives `0644`.
+  It also owns the long-poll parking lots (`park()` + `wake()`): a waiter must be dropped on
+  `req.signal` abort, or a Ctrl+C'd `tabs watch` leaks a resolver per run.
+- `tabs-history.ts` — the "what changed" half. `diffTabs` is **pure** (the caller owns the
+  clock and the version counter) and deliberately ignores `index`: it shifts for every tab
+  right of a close, so tracking it would report 40 changes for one `DEL` and bury the signal.
+  History is a **delta per line, never a snapshot** — 500 snapshots of 200 tabs is 20 MB.
+  It is also the only place the CLI accumulates browsing history *at rest* (`tabs.json` is
+  overwritten and only holds open tabs; the log remembers closed ones), so `0600` + the
+  `historyMax` cap + `--no-history` + `tabs history --clear` all have to stay.
 - `commands/tabs-push.ts` — validates, then POSTs to the bridge. Deliberately **not** named
   `run`: it cannot execute anything, and the old name had users believing their tabs had
   already changed. Rejects a zero-op script locally rather than letting the server's
   empty-body guard answer with a misleading `invalid_payload`.
+- `commands/tabs-suggest.ts` — the auto-mode sibling of push, and a separate command on
+  purpose: `--note` is **required** (a suggestion the user didn't ask for has to explain
+  itself, and only a required flag makes that reliable), and it *waits* for the verdict.
+  Never exits non-zero on a denial — an agent that reads "no" as a failure retries instead
+  of listening.
+- `commands/tabs-watch.ts` — long-polls `GET /tabs?since=…`. No client-side `AbortSignal`
+  timeout: the server holds the request open deliberately and caps `wait` itself, so a
+  client timer would just race it into a false failure. A timeout prints nothing on stdout
+  and **exits 0**, so callers branch on empty output rather than an exit code.
 - `tabs list` is a **tolerant reader** — two extension surfaces POST different shapes (raw
   `chrome.Tab` from the developer-mode panel, leaner `TabSnapshot` from the side panel), so
   it reads only the fields common to both and ignores the rest. Note `chrome.Tab.groupId`
@@ -199,6 +228,12 @@ user's tabs**. `check`/`prompt`/`list` are fully offline; `serve`/`push` only ev
   variants, embedded via `import … with { type: "text" }` — a compile-time inline (no
   runtime FS read, survives `--compile`; `assets.d.ts` types the import). `skills.ts` is the
   bundling module `init` and `tabs prompt` both read.
+- `SKILL.auto.md` is the **exception to the copy rule: this repo is its source of truth.**
+  It documents `tabs watch`/`tabs suggest`, which don't exist upstream, so it is never
+  re-synced from `tabbrew-api`. It also *contradicts* `tabbrew-tabs` on one point by design —
+  no in-chat `DEL` confirmation, because the panel's Accept/Deny card is the confirmation —
+  which is why the two ship as separate skills rather than one skill with a mode. `init`
+  installs both (`agents.ts` `skillNames`), and `--variant` applies only to `tabbrew-tabs`.
 
 > **Cross-repo (this is a 4th copy):** the vendored `parser.ts`/`simulate.ts`/`types.ts` and
 > the `SKILL.*.md` prompts have their **source of truth in the `tabbrew` monorepo**
@@ -268,6 +303,7 @@ src/
   agents.ts           # init: AgentTarget registry (Claude Code; extensible) + skills dir
   awareness.ts        # init: bundled awareness doc + managed-block string ops
   fsops.ts            # init: atomic write, writeIfChanged, backup, safe read/remove
+  tabs-history.ts     # tabs: pure diffTabs + the capped 0600 delta log
   assets.d.ts         # ambient `declare module "*.md"` for the text-import skill assets
   tabbrew-script/     # tabs: offline DSL toolbox
     types.ts            #   vendored DSL + snapshot types (Chrome-free)
@@ -276,12 +312,15 @@ src/
     render.ts           #   CLI-native: snapshot reverse-parser, fenced extractor, renderers
     skills.ts           #   bundled interactive skill prompts (text imports)
     SKILL.{compact,standard,full}.md  # verbatim tabbrew-api portable variants (source of truth upstream)
+    SKILL.auto.md       #   the watch→propose→listen loop (CLI-NATIVE: source of truth is here)
   commands/
     login.ts logout.ts whoami.ts tools.ts init.ts update.ts
     docs.ts             # docs push / list / open
-    tabs.ts             # tabs check / prompt / list  (offline)
+    tabs.ts             # tabs check / prompt / list / history  (offline)
     tabs-serve.ts       # tabs serve — the 127.0.0.1 bridge; owns resolveServePort()
     tabs-push.ts        # tabs push  — validate, then queue on the bridge
+    tabs-suggest.ts     # tabs suggest — queue with a required --note, wait for the verdict
+    tabs-watch.ts       # tabs watch — long-poll until the tabs change
 ```
 
 ## Configuration
@@ -305,8 +344,11 @@ hosted TabBrew server at `https://www.tabbrew.com`:
 | `TABBREW_RELEASE_URL` | `github.com/$REPO/releases/latest` | Override the `update` latest-release redirect URL |
 | `TABBREW_DOWNLOAD_BASE_URL` | `github.com/$REPO/releases/latest/download` | Override the `update` release-asset download base |
 | `TABBREW_DOWNLOAD_TIMEOUT_MS` | `120000` | `update` binary-download timeout (separate from `TABBREW_TIMEOUT_MS`) |
-| `TABBREW_SERVE_PORT` | `49227` | Loopback port shared by `tabs serve` (listens) and `tabs push` (connects) |
+| `TABBREW_SERVE_PORT` | `49227` | Loopback port shared by `tabs serve` (listens) and `tabs push`/`suggest`/`watch` (connect) |
 | `TABBREW_TABS_PATH` | `~/.config/tabbrew/tabs.json` | Where `tabs serve` saves the exported tabs (read by `tabs list`) |
+| `TABBREW_TABS_HISTORY_PATH` | `~/.config/tabbrew/tabs-history.jsonl` | Where `tabs serve` appends per-version deltas (read by `tabs history`) |
+| `TABBREW_TABS_HISTORY_MAX` | `500` | Newest delta lines to keep; older ones are trimmed |
+| `TABBREW_TABS_HISTORY` | *(on)* | Set to `0` to never write the delta log (same as `tabs serve --no-history`) |
 | `TABBREW_TOKEN` | *(unset)* | Use this token directly; **wins over the stored file** (for CI/CD) |
 | `TABBREW_NO_BROWSER` | *(unset)* | Set to skip auto-opening the browser during `login` |
 | `TABBREW_TIMEOUT_MS` | `15000` | Per-request timeout in milliseconds (device code / poll / whoami) |

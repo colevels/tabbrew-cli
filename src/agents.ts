@@ -7,8 +7,15 @@ import { join } from "node:path";
 
 export type Scope = "local" | "global";
 
-/** Directory name of the installed skill under the agent's skills/ dir. */
-const SKILL_NAME = "tabbrew-tabs";
+/**
+ * The skills `init` installs, in install order. Two, deliberately: `tabbrew-tabs`
+ * answers a one-off request ("group my tabs"), `tabbrew-auto` runs the watch →
+ * propose → accept/deny loop. They give conflicting instructions on purpose (auto
+ * mode skips the in-chat DEL confirmation because the panel's Accept button is the
+ * confirmation), so they must stay separate files rather than one skill with a mode.
+ */
+export const SKILL_TABS = "tabbrew-tabs";
+export const SKILL_AUTO = "tabbrew-auto";
 
 export interface AgentTarget {
   id: string;
@@ -17,14 +24,14 @@ export interface AgentTarget {
   instructionsFile: string;
   /** Filename of the slim awareness doc the block imports. */
   awarenessFile: string;
-  /** Directory (name) the skill is installed under: <skills>/<skillName>/. */
-  skillName: string;
-  /** Filename of the skill doc written into that directory. */
+  /** Directory names the skills are installed under: <skills>/<name>/. */
+  skillNames: readonly string[];
+  /** Filename of the skill doc written into each of those directories. */
   skillFile: string;
   /** Directory both the instructions + awareness files live in for the scope. */
   resolveDir(scope: Scope): string;
-  /** Directory the skill file lives in for the scope (may differ from resolveDir). */
-  resolveSkillsDir(scope: Scope): string;
+  /** Directory one named skill lives in for the scope (may differ from resolveDir). */
+  resolveSkillsDir(scope: Scope, skillName: string): string;
   /** The import line inserted into the instructions file. */
   importRef(awarenessFile: string, scope: Scope): string;
 }
@@ -34,14 +41,14 @@ const claude: AgentTarget = {
   displayName: "Claude Code",
   instructionsFile: "CLAUDE.md",
   awarenessFile: "TABBREW-CLI.md",
-  skillName: SKILL_NAME,
+  skillNames: [SKILL_TABS, SKILL_AUTO],
   skillFile: "SKILL.md",
   resolveDir(scope) {
     if (scope === "local") return process.cwd();
     const override = process.env.CLAUDE_CONFIG_DIR?.trim();
     return override && override.length ? override : join(homedir(), ".claude");
   },
-  resolveSkillsDir(scope) {
+  resolveSkillsDir(scope, skillName) {
     // Claude Code discovers skills under `.claude/skills/<name>/` for a project
     // and `<config>/skills/<name>/` globally. The local instructions file is the
     // bare cwd, so the skills dir needs its own `.claude/` segment here.
@@ -49,7 +56,7 @@ const claude: AgentTarget = {
       scope === "local"
         ? join(process.cwd(), ".claude")
         : process.env.CLAUDE_CONFIG_DIR?.trim() || join(homedir(), ".claude");
-    return join(base, "skills", SKILL_NAME);
+    return join(base, "skills", skillName);
   },
   importRef(awarenessFile) {
     // Claude Code resolves @relative imports relative to the importing file's
