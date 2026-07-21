@@ -251,6 +251,13 @@ registry is the *second* gate: declare a new flag in `index.ts` **and** attach i
 command in `registry.ts`, or it will be rejected at runtime. Adding a command = a row here
 + a `case` in `index.ts`; help follows automatically.
 
+**One thing does *not* follow automatically:** `docs/commands.html`, the visual command map,
+is a **hand-written mirror** of this table — a card per command, coloured by how far the
+command reaches (offline / loopback / account / GitHub Releases). Nothing generates it and
+nothing tests it, so a new command, a renamed flag, or a reworded summary has to be carried
+over by hand or the page quietly goes stale. It is the only file in the repo that duplicates
+`registry.ts`; keep the duplication small enough to be worth it.
+
 Help is **three views** over that one table:
 - the **default** (`printHelp()`) — grouped commands (`GROUPS`, ordered by what the CLI is
   *for*, so `tabs` leads) + non-`hidden` `GLOBAL_FLAGS` + the `GETTING_STARTED` block that
@@ -321,6 +328,8 @@ src/
     tabs-push.ts        # tabs push  — validate, then queue on the bridge
     tabs-suggest.ts     # tabs suggest — queue with a required --note, wait for the verdict
     tabs-watch.ts       # tabs watch — long-poll until the tabs change
+docs/
+  commands.html         # visual command map — hand-written mirror of registry.ts
 ```
 
 ## Configuration
