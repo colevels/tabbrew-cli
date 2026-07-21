@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Status: proof of concept
+
+`v0.6.0` is a **POC snapshot** — the widest the command surface ever got. From here the
+direction is *subtractive*: commands are being removed to cut complexity, and a few will
+be reimplemented later in a simpler shape. So when you read the sections below, treat the
+command surface as **the state at v0.6.0, not a commitment** — check `registry.ts` (and
+`git log`) before assuming a command described here still exists, and prefer deleting a
+subsystem's docs along with its code over leaving them describing something that's gone.
+
 ## What this is
 
 `tabbrew-cli` is a Bun + TypeScript CLI (`tabbrew` binary) that authenticates to a
