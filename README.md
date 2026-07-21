@@ -7,9 +7,10 @@
 
 > **Status: proof of concept.** `v0.6.0` was the high-water mark of the exploration;
 > `v0.7.0` is where the subtraction started. **`tabs check`, `tabs push`, `tabs watch`,
-> `tabs history` and `tabs prompt` are gone**, and the `--port` and `--variant` flags
-> with them — the tab surface is three commands now (`serve` / `list` / `suggest`) and
-> one skill. Nothing outside `tabs` changed. Pin
+> `tabs history` and `tabs prompt` are gone**, and the `--port`, `--out` and `--variant`
+> flags with them — the tab surface is three commands now (`serve` / `list` / `suggest`).
+> `init` follows: it installs one skill instead of two, and deletes the orphaned
+> `tabbrew-auto` it finds. `docs`, `login`/`whoami`/`logout` and `update` are untouched. Pin
 > [`v0.6.0`](https://github.com/colevels/tabbrew-cli/releases/tag/v0.6.0) if you depend
 > on a command that disappeared; some of them may come back in a simpler shape.
 
@@ -250,9 +251,14 @@ the next read. The CLI is on one side of that loop only — **it cannot change a
 ### 1. Start the bridge
 
 ```bash
-tabbrew tabs serve                   # listens on 127.0.0.1:49227 — blocks until Ctrl+C
-tabbrew tabs serve --out ./tabs.json # save the state file somewhere other than the default
+tabbrew tabs serve                            # 127.0.0.1:49227 — blocks until Ctrl+C
+TABBREW_TABS_PATH=./tabs.json tabbrew tabs serve   # put the state file elsewhere
 ```
+
+`TABBREW_TABS_PATH` is the only way to move that file, and it has to be set for
+`tabs list` and `tabs suggest` too — they read the same path. A `--out` flag used to move
+just the writer, which left the other two silently reading a stale default; it's gone for
+the same reason `--port` is.
 
 It blocks, so give it its own shell (or the background). Then, in Chrome, open the
 TabBrew sidepanel, click **Send to Claude Code**, and switch **Auto mode** on — that is
@@ -345,9 +351,10 @@ recent suggestions
 ```
 
 `tabs.json` keeps a ring of the **newest 5** suggestions — id, note, op count, the tab
-version it was written against, and what became of it. It survives both a tab change and a
-restart of `tabs serve`, because it's the agent's only memory of what you already said no
-to; without it a loop re-proposes the thing you just rejected, forever.
+version it was written against, and what became of it. Once the extension has sent tabs at
+least once, it survives both a tab change and a restart of `tabs serve` — it's the agent's
+only memory of what you already said no to, and without it a loop re-proposes the thing you
+just rejected, forever.
 
 | State | Meaning |
 | --- | --- |
@@ -401,9 +408,10 @@ request/response routes — nothing long-polls:
 | `GET /health` | extension | Reachability + protocol version |
 
 Both ends of this bridge move independently — the extension updates through the Web Store,
-the CLI through `tabbrew update` — so neither may assume the other is current. The two
-routes a protocol-2 extension actually uses (`GET /suggestion`, `POST /decision`) are
-unchanged; what protocol 3 dropped is the long polls and the legacy `/script` routes.
+the CLI through `tabbrew update` — so neither may assume the other is current. All four
+routes a protocol-2 extension actually calls (`POST /tabs`, `GET /suggestion`,
+`POST /decision`, `GET /health`) are unchanged; what protocol 3 dropped is the three long
+polls only the CLI ever issued, and the legacy `/script` pair.
 
 **There is no `--port` flag.** The extension hard-codes `49227` in both manifests'
 `optional_host_permissions`, so a bridge listening anywhere else is unreachable from the

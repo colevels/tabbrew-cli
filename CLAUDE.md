@@ -72,14 +72,17 @@ accepted flag must be declared in `index.ts`** — even flags only used by one s
 `src/config.ts` is the seam that makes the same binary target prod/staging/local:
 all configuration comes from `TABBREW_*` env vars with sensible defaults, resolved
 once into the exported `config` object. Endpoints derive from `TABBREW_BASE_URL`
-unless individually overridden. Route new config through here — the only deliberate
-exceptions are the non-`TABBREW_*` presentation/agent knobs read at their point of use
-(`NO_COLOR` in `ui.ts`, `TABBREW_DEBUG` in `index.ts`, `CLAUDE_CONFIG_DIR` in
-`agents.ts`, which belongs to the agent target, not to TabBrew).
+unless individually overridden. Route new config through here — the deliberate exceptions
+are four knobs read at their point of use: `NO_COLOR` (`ui.ts`), `TABBREW_DEBUG`
+(`index.ts`), `CLAUDE_CONFIG_DIR` (`agents.ts` — it belongs to the agent target, not to
+TabBrew), and `TABBREW_NO_BROWSER` (`util.ts`, inside `openBrowser`, so it gates every
+caller: `login` *and* `docs open`).
 
-The codebase is four loosely-coupled subsystems that share only `config`, `ui`, and `util`
-(the fourth, `tabs`, never talks to the TabBrew server — its only `config` use is
-`config.serve`, the loopback port/output path):
+The codebase is four loosely-coupled subsystems. They share the leaf modules — `config`,
+`ui`, `util`, plus `fsops` (atomic writes) and `table` (display-width padding) — and
+nothing else; no subsystem imports another's command files. The fourth, `tabs`, never talks
+to the TabBrew server at all: its only `config` use is `config.serve`, the loopback port
+and the state-file path.
 
 **1. Auth / API (the original purpose)**
 - `auth.ts` — device-flow protocol: request a device code, then `pollForToken`
@@ -224,7 +227,11 @@ only because Bun kills a 10s-idle request.
   agent's memory of what it proposed and what the user said back, so it deliberately
   outlives both a tab change (`POST /tabs` rebuilds the state wholesale but carries the
   ring through `persist()`) and a restart of `serve` (`seedTabState()` reloads it, and
-  keeps the version counter climbing so `basedOn` staleness stays meaningful).
+  keeps the version counter climbing so `basedOn` staleness stays meaningful). The one gap
+  is cold start: `persist()` no-ops while `tabState` is null, so a suggestion queued before
+  the extension has ever posted tabs stays in memory only. That case is degenerate — an
+  agent with no tabs to read has nothing to write a script about — but don't describe the
+  ring as unconditionally durable.
   `decision: null` prints as `PENDING` and is the "don't pile a second proposal on top of
   the first" signal. `failed` is not a user decision — it's "the user said yes and Chrome
   refused"; recording that as `accepted` would tell a watching agent its plan worked when
@@ -310,10 +317,10 @@ command in `registry.ts`, or it will be rejected at runtime. Adding a command = 
 is a **hand-written mirror** of this table — a card per command, coloured by how far the
 command reaches (offline / loopback / account / GitHub Releases). Nothing generates it and
 nothing tests it, so a new command, a *deleted* command, a renamed flag, or a reworded
-summary has to be carried over by hand or the page quietly goes stale — which it did: the
-v0.7.0 cut has not been mirrored there yet, and it still shows the five removed `tabs`
-subcommands. It is the only file in the repo that duplicates `registry.ts`; keep the
-duplication small enough to be worth it.
+summary has to be carried over by hand or the page quietly goes stale. It was rewritten
+for v0.7.0 (the removed commands survive there only as a struck-through "what changed"
+strip, which is the one thing a returning reader most needs). It is the only file in the
+repo that duplicates `registry.ts`; keep the duplication small enough to be worth it.
 
 Help is **three views** over that one table:
 - the **default** (`printHelp()`) — grouped commands (`GROUPS`, ordered by what the CLI is
@@ -409,7 +416,7 @@ hosted TabBrew server at `https://www.tabbrew.com`:
 | `TABBREW_SERVE_PORT` | `49227` | Loopback port for `tabs serve` (listens) and `tabs suggest` (connects). **A test override** — there is no `--port`, and the extension hard-codes 49227 |
 | `TABBREW_TABS_PATH` | `~/.config/tabbrew/tabs.json` | Where `tabs serve` saves the exported tabs + suggestion ring (read by `tabs list`) |
 | `TABBREW_TOKEN` | *(unset)* | Use this token directly; **wins over the stored file** (for CI/CD) |
-| `TABBREW_NO_BROWSER` | *(unset)* | Set to skip auto-opening the browser during `login` |
+| `TABBREW_NO_BROWSER` | *(unset)* | Print URLs instead of launching a browser (`login`, `docs open`) |
 | `TABBREW_TIMEOUT_MS` | `15000` | Per-request timeout in milliseconds (device code / poll / whoami) |
 | `TABBREW_DEBUG` | *(unset)* | Print stack traces on unexpected errors |
 | `NO_COLOR` | *(unset)* | Disable ANSI colors |

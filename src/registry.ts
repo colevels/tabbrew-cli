@@ -107,14 +107,10 @@ export const COMMANDS: readonly CommandSpec[] = [
       "Long-running: it binds 127.0.0.1 only and blocks until Ctrl+C, so start it " +
       "in a second shell. The extension POSTs your open tabs to it, and it saves " +
       "them (mode 0600 — they're browsing history) for `tabs list` to read. It also " +
-      "hands your queued suggestion to the extension and records what you decided.",
-    flags: [
-      {
-        name: "out",
-        value: "<path>",
-        summary: "Where to save the received tabs JSON",
-      },
-    ],
+      "hands your queued suggestion to the extension and records what you decided. " +
+      "Set TABBREW_TABS_PATH to move the state file — it moves all three commands " +
+      "at once, which is why there is no flag for it.",
+    flags: [],
   },
   {
     name: "tabs list",

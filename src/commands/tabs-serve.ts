@@ -13,10 +13,6 @@ export class ServeError extends Error {
   }
 }
 
-export interface ServeOptions {
-  out?: string;
-}
-
 /**
  * Wire-protocol version, echoed by `GET /health`. Both ends of this bridge move
  * independently — the extension updates through the Web Store, the CLI through
@@ -27,10 +23,11 @@ export interface ServeOptions {
  *   3 = dropped the long polls and the legacy `/script` routes; the verdict is
  *       recorded in the state file instead of being waited on over the wire
  *
- * A protocol-2 extension is fully served by a protocol-3 bridge: it polls
- * `GET /suggestion` and POSTs `/decision`, both unchanged. Only the two routes
- * nothing in the browser ever called (`GET /tabs`, `GET /history`) and the
- * protocol-1 `/script` fallback are gone.
+ * A protocol-2 extension is fully served by a protocol-3 bridge: the four routes
+ * it actually calls — `POST /tabs`, `GET /suggestion`, `POST /decision`,
+ * `GET /health` — are unchanged. What went is the three long polls only the CLI
+ * ever issued (`GET /tabs`, `GET /history`, `GET /decision`) and the protocol-1
+ * `/script` pair.
  */
 const PROTOCOL = 3;
 
@@ -120,10 +117,17 @@ const isDecision = (v: unknown): v is DecisionKind =>
  * Every route is a plain request/response. Nothing long-polls: the extension
  * polls on its own timer, and the verdict is read from disk on the next
  * `tabs list` rather than waited on over a held-open socket.
+ *
+ * The state path is deliberately NOT a flag. It used to be `--out`, which moved
+ * only the writer: `tabs list` and `tabs suggest` kept reading
+ * `config.serve.outPath`, so a served `--out ./here.json` left them silently
+ * reporting a stale default file. That is the same reader/writer split `--port`
+ * was removed for. `TABBREW_TABS_PATH` moves all three at once, so it is the
+ * only override.
  */
-export async function tabsServe(opts: ServeOptions): Promise<void> {
+export async function tabsServe(): Promise<void> {
   const port = config.serve.port;
-  const outPath = opts.out ?? config.serve.outPath;
+  const outPath = config.serve.outPath;
 
   await mkdir(dirname(outPath), { recursive: true, mode: 0o700 });
 

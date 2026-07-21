@@ -37,7 +37,6 @@ async function route(): Promise<void> {
       title: { type: "string" },
       json: { type: "boolean" },
       check: { type: "boolean" },
-      out: { type: "string" },
       note: { type: "string" },
     },
     allowPositionals: true,
@@ -107,7 +106,7 @@ async function route(): Promise<void> {
       process.exitCode = 1;
       return;
     case "tabs":
-      if (sub === "serve") return tabsServe({ out: values.out });
+      if (sub === "serve") return tabsServe();
       if (sub === "list") return tabsList({ json: values.json });
       if (sub === "suggest")
         return tabsSuggest(positionals[2], {
