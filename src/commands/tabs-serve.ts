@@ -1,7 +1,8 @@
-import { dirname } from "node:path";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { atomicWrite, readFileOrNull } from "../fsops";
+import { atomicWrite, readFileOrNull, removeFileIfExists } from "../fsops";
 import { config } from "../config";
 import { BIN, c } from "../ui";
 
@@ -130,6 +131,7 @@ export async function tabsServe(): Promise<void> {
   const outPath = config.serve.outPath;
 
   await mkdir(dirname(outPath), { recursive: true, mode: 0o700 });
+  const droppedLog = await removeStaleHistoryLog(outPath);
 
   let tabState: TabState | null = await seedTabState(outPath);
   // The suggestion ring outlives any single tab state — it's what the agent
@@ -371,6 +373,12 @@ export async function tabsServe(): Promise<void> {
     `${c.bold("TabBrew bridge")} ${c.dim("· ready on")} ${c.cyan(`127.0.0.1:${port}`)}`,
   );
   console.log(`  ${c.dim("Exported tabs are saved to")} ${outPath}`);
+  for (const path of droppedLog) {
+    console.log(`  ${c.green("Deleted")} ${path}`);
+    console.log(
+      c.dim("    left by an older version — it recorded tabs you had closed."),
+    );
+  }
   console.log("");
   console.log(
     `  ${c.bold("Next, in Chrome:")} open the TabBrew sidepanel, click ${c.bold("Send to Claude Code")},`,
@@ -430,6 +438,39 @@ async function seedTabState(outPath: string): Promise<TabState | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Delete the delta log v0.6.0 wrote, if it's still lying around.
+ *
+ * That file is the one place this CLI ever accumulated browsing history at
+ * rest — unlike `tabs.json`, which only describes tabs that are open right now,
+ * it remembered the titles and URLs of tabs the user had *closed*. v0.7.0 stopped
+ * writing it and removed `tabs history --clear`, which would have left an
+ * upgrading user with that file on disk and no supported way to get rid of it.
+ * Deleting the data along with the feature is the only honest option, and
+ * `tabs serve` is where it happens because it's the command that created it.
+ *
+ * Best-effort by design: it checks the default location and, if the state file
+ * has been moved with TABBREW_TABS_PATH, the sibling of wherever that now lives.
+ * A log parked somewhere else by the old TABBREW_TABS_HISTORY_PATH is the user's
+ * to delete — nothing records where they put it.
+ */
+async function removeStaleHistoryLog(outPath: string): Promise<string[]> {
+  const LOG = "tabs-history.jsonl";
+  const candidates = new Set([
+    join(homedir(), ".config", "tabbrew", LOG),
+    join(dirname(outPath), LOG),
+  ]);
+  const removed: string[] = [];
+  for (const path of candidates) {
+    try {
+      if (await removeFileIfExists(path)) removed.push(path);
+    } catch {
+      // Unreadable or not ours — never let cleanup stop the bridge starting.
+    }
+  }
+  return removed;
 }
 
 function json(body: unknown, status = 200): Response {

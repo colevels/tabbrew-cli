@@ -34,6 +34,19 @@ interface SavedSuggestion {
 const STALE_AFTER_MS = 5 * 60 * 1000;
 
 /**
+ * Past this, an unanswered suggestion is reported as UNANSWERED rather than
+ * PENDING.
+ *
+ * Once the extension has claimed a suggestion, nothing can tell the bridge
+ * whether it is still on screen — the user may have closed the panel, or the
+ * browser. Without this an agent following the skill ("stop while the newest
+ * entry is PENDING") would wait on an answer that is never coming, and the loop
+ * would wedge for the rest of the session. Time is the only signal available,
+ * so it is the one used.
+ */
+const UNANSWERED_AFTER_MS = 15 * 60 * 1000;
+
+/**
  * Show what the extension last sent to `tabs serve`, plus what became of the
  * last few suggestions.
  *
@@ -50,6 +63,13 @@ export async function tabsList(opts: TabsListOptions): Promise<void> {
   const file = Bun.file(path);
 
   if (!(await file.exists())) {
+    // `--json` has to stay JSON on every path — a caller that asked for machine
+    // output and got an English sentence has to special-case a parse failure to
+    // tell "nothing yet" from "the command broke".
+    if (opts.json) {
+      console.log(JSON.stringify({ ok: true, exported: false, path }, null, 2));
+      return;
+    }
     console.log(
       c.dim("No tabs exported yet.") +
         ` Start the bridge with ${c.bold(`${BIN} tabs serve`)}, then click ${c.bold("Send to Claude Code")} in the TabBrew sidepanel.`,
@@ -129,15 +149,25 @@ export async function tabsList(opts: TabsListOptions): Promise<void> {
  * wait rather than pile a second proposal on top of the first.
  */
 function renderSuggestions(suggestions: SavedSuggestion[]): string[] {
-  const rows = suggestions.map((s) => {
+  const now = Date.now();
+  const rows = suggestions.map((raw) => {
+    // A hand-edited or truncated state file can put anything in here; one bad
+    // entry must not take the tab snapshot down with it.
+    const s: SavedSuggestion = raw && typeof raw === "object" ? raw : {};
     const decision = typeof s.decision === "string" ? s.decision : "";
     const at =
       (typeof s.decidedAt === "string" && s.decidedAt) ||
       (typeof s.queuedAt === "string" && s.queuedAt) ||
       "";
+    const queuedAgo = at ? now - new Date(at).getTime() : 0;
+    const state = decision
+      ? decision.toUpperCase()
+      : queuedAgo > UNANSWERED_AFTER_MS
+        ? "UNANSWERED"
+        : "PENDING";
     return {
       age: at ? formatAge(at) : "unknown",
-      state: decision ? decision.toUpperCase() : "PENDING",
+      state,
       note: typeof s.note === "string" && s.note.trim() ? s.note.trim() : "(no note)",
       reason: typeof s.reason === "string" && s.reason.trim() ? s.reason.trim() : "",
       ops: typeof s.opCount === "number" ? s.opCount : null,
@@ -156,7 +186,9 @@ function renderSuggestions(suggestions: SavedSuggestion[]): string[] {
           ? c.red
           : r.decision === "stale"
             ? c.yellow
-            : c.cyan;
+            : r.state === "UNANSWERED"
+              ? c.dim
+              : c.cyan;
     const tail = r.reason
       ? ` ${c.dim("—")} ${c.dim(`"${r.reason}"`)}`
       : r.ops !== null && r.decision === "accepted"

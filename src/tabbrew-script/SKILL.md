@@ -76,6 +76,13 @@ recent suggestions and what became of them, then the snapshot:
 - The snapshot is stale. Say so once; don't propose against tab ids that have
   probably changed.
 
+`UNANSWERED` is **not** `PENDING`. It means the suggestion has been sitting there
+long enough that they are plainly not looking at the panel — so it is not a reason
+to keep waiting, and you may propose again when there's a reason to. Read it as a
+hint about them rather than about the idea: someone who never saw the card hasn't
+rejected anything, but they also aren't at their desk, so keep the next proposal
+worth interrupting for.
+
 ## 2. Decide whether anything is worth doing
 
 **The default is to do nothing.** Propose only when you can name a concrete,
@@ -173,6 +180,8 @@ next time you run `tabs list`:
   may still be good; rebuild it against the current ids.
 - **FAILED** — they said yes and Chrome refused. They *wanted* this, so fix the
   script rather than dropping the idea. The tabs are unchanged.
+- **UNANSWERED** — nobody ever looked. Not a rejection, not a reason to keep
+  waiting. The tabs are unchanged.
 
 Three denials in a row means your read of what they want is wrong. Stop proposing
 and ask them directly what they'd like you to watch for.

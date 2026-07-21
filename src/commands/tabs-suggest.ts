@@ -5,7 +5,6 @@ import { parseTabbrewScript } from "../tabbrew-script/parser";
 import {
   extractFencedTabbrewScript,
   renderParseErrors,
-  summarizeOps,
 } from "../tabbrew-script/render";
 import { TabsBridgeError, TabsInputError } from "./tabs-errors";
 import { BIN, c } from "../ui";
@@ -72,7 +71,6 @@ export async function tabsSuggest(
   }
 
   const port = config.serve.port;
-  const stats = summarizeOps(ops);
   const basedOn = await lastSeenVersion();
 
   let res: Response;
@@ -80,7 +78,7 @@ export async function tabsSuggest(
     res = await fetch(`http://127.0.0.1:${port}/suggestion`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ script, note, basedOn, opCount: stats.total }),
+      body: JSON.stringify({ script, note, basedOn, opCount: ops.length }),
     });
   } catch {
     throw new TabsBridgeError(
@@ -99,13 +97,13 @@ export async function tabsSuggest(
 
   if (opts.json) {
     console.log(
-      JSON.stringify({ ok: true, id, opCount: stats.total, basedOn }, null, 2),
+      JSON.stringify({ ok: true, id, opCount: ops.length, basedOn }, null, 2),
     );
     return;
   }
 
   console.log(
-    `${c.green("✓ Sent")} ${c.dim(`(${stats.total} op${stats.total === 1 ? "" : "s"})`)} — it's waiting for Accept or Deny in the TabBrew sidepanel.`,
+    `${c.green("✓ Sent")} ${c.dim(`(${ops.length} op${ops.length === 1 ? "" : "s"})`)} — it's waiting for Accept or Deny in the TabBrew sidepanel.`,
   );
   console.log(
     c.dim(

@@ -2,7 +2,7 @@
 //   - extractFencedTabbrewScript: mirror of tabbrew-api/src/lib/extract.ts (minus
 //     the Anthropic dependency) so `tabs suggest` tolerates a whole ```tabbrew
 //     message, not just a bare script
-//   - the op summary and the parse-error renderer
+//   - the parse-error renderer
 //
 // It deliberately does NOT render tabs. The extension ships its own rendered
 // snapshot in the payload it POSTs, and `tabs list` prints that verbatim — so
@@ -23,31 +23,6 @@ export const extractFencedTabbrewScript = (text: string): string => {
     .filter((line) => !FENCE_LINE.test(line))
     .join("\n")
     .trim();
-};
-
-// ── op summary ──────────────────────────────────────────────────────────────
-
-export type OpStats = {
-  total: number;
-  byVerb: Record<string, number>;
-  delCount: number;
-  affectedCount: number;
-};
-
-export const summarizeOps = (ops: Op[]): OpStats => {
-  const byVerb: Record<string, number> = {};
-  const affected = new Set<number>();
-  let delCount = 0;
-  for (const op of ops) {
-    byVerb[op.verb] = (byVerb[op.verb] ?? 0) + 1;
-    if (op.verb === "MOVE") {
-      affected.add(op.id);
-    } else {
-      for (const id of op.ids) affected.add(id);
-      if (op.verb === "DEL") delCount += op.ids.length;
-    }
-  }
-  return { total: ops.length, byVerb, delCount, affectedCount: affected.size };
 };
 
 // ── renderers (colored strings; caller console.logs) ────────────────────────
