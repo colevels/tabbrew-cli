@@ -17,13 +17,10 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
 - The user asks for \`tabbrew tools\` output (e.g. repo-info).
 - The user wants to send an HTML file (plan, report, viewer) to TabBrew so it
   opens from the sidepanel Docs view ("send this to tabbrew", "ส่งเข้า tabbrew").
-- The user pastes their tabs (from the extension's **Copy AI Prompt** button) or sends
-  them via the local bridge, and wants them organized/closed/grouped — generate a
-  TabBrew Script, validate it with \`tabbrew tabs check\`, then \`tabbrew tabs push\` it
-  for them to run (see **Managing tabs** below).
-- The user wants you to **keep watching** their tabs and suggest changes as they go
-  ("auto mode", "เฝ้าแท็บให้หน่อย") — that's the loop in the \`tabbrew-auto\` skill:
-  \`tabs watch\` → decide → \`tabs suggest --note\` → they Accept or Deny.
+- The user wants their open Chrome tabs organized/closed/grouped, either as a
+  one-off ("จัดแท็บให้หน่อย", "close the duplicates") or as a standing watch
+  ("auto mode", "เฝ้าแท็บให้หน่อย", a \`/loop\`). Both are the same three steps —
+  follow the installed \`tabbrew-tabs\` skill and see **Managing tabs** below.
 
 ## Commands
 - \`tabbrew login\`   — sign in via device flow (opens a browser; prints a code).
@@ -38,69 +35,40 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
   an array of \`{ id, title, filename, sizeBytes, kind: "gcs"|"local", localPath, createdAt,
   updatedAt }\` (ISO-8601 dates, raw byte counts; empty list is \`[]\`). The default table is
   for humans and is lossy — parse the JSON, not the table.
-- \`tabbrew tabs check <file|->\` — validate a TabBrew Script you generated
-  (line-numbered parse errors, exit 1 on any). Pass the script as a file or on stdin
-  (accepts a whole \`\`\`tabbrew fenced block). Add \`--snapshot <file>\` (the Copy-AI-Prompt
-  markdown, or a \`.json\` payload) for a simulated before/after preview; \`--json\` for
-  machine output. Runs locally — no server, no browser.
-- \`tabbrew tabs push <file|->\` — validate a script, then hand it to the extension to
-  preview. Requires \`tabbrew tabs serve\` already running (\`--port\` must match if it
-  isn't on the default 49227). This does **not** run the script: it lands in the
-  extension's panel and the user clicks **Run** themselves.
-- \`tabbrew tabs suggest <file|-> --note "…"\` — the auto-mode sibling of \`push\`.
-  \`--note\` is **required**: one plain sentence, in the user's own language, leading
-  with anything destructive ("ปิดแท็บ YouTube 6 อัน แล้วรวม github เป็นกลุ่ม Code") — it's
-  the only thing they read before deciding. Waits for their answer by default and
-  prints the verdict (\`--json\`: \`{ decision: "accepted"|"denied"|"stale", reason }\`).
-  A Deny is an answer, not a failure — it always exits 0. Never re-send a denied one.
-- \`tabbrew tabs serve\` — start the local bridge (127.0.0.1 only) the extension exports
-  its open tabs to and polls for pushed scripts. Long-running; it blocks until Ctrl+C,
-  so start it in a background/second shell, never in the foreground of a task you
-  need to finish.
-- \`tabbrew tabs watch [--timeout 60] [--changes-only]\` — block until the extension
-  reports a tab change, then print what moved plus the current snapshot (in the exact
-  \`# Goal / # Windows / # Groups / # Tabs\` format the skill reads). No output means
-  nothing changed; it still exits 0. Needs \`tabs serve\` running **and** Auto mode on
-  in the sidepanel.
-- \`tabbrew tabs list\` — show the tabs the extension last exported (\`--json\` for the raw
-  saved payload: \`{ savedAt, version, count, tabs, groups, windows }\`). Check \`savedAt\`
-  before trusting the tab ids — it's a snapshot on disk and can be stale.
-- \`tabbrew tabs history [--limit 20] [--clear]\` — what changed between exported tab
-  states, one line per version. Read it once when starting a watch loop to catch up.
-  It holds titles/URLs of tabs the user has since closed, so \`--clear\` deletes it
-  (and \`tabs serve --no-history\` never writes it).
-- \`tabbrew tabs prompt [--variant full|standard|compact]\` — print the interactive
-  skill prompt (same one \`tabbrew init\` installs as a skill).
+- \`tabbrew tabs serve\` — start the local bridge (127.0.0.1 only) the extension sends
+  its open tabs to, and which hands your suggestion back to it. Long-running; it
+  blocks until Ctrl+C, so start it in a background/second shell, never in the
+  foreground of a task you need to finish.
+- \`tabbrew tabs list\` — what the extension last sent, plus what became of your recent
+  suggestions. Prints the extension's own snapshot format (\`# Cross-window /
+  # Windows / # Groups / # Tabs\` JSONL) — that's the format to write ops against.
+  Check the age it reports before trusting the tab ids; it's a file on disk, and it
+  only refreshes while the sidepanel is open with Auto mode on. \`--json\` for the raw
+  payload.
+- \`tabbrew tabs suggest <file|-> --note "…"\` — validate a TabBrew Script and put it in
+  front of the user. \`--note\` is **required**: one plain sentence, in the user's own
+  language, leading with anything destructive ("ปิดแท็บ YouTube 6 อัน แล้วรวม github เป็น
+  กลุ่ม Code") — it's the only thing they read before deciding. Returns as soon as it's
+  queued; their answer appears in the next \`tabbrew tabs list\`. Never re-send a denied one.
 
 ## Managing tabs (generate a TabBrew Script)
 The DSL has six verbs, one per line: \`DEL\` \`PIN\` \`UNPIN\` \`GROUP\` \`UNGROUP\` \`MOVE\`.
-Where the tabs come from — either works:
-- The user pastes the extension's **Copy AI Prompt** output (\`# Goal / # Cross-window /
-  # Windows / # Groups / # Tabs\` sections), or
-- The bridge is running and the user clicked **Send to Claude Code**, so
-  \`tabbrew tabs list\` shows the tabs directly.
+The tabs come from the bridge: \`tabbrew tabs serve\` is running, and the user has
+clicked **Send to Claude Code** in the TabBrew sidepanel (with **Auto mode** on if
+they want it to keep streaming).
 
-Then:
-1. Follow the installed \`tabbrew-tabs\` skill to generate a script — clarify a vague
-   goal, list every \`DEL\` target and confirm before closing, emit one \`\`\`tabbrew block.
-2. Validate it: save the script and the pasted snapshot to files, then
-   \`tabbrew tabs check script.txt --snapshot snapshot.md\`. Fix any parse errors and
-   review the preview (especially closes and dropped stale ids).
-3. Get it in front of the user — \`tabbrew tabs push script.txt\` if the bridge is
-   running, otherwise tell them to paste the script into the extension's developer mode.
-4. Either way **they** click **Run**. Execution happens in the browser, never here —
-   nothing the CLI does can change their tabs, so never report tabs as closed/grouped.
+Then, per the installed \`tabbrew-tabs\` skill:
+1. \`tabbrew tabs list\` — read the snapshot and the recent suggestions. If the newest
+   one is still PENDING, or the state is stale, stop here.
+2. Decide whether anything is worth doing. **The default is nothing.** Tab count is
+   not a problem; 200 open tabs may be how this person works.
+3. Write the ops to a file and \`tabbrew tabs suggest plan.txt --note "…"\`.
+4. **They** press Accept or Deny in the panel. Execution happens in the browser,
+   never here — nothing the CLI does can change their tabs, so never report tabs as
+   closed or grouped. Read the verdict from the next \`tabbrew tabs list\`.
 
-## Auto mode (the watch loop)
-When the user wants you to keep an eye on their tabs rather than answer one request,
-follow the installed \`tabbrew-auto\` skill. In short: they start \`tabbrew tabs serve\`
-and switch **Auto mode** on in the sidepanel; you loop \`tabbrew tabs watch\` → decide
-whether anything is worth doing (**default: nothing**) → \`tabbrew tabs check\` →
-\`tabbrew tabs suggest --note "…"\` → read the verdict. A denial, especially with a
-reason, is a standing rule — never propose that thing again.
-
-Unlike the one-off flow above, do **not** ask for DEL confirmation in chat: the panel's
-Accept/Deny card is the confirmation, and the note is where you say what gets closed.
+Do **not** ask for DEL confirmation in chat as well: the panel's Accept/Deny card is
+the confirmation, and the note is where you say what gets closed.
 
 ## Non-interactive / CI
 Set \`TABBREW_TOKEN\` to authenticate without a login prompt (it wins over the stored

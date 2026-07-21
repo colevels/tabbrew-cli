@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>tabbrew CLI — visual command map</title>
+<title>tabbrew CLI v0.7.0 — visual command map</title>
 </head>
 <body>
 <style>
@@ -181,6 +181,26 @@ code, kbd, pre { font-family: var(--mono); }
 .section__head { display: flex; flex-direction: column; gap: 0.55rem; margin-bottom: clamp(1.4rem, 1rem + 1.2vw, 2.2rem); }
 .section__head h2 { font-family: var(--mono); font-size: var(--fs-h2); font-weight: 700; letter-spacing: -0.02em; }
 .section__head p { max-width: 68ch; color: var(--ink-2); font-size: var(--fs-sm); }
+
+/* ---------- what changed in v0.7.0 ---------- */
+.gone { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 0.6rem; }
+.gone__row {
+  display: flex; flex-direction: column; gap: 0.2rem;
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 3px solid var(--release); border-radius: var(--radius);
+  padding: 0.7rem 0.9rem;
+}
+/* Struck through, not hidden: half the value of this page for a returning user is
+   confirming that the command they remember is gone, and where it went. */
+.gone__cmd { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.gone__to { font-size: var(--fs-sm); color: var(--ink-2); }
+.gone__to b { color: var(--local); font-family: var(--mono); font-weight: 700; }
+
+.counts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; margin-bottom: 1.5rem; }
+.count { font-family: var(--mono); font-size: var(--fs-sm); border: 1px solid var(--line); border-radius: 99px; padding: 0.25rem 0.8rem; background: var(--surface); }
+.count b { color: var(--local); }
+.count--was { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.counts .sep { color: var(--muted); font-family: var(--mono); }
 
 /* ---------- reach legend ---------- */
 .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.6rem; margin-bottom: 1.6rem; }
@@ -449,8 +469,9 @@ footer code { color: var(--ink-2); }
   <div class="wrap nav__inner">
     <div class="nav__brand">tabbrew<span>-cli</span></div>
     <div class="nav__links">
+      <a href="#changed">v0.7.0</a>
       <a href="#map">Commands</a>
-      <a href="#flows">Workflows</a>
+      <a href="#flows">The loop</a>
       <a href="#auto">Auto mode</a>
       <a href="#bridge">Bridge</a>
       <a href="#script">Script</a>
@@ -462,19 +483,19 @@ footer code { color: var(--ink-2); }
 
 <header class="wrap hero" id="top">
   <div class="hero__kicker">
-    <span class="eyebrow">tabbrew-cli · v0.5.5</span>
-    <span class="eyebrow">18 commands · 4 groups</span>
+    <span class="eyebrow">tabbrew-cli · v0.7.0</span>
+    <span class="eyebrow">13 commands · 4 groups</span>
   </div>
   <h1>The terminal half of <em>TabBrew</em></h1>
   <p class="hero__lede">
     TabBrew is a Chrome extension for people running 100–200 tabs. This CLI is how a terminal —
-    and the AI agent working in it — joins that conversation: it reads your exported tabs, validates
-    the scripts an agent writes about them, and hands those scripts back to the browser.
+    and the AI agent working in it — joins that conversation: it reads your exported tabs and puts
+    a proposed change in front of you, in the browser, where you accept or deny it.
   </p>
   <p class="hero__rule">
     <b>The one rule worth memorising:</b> no command here can close, pin, group, or move a tab.
     The CLI only ever writes files and talks to a loopback port. Tabs move in Chrome, after
-    <b>you</b> press <b>Run</b> or <b>Accept</b>.
+    <b>you</b> press <b>Accept</b>.
   </p>
 
   <div class="topo">
@@ -493,7 +514,7 @@ footer code { color: var(--ink-2); }
     <figure class="node node--cli">
       <span class="node__tag">In the terminal</span>
       <span class="node__name">tabbrew + your agent</span>
-      <span class="node__body">Runs the bridge, validates and simulates scripts, proposes changes, waits for your answer.</span>
+      <span class="node__body">Runs the bridge, reads the exported tabs, validates a script and proposes it.</span>
       <span class="node__flag">writes files · never touches chrome.*</span>
     </figure>
 
@@ -506,12 +527,73 @@ footer code { color: var(--ink-2); }
       <span class="node__tag">On the internet</span>
       <span class="node__name">tabbrew.com</span>
       <span class="node__body">Your account and the sidepanel Docs view. Only the <code>login</code> and <code>docs</code> commands go here.</span>
-      <span class="node__flag">6 of 18 commands</span>
+      <span class="node__flag">6 of 13 commands</span>
     </figure>
   </div>
 </header>
 
 <main class="wrap">
+
+<!-- ============================ WHAT CHANGED ============================ -->
+<section class="section" id="changed" style="border-top: 0;">
+  <div class="section__head">
+    <span class="eyebrow">00 · What changed in v0.7.0</span>
+    <h2>Eight tab commands became three</h2>
+    <p>
+      <code>v0.6.0</code> was the widest this ever got — a command for every step of the loop, and
+      a long-polling bridge to hold them together. It turned out the loop is three steps, and the
+      agent's own scheduler already owns the waiting. Nothing below was replaced by something
+      bigger; the work moved to whichever end already had the information.
+    </p>
+  </div>
+
+  <div class="counts">
+    <span class="count count--was">8 tab commands</span>
+    <span class="sep">→</span>
+    <span class="count"><b>3</b> tab commands</span>
+    <span class="sep">·</span>
+    <span class="count count--was">10 bridge routes</span>
+    <span class="sep">→</span>
+    <span class="count"><b>5</b> routes, none long-polling</span>
+    <span class="sep">·</span>
+    <span class="count count--was">2 skills</span>
+    <span class="sep">→</span>
+    <span class="count"><b>1</b></span>
+  </div>
+
+  <div class="gone">
+    <div class="gone__row">
+      <span class="gone__cmd">tabs watch</span>
+      <span class="gone__to">The agent's own loop does the waiting — <code>/loop</code> in Claude Code, cron anywhere else. A blocking long-poll inside a scheduler is two schedulers.</span>
+    </div>
+    <div class="gone__row">
+      <span class="gone__cmd">tabs check</span>
+      <span class="gone__to"><b>tabs suggest</b> already refuses a script that doesn't parse, and the extension shows the real preview before you Accept. The simulator was a third opinion nobody read.</span>
+    </div>
+    <div class="gone__row">
+      <span class="gone__cmd">tabs push</span>
+      <span class="gone__to">Folded into <b>tabs suggest</b>. Sending a change without saying what it does was never the good half of the pair.</span>
+    </div>
+    <div class="gone__row">
+      <span class="gone__cmd">tabs history</span>
+      <span class="gone__to">Deleted outright, along with the delta log it read. It was the only place the CLI kept titles and URLs of tabs you had <em>closed</em>.</span>
+    </div>
+    <div class="gone__row">
+      <span class="gone__cmd">tabs prompt</span>
+      <span class="gone__to">The skill <code>init</code> installs is the prompt. Printing a second copy to paste elsewhere kept four variants of it alive in the binary.</span>
+    </div>
+    <div class="gone__row">
+      <span class="gone__cmd">--port · --wait · --no-wait</span>
+      <span class="gone__to">The extension hard-codes <code>49227</code>, so another port was never reachable from Chrome. And <b>suggest</b> no longer waits at all.</span>
+    </div>
+  </div>
+
+  <p class="callout">
+    <b>Upgrading?</b> If you have a script that calls one of the commands above, pin
+    <code>v0.6.0</code>. <code>tabbrew init</code> deletes the old <code>tabbrew-auto</code> skill
+    for you — left in place it would keep telling your agent to run <code>tabs watch</code>.
+  </p>
+</section>
 
 <!-- ============================ COMMAND MAP ============================ -->
 <section class="section" id="map">
@@ -526,11 +608,11 @@ footer code { color: var(--ink-2); }
 
   <div class="legend">
     <button type="button" class="chip chip--offline" data-reach="offline" aria-pressed="false">
-      <span class="chip__top">Offline <span class="chip__n">7</span></span>
+      <span class="chip__top">Offline <span class="chip__n">4</span></span>
       <span class="chip__why">No network at all. Reads and writes files on this machine.</span>
     </button>
     <button type="button" class="chip chip--local" data-reach="local" aria-pressed="false">
-      <span class="chip__top">Loopback <span class="chip__n">4</span></span>
+      <span class="chip__top">Loopback <span class="chip__n">2</span></span>
       <span class="chip__why">Talks to <code>127.0.0.1</code> and nothing else. Never leaves the box.</span>
     </button>
     <button type="button" class="chip chip--account" data-reach="account" aria-pressed="false">
@@ -544,7 +626,7 @@ footer code { color: var(--ink-2); }
   </div>
 
   <div class="filterbar">
-    <span id="filterState">Showing all 18 commands.</span>
+    <span id="filterState">Showing all 13 commands.</span>
     <button type="button" id="clearFilter" hidden>Show all</button>
   </div>
 
@@ -559,57 +641,22 @@ footer code { color: var(--ink-2); }
         <article class="card card--local">
           <h4 class="card__cmd">tabs serve</h4>
           <p class="card__sum">Start the local bridge the extension exports your tabs to.</p>
-          <div class="card__flags"><span class="flag">--port &lt;n&gt;</span><span class="flag">--out &lt;path&gt;</span><span class="flag">--no-history</span></div>
+          <div class="card__flags"><span class="flag">no options</span></div>
           <p class="card__note">Binds <code>127.0.0.1</code> and <b>blocks until Ctrl+C</b> — give it its own shell.</p>
-        </article>
-
-        <article class="card card--local">
-          <h4 class="card__cmd">tabs watch</h4>
-          <p class="card__sum">Wait for the extension to report a tab change.</p>
-          <div class="card__flags"><span class="flag">--timeout &lt;s&gt;</span><span class="flag">--since &lt;n&gt;</span><span class="flag">--changes-only</span><span class="flag">--json</span><span class="flag">--port &lt;n&gt;</span></div>
-          <p class="card__note">Long-polls, so an idle browser costs nothing. <b>A timeout prints nothing and still exits 0.</b></p>
         </article>
 
         <article class="card card--offline">
           <h4 class="card__cmd">tabs list</h4>
-          <p class="card__sum">Show the tabs the extension last exported.</p>
+          <p class="card__sum">Show the tabs the extension last sent, and recent answers.</p>
           <div class="card__flags"><span class="flag">--json</span></div>
-          <p class="card__note">A snapshot on disk, <b>not a live query</b> — check <code>savedAt</code> before trusting tab ids.</p>
-        </article>
-
-        <article class="card card--offline">
-          <h4 class="card__cmd">tabs check <i>&lt;file&gt;</i></h4>
-          <p class="card__sum">Validate a TabBrew Script, with a before/after preview.</p>
-          <div class="card__flags"><span class="flag">--snapshot &lt;f&gt;</span><span class="flag">--json</span></div>
-          <p class="card__note"><b>Exits 1 on any parse error</b>, so it drops into pre-run gates. Takes <code>-</code> for stdin.</p>
-        </article>
-
-        <article class="card card--local">
-          <h4 class="card__cmd">tabs push <i>&lt;file&gt;</i></h4>
-          <p class="card__sum">Send a script to the extension to preview &amp; run.</p>
-          <div class="card__flags"><span class="flag">--port &lt;n&gt;</span></div>
-          <p class="card__note"><b>It does not run anything.</b> The script waits in the panel until you click Run — which is why it isn't called <code>run</code>.</p>
+          <p class="card__note">A snapshot on disk, <b>not a live query</b> — it only refreshes while the sidepanel is open. Prints the extension's own snapshot format.</p>
         </article>
 
         <article class="card card--local">
           <h4 class="card__cmd">tabs suggest <i>&lt;file&gt;</i></h4>
-          <p class="card__sum">Propose a script with a note, and wait for the answer.</p>
-          <div class="card__flags"><span class="flag flag--req">--note &lt;text&gt; required</span><span class="flag">--wait &lt;s&gt;</span><span class="flag">--no-wait</span><span class="flag">--json</span><span class="flag">--port &lt;n&gt;</span></div>
-          <p class="card__note"><b>Always exits 0</b> — a Deny is an answer, not a failure.</p>
-        </article>
-
-        <article class="card card--offline">
-          <h4 class="card__cmd">tabs history</h4>
-          <p class="card__sum">Show what changed between exported tab states.</p>
-          <div class="card__flags"><span class="flag">--limit &lt;n&gt;</span><span class="flag">--json</span><span class="flag">--clear</span></div>
-          <p class="card__note is-danger">One delta per line, newest last. It <b>remembers tabs you have since closed</b> — <code>--clear</code> deletes it.</p>
-        </article>
-
-        <article class="card card--offline">
-          <h4 class="card__cmd">tabs prompt</h4>
-          <p class="card__sum">Print the interactive TabBrew Script skill prompt.</p>
-          <div class="card__flags"><span class="flag">--variant &lt;v&gt;</span></div>
-          <p class="card__note">The same prompt <code>init</code> installs as the <b>tabbrew-tabs</b> skill — for pasting somewhere by hand.</p>
+          <p class="card__sum">Propose a script, with a note they read before deciding.</p>
+          <div class="card__flags"><span class="flag flag--req">--note &lt;text&gt; required</span><span class="flag">--json</span></div>
+          <p class="card__note"><b>Returns as soon as it's queued.</b> It has not run — the answer shows up in the next <code>tabs list</code>.</p>
         </article>
       </div>
     </div>
@@ -681,8 +728,8 @@ footer code { color: var(--ink-2); }
         <article class="card card--offline">
           <h4 class="card__cmd">init</h4>
           <p class="card__sum">Set up an AI agent to use tabbrew, plus the two tab skills.</p>
-          <div class="card__flags"><span class="flag">-g, --global</span><span class="flag">--dry-run</span><span class="flag">--uninstall</span><span class="flag">-y, --yes</span><span class="flag">--agent &lt;id&gt;</span><span class="flag">--variant &lt;v&gt;</span><span class="flag">--no-skill</span></div>
-          <p class="card__note">Writes an awareness doc + a managed block in <code>CLAUDE.md</code>, and installs <b>tabbrew-tabs</b> and <b>tabbrew-auto</b>. Idempotent; a re-run reports <code>unchanged</code>.</p>
+          <div class="card__flags"><span class="flag">-g, --global</span><span class="flag">--dry-run</span><span class="flag">--uninstall</span><span class="flag">-y, --yes</span><span class="flag">--agent &lt;id&gt;</span><span class="flag">--no-skill</span></div>
+          <p class="card__note">Writes an awareness doc + a managed block in <code>CLAUDE.md</code>, and installs the <b>tabbrew-tabs</b> skill. Idempotent; a re-run reports <code>unchanged</code>.</p>
         </article>
 
         <article class="card card--release">
@@ -714,130 +761,114 @@ footer code { color: var(--ink-2); }
 <!-- ============================ WORKFLOWS ============================ -->
 <section class="section" id="flows">
   <div class="section__head">
-    <span class="eyebrow">02 · Two ways to use it</span>
-    <h2>One request, or a standing watch</h2>
+    <span class="eyebrow">02 · The loop</span>
+    <h2>Three steps, whether you asked once or the agent is watching</h2>
     <p>
-      Both paths end the same way: a human presses a button in Chrome. What differs is who starts
-      the conversation — you, or the agent noticing something.
+      This used to be two diagrams. Answering "tidy my tabs" and running a standing watch turned
+      out to be the same three commands — the only difference is who decides it's time to look, and
+      that is the scheduler's job, not the CLI's.
     </p>
   </div>
 
   <div class="flows">
     <div class="flow">
       <div class="flow__head">
-        <h3>A · One request → one script</h3>
-        <p>You ask for something. The agent answers once.</p>
-      </div>
-      <ol class="steps">
-        <li class="step step--you">
-          <span class="step__who">You</span>
-          <span class="step__body">
-            <span class="step__cmd">Send to Claude Code</span>
-            <span class="step__say">In the sidepanel — your open tabs land on the bridge. <em>(Or Copy AI Prompt and paste them.)</em></span>
-          </span>
-        </li>
-        <li class="step">
-          <span class="step__who">CLI</span>
-          <span class="step__body">
-            <span class="step__cmd">tabbrew tabs list</span>
-            <span class="step__say">The agent reads the snapshot: windows, groups, tab ids, titles, URLs.</span>
-          </span>
-        </li>
-        <li class="step">
-          <span class="step__who">Agent</span>
-          <span class="step__body">
-            <span class="step__cmd">writes plan.txt</span>
-            <span class="step__say">A TabBrew Script — one op per line, following the <em>tabbrew-tabs</em> skill.</span>
-          </span>
-        </li>
-        <li class="step">
-          <span class="step__who">CLI</span>
-          <span class="step__body">
-            <span class="step__cmd">tabbrew tabs check plan.txt --snapshot tabs.json</span>
-            <span class="step__say">Line-numbered parse errors, a simulated before/after, and a count of what would close.</span>
-          </span>
-        </li>
-        <li class="step">
-          <span class="step__who">CLI</span>
-          <span class="step__body">
-            <span class="step__cmd">tabbrew tabs push plan.txt</span>
-            <span class="step__say">Queued on the bridge. The extension pops it and shows a preview. <em>Still nothing has moved.</em></span>
-          </span>
-        </li>
-        <li class="step step--you">
-          <span class="step__who">You</span>
-          <span class="step__body">
-            <span class="step__cmd">click Run</span>
-            <span class="step__say">Chrome executes it. This is the only step in the whole diagram where a tab actually changes.</span>
-          </span>
-        </li>
-      </ol>
-      <p class="loopback-note">
-        No bridge? The same loop works by hand: <b>Copy AI Prompt</b> → paste to your agent →
-        <b>tabs check</b> → paste the script into developer mode → Run.
-      </p>
-    </div>
-
-    <div class="flow">
-      <div class="flow__head">
-        <h3>B · Auto mode → a standing watch</h3>
-        <p>The agent watches and offers. You judge each offer.</p>
+        <h3>One pass</h3>
+        <p>Read, decide, offer. Then stop — even in a loop.</p>
       </div>
       <ol class="steps">
         <li class="step step--you">
           <span class="step__who">Setup</span>
           <span class="step__body">
             <span class="step__cmd">tabbrew tabs serve &amp; + Auto mode on</span>
-            <span class="step__say">The bridge in a second shell, and the Auto switch in the sidepanel's <em>Send to Claude Code</em> card.</span>
+            <span class="step__say">The bridge in a second shell, and the Auto switch in the sidepanel's <em>Send to Claude Code</em> card. That switch is what keeps the tabs arriving.</span>
           </span>
         </li>
         <li class="step">
-          <span class="step__who">1 · Wait</span>
+          <span class="step__who">1 · Read</span>
           <span class="step__body">
-            <span class="step__cmd">tabbrew tabs watch --timeout 60</span>
-            <span class="step__say">Blocks until tabs actually move, then prints the diff plus the snapshot. <em>No output means nothing changed.</em></span>
+            <span class="step__cmd">tabbrew tabs list</span>
+            <span class="step__say">Windows, groups, tab ids, titles, URLs — in the extension's own snapshot format. Above it: what became of the last few suggestions.</span>
           </span>
         </li>
         <li class="step">
           <span class="step__who">2 · Decide</span>
           <span class="step__body">
             <span class="step__cmd">default: do nothing</span>
-            <span class="step__say">Only propose a concrete win — exact duplicates, ≥3 loose tabs on one topic, <code>about:blank</code> clutter. A high tab count is not a problem.</span>
+            <span class="step__say">Only propose a concrete win — exact duplicates, ≥3 loose tabs on one topic, <code>about:blank</code> clutter. A high tab count is not a problem. <em>Stop here if the last suggestion is still PENDING.</em></span>
           </span>
         </li>
         <li class="step">
-          <span class="step__who">3 · Check</span>
-          <span class="step__body">
-            <span class="step__cmd">tabbrew tabs check plan.txt --snapshot …</span>
-            <span class="step__say">Never propose something that hasn't parsed and simulated cleanly.</span>
-          </span>
-        </li>
-        <li class="step">
-          <span class="step__who">4 · Offer</span>
+          <span class="step__who">3 · Offer</span>
           <span class="step__body">
             <span class="step__cmd">tabbrew tabs suggest plan.txt --note "…"</span>
-            <span class="step__say">The note is one plain sentence in your language, destructive part first. It's the only thing most people read.</span>
+            <span class="step__say">Validates, queues, returns. The note is one plain sentence in your language, destructive part first — it's the only thing most people read.</span>
           </span>
         </li>
         <li class="step step--you">
-          <span class="step__who">5 · You</span>
+          <span class="step__who">4 · You</span>
           <span class="step__body">
             <span class="step__cmd">Accept / Deny</span>
-            <span class="step__say">A card in the panel: the note, the preview, two buttons. Deny takes an optional reason.</span>
+            <span class="step__say">A card in the panel: the note, the preview, two buttons. Deny takes an optional reason. <em>This is the only step where a tab actually changes.</em></span>
           </span>
         </li>
         <li class="step">
-          <span class="step__who">6 · Listen</span>
+          <span class="step__who">5 · Next pass</span>
           <span class="step__body">
-            <span class="step__cmd">verdict → back to step 1</span>
-            <span class="step__say">A denial is a standing rule, not a retry signal. <em>Never re-send the thing you were told no about.</em></span>
+            <span class="step__cmd">tabbrew tabs list</span>
+            <span class="step__say">Your answer is waiting at the top. A denial is a standing rule, not a retry signal.</span>
           </span>
         </li>
       </ol>
       <p class="loopback-note">
-        In auto mode the agent does <b>not</b> ask you to confirm a close in chat — the Accept card
-        is the confirmation, and the <b>--note</b> is where the closes are named.
+        The agent does <b>not</b> ask you to confirm a close in chat — the Accept card is the
+        confirmation, and the <b>--note</b> is where the closes are named. Being asked twice for
+        the same thing is how people stop reading either one.
       </p>
+    </div>
+
+    <div class="flow">
+      <div class="flow__head">
+        <h3>Running it as a standing watch</h3>
+        <p>Nothing new to learn — the same pass, on a timer.</p>
+      </div>
+      <pre class="term"><span class="dim"># shell 1 — the bridge, until you Ctrl+C it</span>
+tabbrew tabs serve
+
+<span class="dim"># shell 2 — Claude Code</span>
+<span class="cy">/loop 10m</span> use the tabbrew-tabs skill: check my tabs
+      and suggest something if there's an obvious win</pre>
+      <p class="step__say" style="margin-top: 1rem;">
+        <code>/loop</code> re-runs that prompt on its own schedule, so the CLI never has to block
+        waiting for anything. Each pass is independent: read the state, decide, maybe offer, end
+        the turn. A quiet pass should cost one line of output.
+      </p>
+      <p class="loopback-note">
+        Most passes should do <b>nothing</b>. An agent that finds something to propose every ten
+        minutes gets switched off within the hour — and the switch is a human who stopped trusting
+        the notes.
+      </p>
+
+      <h3 class="blockhead" style="margin-top: 1.8rem;">What a pass reads</h3>
+      <p style="margin-top: -0.5rem; margin-bottom: 0.9rem; color: var(--ink-2); font-size: var(--fs-sm);">
+        The header, then your last few answers, then the tabs. All three matter: the age tells it
+        whether to trust the ids, and an unanswered suggestion tells it to stay quiet.
+      </p>
+<pre class="term">$ tabbrew tabs list
+<span class="ok">187</span> tabs <span class="dim">· 1 window · v42 · exported just now</span>
+
+<span class="dim">recent suggestions</span>
+  2 minutes ago   <span class="bad">DENIED</span>    ปิดแท็บ YouTube 6 อัน <span class="dim">— "ยังดูอยู่"</span>
+  9 minutes ago   <span class="ok">ACCEPTED</span>  รวมแท็บ github เป็นกลุ่ม Code <span class="dim">(4 ops)</span>
+
+<span class="cy"># Cross-window: no</span>
+<span class="cy"># Windows</span>
+{"id":1,"focused":true,"tabCount":187}
+<span class="cy"># Groups</span>
+{"id":42,"winId":1,"title":"Code","color":"blue","tabCount":9}
+<span class="cy"># Tabs</span>
+{"id":901,"idx":0,"pinned":true,"winId":1,"title":"Gmail",…}
+<span class="dim">…</span></pre>
     </div>
   </div>
 </section>
@@ -848,7 +879,7 @@ footer code { color: var(--ink-2); }
     <span class="eyebrow">03 · Turning it on</span>
     <h2>Auto mode, from the human's side</h2>
     <p>
-      Loop B above is what the agent does. This is the other half — three things you set up
+      The loop above is what the agent does. This is the other half — three things you set up
       once, and one decision you make each time a card appears.
     </p>
   </div>
@@ -873,7 +904,7 @@ footer code { color: var(--ink-2); }
           <span class="setupcard__do">Switch Auto mode on</span>
           <span class="setupcard__cmd">sidepanel → Manage Tabs → Send to Claude Code</span>
           <span class="setupcard__say">Flip the <b>Auto mode</b> switch on that card. <b>Keep the sidepanel open</b> — closing it pauses the whole stream.</span>
-          <span class="setupcard__ok">✓ tabs watch starts returning changes</span>
+          <span class="setupcard__ok">✓ tabs list starts showing fresh exports</span>
         </div>
 
         <div class="setupcard">
@@ -881,8 +912,8 @@ footer code { color: var(--ink-2); }
           <span class="setupcard__where">Chat</span>
           <span class="setupcard__do">Ask the agent to watch</span>
           <span class="setupcard__cmd">"keep an eye on my tabs"</span>
-          <span class="setupcard__say">That's what loads the <b>tabbrew-auto</b> skill: the loop, the rules for writing a note, and the rule that a denial is permanent.</span>
-          <span class="setupcard__ok">✓ it reads tabs history first, to catch up</span>
+          <span class="setupcard__say">That's what loads the <b>tabbrew-tabs</b> skill: how to read the snapshot, the rules for writing a note, and the rule that a denial is permanent. Add <code>/loop 10m</code> to put it on a timer.</span>
+          <span class="setupcard__ok">✓ one short line per quiet pass</span>
         </div>
       </div>
     </div>
@@ -923,19 +954,18 @@ footer code { color: var(--ink-2); }
           </div>
           <div class="answer answer--no">
             <h4>Deny — and say why</h4>
-            <p>Nothing changes. The reason you type comes straight back to the agent and becomes a <b>standing rule for the session</b>: "อย่าปิด youtube เปิดฟังเพลงอยู่" means YouTube is off the table from now on, not just this once. That round trip is what stops a loop re-proposing what you just rejected.</p>
+            <p>Nothing changes. The reason you type is written onto that suggestion in <code>tabs.json</code>, and the agent reads it on its next pass — where it becomes a <b>standing rule</b>: "อย่าปิด youtube เปิดฟังเพลงอยู่" means YouTube is off the table from now on, not just this once. That round trip is what stops a loop re-proposing what you just rejected.</p>
           </div>
           <div class="answer answer--none">
             <h4>Ignore it</h4>
-            <p>You weren't looking. The agent leaves it alone rather than stacking a second suggestion on top — the bridge holds exactly one, and a new push would silently replace it.</p>
+            <p>You weren't looking. It sits there marked <b>PENDING</b>, and the agent's next pass sees that and stays quiet rather than stacking a second suggestion on top — the bridge holds exactly one, and a new one would silently replace it.</p>
           </div>
         </div>
       </div>
       <p class="callout">
-        <b>No double-confirming.</b> In auto mode the agent will <em>not</em> ask you in chat before
-        closing anything — this card is the confirmation, and the note is where the closes are
-        named. That's the one point where the <code>tabbrew-auto</code> skill deliberately
-        contradicts <code>tabbrew-tabs</code>, which does require an explicit "yes" in chat.
+        <b>No double-confirming.</b> The agent will <em>not</em> ask you in chat before closing
+        anything — this card is the confirmation, and the note is where the closes are named. Being
+        asked twice for the same thing is how people stop reading either prompt.
       </p>
     </div>
 
@@ -951,12 +981,12 @@ footer code { color: var(--ink-2); }
                 <td>Step 1. The bridge isn't running, or that shell was closed.</td>
               </tr>
               <tr>
-                <td><code>tabs watch</code> keeps timing out while you're clearly browsing</td>
+                <td><code>tabs list</code> warns that the snapshot is stale</td>
                 <td>Step 2. Auto mode is off — or the sidepanel is closed, which pauses everything.</td>
               </tr>
               <tr>
-                <td>The agent says it can't see a snapshot</td>
-                <td>An extension build predating auto mode. It sends bare tabs; run <code>tabs list</code> for the table.</td>
+                <td><code>No rendered snapshot in this export</code></td>
+                <td>It arrived from the developer-mode panel, or an extension build predating auto mode. Send it from the sidepanel instead.</td>
               </tr>
             </tbody>
           </table>
@@ -968,11 +998,11 @@ footer code { color: var(--ink-2); }
         <div class="guards" style="margin-top: 0;">
           <div class="guard">
             <h4>You say so</h4>
-            <p>The loop ends when you tell it to, and the pending suggestion just expires.</p>
+            <p>The loop ends when you tell it to, and any unclaimed suggestion goes with the bridge.</p>
           </div>
           <div class="guard">
             <h4>Ctrl+C the bridge</h4>
-            <p>With <code>tabs serve</code> gone, <code>tabs watch</code> reports nothing is listening and the loop can't continue.</p>
+            <p>With <code>tabs serve</code> gone, <code>tabs suggest</code> reports nothing is listening and the loop has nowhere to put a proposal.</p>
           </div>
           <div class="guard">
             <h4>Three denials in a row</h4>
@@ -991,10 +1021,11 @@ footer code { color: var(--ink-2); }
     <span class="eyebrow">04 · The bridge</span>
     <h2>What actually crosses <code>127.0.0.1:49227</code></h2>
     <p>
-      <code>tabs serve</code> is a small HTTP server holding three conversations. Protocol&nbsp;2,
-      no auth token — the loopback bind is the entire boundary. Both ends update independently
-      (extension via the Web Store, CLI via <code>tabbrew update</code>), so no route ever changes
-      shape; new capability gets a new route.
+      <code>tabs serve</code> is a small HTTP server with five routes and no auth token — the
+      loopback bind is the entire boundary. Protocol&nbsp;3 dropped every long poll: the extension
+      polls on its own timer and the verdict is written to disk, so no request is ever held open
+      across a human decision. Both ends update independently (extension via the Web Store, CLI via
+      <code>tabbrew update</code>), so no route ever changes shape; new capability gets a new route.
     </p>
   </div>
 
@@ -1009,19 +1040,7 @@ footer code { color: var(--ink-2); }
           <span class="route__party">Extension</span>
           <span class="route__pipe"><span class="route__name">POST /tabs</span><span class="route__arrow"></span></span>
           <span class="route__party route__party--r">bridge</span>
-          <span class="route__what">Saves <code>tabs.json</code> (mode 0600), bumps the version, appends one delta line to the change log.</span>
-        </div>
-        <div class="route route--l">
-          <span class="route__party">bridge</span>
-          <span class="route__pipe"><span class="route__name">GET /tabs?since=&amp;wait=</span><span class="route__arrow"></span></span>
-          <span class="route__party route__party--r">tabs watch</span>
-          <span class="route__what">Long-poll, held open until a newer version exists. Never pops — <code>since</code> is what stops a watcher seeing the same version twice. <code>204</code> on timeout.</span>
-        </div>
-        <div class="route route--l">
-          <span class="route__party">bridge</span>
-          <span class="route__pipe"><span class="route__name">GET /history?limit=</span><span class="route__arrow"></span></span>
-          <span class="route__party route__party--r">caller</span>
-          <span class="route__what">The delta log — what changed between versions, not a series of snapshots.</span>
+          <span class="route__what">Saves <code>tabs.json</code> (mode 0600) and bumps the version. Carries the rendered snapshot the extension already built — which is why the CLI has no renderer of its own to drift from.</span>
         </div>
       </div>
     </div>
@@ -1029,20 +1048,20 @@ footer code { color: var(--ink-2); }
     <div class="convo">
       <div class="convo__head">
         <h3>2 · Script out</h3>
-        <p>one unclaimed script at a time; a new push replaces it</p>
+        <p>one unclaimed script at a time; a new suggestion replaces it</p>
       </div>
       <div class="routes">
         <div class="route route--r">
-          <span class="route__party">tabs push / suggest</span>
-          <span class="route__pipe"><span class="route__name">POST /suggestion  ·  POST /script</span><span class="route__arrow"></span></span>
+          <span class="route__party">tabs suggest</span>
+          <span class="route__pipe"><span class="route__name">POST /suggestion</span><span class="route__arrow"></span></span>
           <span class="route__party route__party--r">bridge</span>
-          <span class="route__what">Both names write the same slot, so an old CLI still reaches a new bridge. Queuing also clears the previous verdict.</span>
+          <span class="route__what">Queues the script, the note, and the tab version it was written against. Also records it in <code>tabs.json</code> as undecided.</span>
         </div>
         <div class="route route--l">
           <span class="route__party">bridge</span>
-          <span class="route__pipe"><span class="route__name">GET /suggestion → GET /script</span><span class="route__arrow"></span></span>
+          <span class="route__pipe"><span class="route__name">GET /suggestion</span><span class="route__arrow"></span></span>
           <span class="route__party route__party--r">Extension</span>
-          <span class="route__what">A pop: claimed by exactly one poll. A new extension asks for <code>/suggestion</code> (note + id) and falls back to <code>/script</code>'s protocol-1 shape on a 404.</span>
+          <span class="route__what">A pop: claimed by exactly one poll, <code>204</code> when there's nothing. The extension asks every few seconds while the panel is open.</span>
         </div>
       </div>
     </div>
@@ -1050,26 +1069,53 @@ footer code { color: var(--ink-2); }
     <div class="convo">
       <div class="convo__head">
         <h3>3 · Answer back</h3>
-        <p>the half that makes a loop able to listen</p>
+        <p>write it down rather than hold a socket open</p>
       </div>
       <div class="routes">
         <div class="route route--r">
           <span class="route__party">Extension</span>
           <span class="route__pipe"><span class="route__name">POST /decision</span><span class="route__arrow"></span></span>
           <span class="route__party route__party--r">bridge</span>
-          <span class="route__what">Carries <code>accepted</code> / <code>denied</code> / <code>stale</code> / <code>failed</code>, plus the reason you typed.</span>
-        </div>
-        <div class="route route--l">
-          <span class="route__party">bridge</span>
-          <span class="route__pipe"><span class="route__name">GET /decision?id=&amp;wait=</span><span class="route__arrow"></span></span>
-          <span class="route__party route__party--r">tabs suggest</span>
-          <span class="route__what">Long-poll for the answer to one suggestion. Doesn't clear it, so a retried wait can still read it.</span>
+          <span class="route__what">Carries <code>accepted</code> / <code>denied</code> / <code>stale</code> / <code>failed</code> plus the reason you typed, and the bridge writes it onto that suggestion in <code>tabs.json</code>. <code>tabs list</code> reads it back.</span>
         </div>
         <div class="route route--l">
           <span class="route__party">bridge</span>
           <span class="route__pipe"><span class="route__name">GET /health</span><span class="route__arrow"></span></span>
-          <span class="route__party route__party--r">both ends</span>
-          <span class="route__what">Cheap reachability: <code>{ ok, protocol: 2, tabsVersion, hasPending, history }</code>. How a client tells "the server is gone" from "this connection dropped".</span>
+          <span class="route__party route__party--r">Extension</span>
+          <span class="route__what">Cheap reachability: <code>{ ok, protocol: 3, tabsVersion, hasPending }</code>. How the panel shows connected vs. not without claiming a queued script.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="convo">
+      <div class="convo__head">
+        <h3>Gone in protocol 3</h3>
+        <p>five routes removed; a shipped extension never called three of them</p>
+      </div>
+      <div class="routes" style="opacity: 0.62;">
+        <div class="route route--l">
+          <span class="route__party">bridge</span>
+          <span class="route__pipe"><span class="route__name" style="color: var(--muted); text-decoration: line-through;">GET /tabs?since=&amp;wait=</span><span class="route__arrow"></span></span>
+          <span class="route__party route__party--r">tabs watch</span>
+          <span class="route__what">The long-poll <code>tabs watch</code> parked on. Nothing in the browser ever called it.</span>
+        </div>
+        <div class="route route--l">
+          <span class="route__party">bridge</span>
+          <span class="route__pipe"><span class="route__name" style="color: var(--muted); text-decoration: line-through;">GET /history?limit=</span><span class="route__arrow"></span></span>
+          <span class="route__party route__party--r">tabs history</span>
+          <span class="route__what">The delta log. Deleted with the log itself.</span>
+        </div>
+        <div class="route route--l">
+          <span class="route__party">bridge</span>
+          <span class="route__pipe"><span class="route__name" style="color: var(--muted); text-decoration: line-through;">GET /decision?id=&amp;wait=</span><span class="route__arrow"></span></span>
+          <span class="route__party route__party--r">tabs suggest</span>
+          <span class="route__what">The wait-for-the-verdict long-poll. Replaced by writing the verdict to <code>tabs.json</code>.</span>
+        </div>
+        <div class="route route--l">
+          <span class="route__party">bridge</span>
+          <span class="route__pipe"><span class="route__name" style="color: var(--muted); text-decoration: line-through;">GET /script  ·  POST /script</span><span class="route__arrow"></span></span>
+          <span class="route__party route__party--r">protocol 1</span>
+          <span class="route__what">The pre-suggestion shapes. A current extension asks <code>/suggestion</code> first and only fell back to these on a 404, so it never notices.</span>
         </div>
       </div>
     </div>
@@ -1090,7 +1136,7 @@ footer code { color: var(--ink-2); }
     </div>
     <div class="guard">
       <h4>0600 on disk</h4>
-      <p>Your tabs are browsing history, not a revocable token. Both the snapshot and the change log are written owner-only.</p>
+      <p>Your tabs are browsing history, not a revocable token — a token can be revoked, a history can't. The snapshot is written owner-only.</p>
     </div>
   </div>
 </section>
@@ -1101,8 +1147,8 @@ footer code { color: var(--ink-2); }
     <span class="eyebrow">05 · TabBrew Script</span>
     <h2>Six verbs, one per line</h2>
     <p>
-      The DSL an agent writes and <code>tabs check</code> validates. Ids are Chrome tab ids straight
-      from the snapshot. Blank lines and <code>#</code> comments are ignored.
+      The DSL an agent writes and <code>tabs suggest</code> validates before anyone sees it. Ids are
+      Chrome tab ids straight from the snapshot. Blank lines and <code>#</code> comments are ignored.
     </p>
   </div>
 
@@ -1110,7 +1156,7 @@ footer code { color: var(--ink-2); }
     <div class="verb verb--del">
       <span class="verb__name">DEL</span>
       <span class="verb__syn">DEL &lt;id&gt; [&lt;id&gt; …]</span>
-      <span class="verb__say">Close tabs. The only destructive verb — <code>check</code> counts these separately for a reason.</span>
+      <span class="verb__say">Close tabs. The only destructive verb — which is why the <code>--note</code> has to lead with them.</span>
     </div>
     <div class="verb">
       <span class="verb__name">GROUP</span>
@@ -1149,8 +1195,9 @@ footer code { color: var(--ink-2); }
   </div>
   <p style="max-width: 72ch; color: var(--ink-2); font-size: var(--fs-sm);">
     <b>Line order does not matter.</b> The extension collects every op and runs the six phases in
-    this fixed order, and the CLI's simulator mirrors it exactly — which is why a preview is
-    <em>directionally</em> correct rather than a byte-exact prediction of Chrome's final layout.
+    this fixed order, whatever order they were written in. It matters when you write a
+    <code>MOVE</code>: the index has to describe the strip <em>after</em> the five earlier phases
+    have run, not the snapshot you read.
   </p>
 
   <div class="split" style="margin-top: 1.8rem;">
@@ -1164,16 +1211,14 @@ footer code { color: var(--ink-2); }
 BOGUS 9</pre>
     </div>
     <div>
-      <p class="eyebrow" style="margin-bottom: 0.6rem;">tabbrew tabs check</p>
+      <p class="eyebrow" style="margin-bottom: 0.6rem;">tabbrew tabs suggest</p>
 <pre class="term"><span class="bad">✗ 1 parse error:</span>
   line 5: BOGUS 9
-            <span class="dim">→ unknown verb "BOGUS"</span>
-
-<span class="ok">✓ Parsed 4 ops</span>  <span class="dim">· DEL 1, GROUP 1, PIN 1, MOVE 1</span>
-  <span class="dim">affects 6 tabs  ·</span>  <span class="bad">2 to close (DEL — destructive)</span></pre>
+            <span class="dim">→ unknown verb "BOGUS"</span></pre>
       <p style="margin-top: 0.7rem; font-size: var(--fs-sm); color: var(--muted);">
-        Exit code 1. Add <code>--snapshot</code> to get the simulated before/after and the list of
-        stale ids that were silently dropped.
+        Exit code 1, and <b>nothing was queued</b> — a script that doesn't parse never reaches the
+        panel. Fix it and run the same command again. The real before/after preview is the one the
+        extension draws on the Accept card, against the tabs as they are at that moment.
       </p>
     </div>
   </div>
@@ -1183,14 +1228,20 @@ BOGUS 9</pre>
 <section class="section" id="verdicts">
   <div class="section__head">
     <span class="eyebrow">06 · The answer</span>
-    <h2>Four things a suggestion can come back as</h2>
+    <h2>Five things a suggestion can come back as</h2>
     <p>
-      <code>tabs suggest</code> waits up to 300 seconds and prints one of these. It
-      <b>always exits 0</b> — an agent that reads "no" as a failure retries instead of listening.
+      You won't see the answer in <code>tabs suggest</code> — it returns as soon as the bridge has
+      the script. The verdict appears at the top of the <em>next</em> <code>tabs list</code>, which
+      is also what stops an agent from queueing a second proposal on top of an unanswered one.
     </p>
   </div>
 
   <div class="verdicts">
+    <div class="verdict">
+      <span class="verdict__k">… PENDING</span>
+      <span class="verdict__m">Queued, and you haven't answered — the panel may not even be open.</span>
+      <span class="verdict__do">Wait. Do <b>not</b> send another suggestion; the bridge holds one at a time and a second one replaces the first.</span>
+    </div>
     <div class="verdict verdict--ok">
       <span class="verdict__k">✓ accepted</span>
       <span class="verdict__m">You pressed Accept and Chrome applied the ops.</span>
@@ -1219,7 +1270,7 @@ BOGUS 9</pre>
   <div class="section__head">
     <span class="eyebrow">07 · On disk &amp; in the environment</span>
     <h2>Where the CLI keeps things</h2>
-    <p>Three files, all owner-only, none of them inside your project folder.</p>
+    <p>Two files, both owner-only, neither inside your project folder.</p>
   </div>
 
   <div class="tablewrap">
@@ -1236,24 +1287,59 @@ BOGUS 9</pre>
         <tr>
           <td><code>~/.config/tabbrew/tabs.json</code></td>
           <td class="mode">0600</td>
-          <td>The last export: every open tab's id, title and URL. Overwritten each time.</td>
-        </tr>
-        <tr>
-          <td><code>~/.config/tabbrew/tabs-history.jsonl</code></td>
-          <td class="mode">0600</td>
-          <td>One delta per version, newest last, capped at 500 lines.</td>
+          <td>The last export, plus the newest five suggestions and what you decided. Overwritten in place.</td>
         </tr>
       </tbody>
     </table>
   </div>
 
   <p class="callout">
-    <b>The one privacy sharp edge.</b> <code>tabs.json</code> only ever holds tabs that are currently
-    open, but the change log remembers the titles and URLs of tabs you have <em>closed</em> — the only
-    place the CLI accumulates browsing history at rest. Hence the cap, and three ways off:
-    <code>tabs serve --no-history</code>, <code>TABBREW_TABS_HISTORY=0</code>, or
-    <code>tabs history --clear</code>.
+    <b>Down from three files.</b> The old <code>tabs-history.jsonl</code> delta log is gone. It was
+    the only place the CLI accumulated browsing history at rest — it remembered the titles and URLs
+    of tabs you had <em>closed</em>, which nothing else here does. <code>tabs.json</code> only ever
+    describes tabs that are open right now.
   </p>
+
+  <div class="split" style="margin-top: 1.6rem;">
+    <div>
+      <h3 class="blockhead">tabs.json, annotated</h3>
+      <p>The whole contract between <code>serve</code> and the other two commands.</p>
+<pre class="term">{
+  <span class="cy">"version"</span>: 42,          <span class="dim">// bumped on every export</span>
+  <span class="cy">"savedAt"</span>: "…",         <span class="dim">// how tabs list judges staleness</span>
+  <span class="cy">"count"</span>: 187,
+  <span class="cy">"tabs"</span>: [ … ], <span class="cy">"groups"</span>: [ … ], <span class="cy">"windows"</span>: [ … ],
+  <span class="cy">"snapshot"</span>: "# Cross-window: no\n# Windows\n…",
+                          <span class="dim">// rendered by the extension;</span>
+                          <span class="dim">// tabs list prints this verbatim</span>
+  <span class="cy">"suggestions"</span>: [        <span class="dim">// newest first, capped at 5</span>
+    {
+      <span class="cy">"note"</span>: "ปิดแท็บ YouTube 6 อัน",
+      <span class="cy">"opCount"</span>: 7,
+      <span class="cy">"basedOn"</span>: 41,      <span class="dim">// the version it was written against</span>
+      <span class="cy">"decision"</span>: <span class="bad">"denied"</span>, <span class="dim">// null while unanswered</span>
+      <span class="cy">"reason"</span>: "ยังดูอยู่"
+    }
+  ]
+}</pre>
+    </div>
+    <div>
+      <h3 class="blockhead">Why the ring is on disk</h3>
+      <p>
+        It is the agent's memory of what it already proposed, and it has to survive two things that
+        happen constantly: a tab change (which rewrites the rest of the file) and a restart of
+        <code>tabs serve</code>.
+      </p>
+      <p style="margin-top: 0.8rem;">
+        Keeping it here rather than in the agent's context means a denial still counts after a
+        compaction, a new session, or a laptop reboot — and it's the reason no command needs to
+        block waiting for you to look at the panel.
+      </p>
+      <p style="margin-top: 0.8rem;">
+        Five entries, overwritten in place. It's a working memory, not a record of your decisions.
+      </p>
+    </div>
+  </div>
 
   <div class="tablewrap" style="margin-top: 1.4rem;">
     <table>
@@ -1262,8 +1348,8 @@ BOGUS 9</pre>
       </thead>
       <tbody>
         <tr><td><code>TABBREW_TOKEN</code></td><td>—</td><td>Authenticate in CI without an interactive login. Wins over the stored file.</td></tr>
-        <tr><td><code>TABBREW_SERVE_PORT</code></td><td><code>49227</code></td><td>Move the bridge if the port is taken. See the warning below.</td></tr>
-        <tr><td><code>TABBREW_TABS_HISTORY</code></td><td>on</td><td>Set to <code>0</code> to never write the change log.</td></tr>
+        <tr><td><code>TABBREW_SERVE_PORT</code></td><td><code>49227</code></td><td>Move the bridge, for tests. See the warning below — there is no <code>--port</code> flag.</td></tr>
+        <tr><td><code>TABBREW_TABS_PATH</code></td><td><code>~/.config/tabbrew/tabs.json</code></td><td>Where <code>tabs serve</code> writes and <code>tabs list</code> reads.</td></tr>
         <tr><td><code>TABBREW_BASE_URL</code></td><td><code>www.tabbrew.com</code></td><td>Point the same binary at staging or a local server.</td></tr>
         <tr><td><code>TABBREW_NO_BROWSER</code></td><td>—</td><td>Print URLs instead of launching a browser (<code>login</code>, <code>docs open</code>).</td></tr>
         <tr><td><code>NO_COLOR</code> / <code>TABBREW_DEBUG</code></td><td>—</td><td>Drop ANSI colour; print stack traces on unexpected errors.</td></tr>
@@ -1272,9 +1358,10 @@ BOGUS 9</pre>
   </div>
 
   <p class="callout">
-    <b>About that port.</b> The extension only ever talks to <b>49227</b> — it's baked into its
-    host permissions. A custom port works fine for your own scripts, but the extension will report
-    the bridge as not running.
+    <b>About that port.</b> The extension only ever talks to <b>49227</b> — it's baked into both
+    manifests' host permissions. That's why <code>--port</code> was removed rather than kept: a
+    bridge anywhere else is unreachable from Chrome, so the flag could only ever produce a bridge
+    that looked fine from the terminal and dead from the browser.
   </p>
 </section>
 
@@ -1288,10 +1375,9 @@ BOGUS 9</pre>
     <div class="idx"><span class="idx__want">teach my AI agent this exists</span><span class="idx__run">tabbrew init</span></div>
     <div class="idx"><span class="idx__want">sign in / check who I am</span><span class="idx__run">tabbrew login  ·  tabbrew whoami</span></div>
     <div class="idx"><span class="idx__want">see my tabs from the terminal</span><span class="idx__run">tabbrew tabs serve  →  tabbrew tabs list</span></div>
-    <div class="idx"><span class="idx__want">know what a script does before it runs</span><span class="idx__run">tabbrew tabs check plan.txt --snapshot ~/.config/tabbrew/tabs.json</span></div>
-    <div class="idx"><span class="idx__want">hand a script to the browser</span><span class="idx__run">tabbrew tabs push plan.txt</span></div>
-    <div class="idx"><span class="idx__want">let the agent watch and offer</span><span class="idx__run">tabbrew tabs watch  →  tabbrew tabs suggest plan.txt --note "…"</span></div>
-    <div class="idx"><span class="idx__want">catch up on what changed while I was away</span><span class="idx__run">tabbrew tabs history --limit 20</span></div>
+    <div class="idx"><span class="idx__want">put a change in front of myself</span><span class="idx__run">tabbrew tabs suggest plan.txt --note "…"</span></div>
+    <div class="idx"><span class="idx__want">find out what I decided last time</span><span class="idx__run">tabbrew tabs list</span></div>
+    <div class="idx"><span class="idx__want">let the agent watch and offer</span><span class="idx__run">/loop 10m use the tabbrew-tabs skill: check my tabs</span></div>
     <div class="idx"><span class="idx__want">read an HTML report in the sidepanel</span><span class="idx__run">tabbrew docs push report.html</span></div>
     <div class="idx"><span class="idx__want">get the newest binary</span><span class="idx__run">tabbrew update --check  →  tabbrew update</span></div>
   </div>
@@ -1301,7 +1387,7 @@ BOGUS 9</pre>
 
 <footer>
   <div class="wrap row">
-    <span>Generated from source at <code>3d1f665</code> · tabbrew-cli <code>v0.5.5</code></span>
+    <span>Written by hand against <code>src/registry.ts</code> · tabbrew-cli <code>v0.7.0</code></span>
     <span>Command surface read from <code>src/registry.ts</code></span>
     <span><a href="https://github.com/colevels/tabbrew-cli">github.com/colevels/tabbrew-cli</a></span>
   </div>
@@ -1325,10 +1411,10 @@ BOGUS 9</pre>
     for (const chip of chips) {
       chip.setAttribute("aria-pressed", String(chip.dataset.reach === active));
     }
-    const n = active ? scope.querySelectorAll(".card--" + active).length : 18;
+    const n = active ? scope.querySelectorAll(".card--" + active).length : 13;
     state.textContent = active
       ? `Showing ${n} ${LABELS[active]} command${n === 1 ? "" : "s"}.`
-      : "Showing all 18 commands.";
+      : "Showing all 13 commands.";
     clear.hidden = !active;
   };
 

@@ -8,14 +8,21 @@ import { join } from "node:path";
 export type Scope = "local" | "global";
 
 /**
- * The skills `init` installs, in install order. Two, deliberately: `tabbrew-tabs`
- * answers a one-off request ("group my tabs"), `tabbrew-auto` runs the watch →
- * propose → accept/deny loop. They give conflicting instructions on purpose (auto
- * mode skips the in-chat DEL confirmation because the panel's Accept button is the
- * confirmation), so they must stay separate files rather than one skill with a mode.
+ * The skill `init` installs. One, now: a one-off request and a watch loop are
+ * the same three steps (read `tabs list` → write a script → `tabs suggest`), so
+ * the two skills that used to disagree about confirming a `DEL` in chat have
+ * nothing left to disagree about — the panel's Accept button is the confirmation
+ * either way.
  */
 export const SKILL_TABS = "tabbrew-tabs";
-export const SKILL_AUTO = "tabbrew-auto";
+
+/**
+ * Skills earlier versions installed that are now wrong, not just outdated:
+ * `tabbrew-auto` tells the agent to run `tabbrew tabs watch`, which no longer
+ * exists. `init` removes these on both install and uninstall, so upgrading isn't
+ * left to the user noticing an orphaned directory.
+ */
+export const LEGACY_SKILLS = ["tabbrew-auto"] as const;
 
 export interface AgentTarget {
   id: string;
@@ -26,6 +33,8 @@ export interface AgentTarget {
   awarenessFile: string;
   /** Directory names the skills are installed under: <skills>/<name>/. */
   skillNames: readonly string[];
+  /** Skill dirs a previous version installed, removed on install and uninstall. */
+  legacySkillNames: readonly string[];
   /** Filename of the skill doc written into each of those directories. */
   skillFile: string;
   /** Directory both the instructions + awareness files live in for the scope. */
@@ -41,7 +50,8 @@ const claude: AgentTarget = {
   displayName: "Claude Code",
   instructionsFile: "CLAUDE.md",
   awarenessFile: "TABBREW-CLI.md",
-  skillNames: [SKILL_TABS, SKILL_AUTO],
+  skillNames: [SKILL_TABS],
+  legacySkillNames: LEGACY_SKILLS,
   skillFile: "SKILL.md",
   resolveDir(scope) {
     if (scope === "local") return process.cwd();

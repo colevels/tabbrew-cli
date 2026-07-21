@@ -2,14 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Status: proof of concept
+## Status: past the POC, deliberately small
 
-`v0.6.0` is a **POC snapshot** — the widest the command surface ever got. From here the
-direction is *subtractive*: commands are being removed to cut complexity, and a few will
-be reimplemented later in a simpler shape. So when you read the sections below, treat the
-command surface as **the state at v0.6.0, not a commitment** — check `registry.ts` (and
-`git log`) before assuming a command described here still exists, and prefer deleting a
-subsystem's docs along with its code over leaving them describing something that's gone.
+`v0.6.0` was the POC snapshot — the widest the command surface ever got, with eight
+`tabs` subcommands around a long-polling bridge. **v0.7.0 is the subtraction** (breaking):
+`tabs watch`, `tabs push`, `tabs check`, `tabs history` and `tabs prompt` are gone, and so
+are the vendored simulator, the delta-log subsystem, the three skill variants, and every
+long poll.
+
+What's left is the loop those commands existed to serve, in three steps: the extension
+pushes tabs to the bridge (`tabs serve`), the agent reads them (`tabs list`), the agent
+proposes a script the user accepts or denies (`tabs suggest`). Claude Code's `/loop`
+already owns the pacing `tabs watch` was built for, so the CLI doesn't.
+
+The bias stays subtractive: prefer deleting a subsystem's docs along with its code over
+leaving prose describing something that's gone, and treat `registry.ts` (plus `git log`)
+as the authority on what exists — not this file.
 
 ## What this is
 
@@ -48,9 +56,14 @@ pointing `TABBREW_BASE_URL` at it (see README "Testing each subcommand"). Set
 positional, and wraps everything in a **single error boundary**. That boundary only
 prints a clean message (no stack trace) for the CLI's typed error classes — `AuthError`
 (`auth.ts`), `ApiError` / `NotAuthenticatedError` / `TokenExpiredError` (`api.ts`),
-`UpdateError` (`update.ts`), `TabsInputError` (`commands/tabs.ts`), `ServeError`
-(`commands/tabs-serve.ts`), `TabsPushError` (`commands/tabs-push.ts`), and `UsageError`
-(`registry.ts`). Throw one of these for any user-facing failure, and **register a new
+`UpdateError` (`update.ts`), `TabsInputError` / `TabsBridgeError`
+(`commands/tabs-errors.ts`), `ServeError` (`commands/tabs-serve.ts`), and `UsageError`
+(`registry.ts`). The two `Tabs*` classes live in their own module rather than in the
+command that throws them: they used to be defined inside `tabs.ts`/`tabs-push.ts`, which
+broke the moment those files were deleted — `TabsBridgeError` (then `TabsPushError`) was
+declared in `tabs-push.ts` but is thrown by `tabs suggest`. `ServeError` stays in
+`tabs-serve.ts` because only that file can raise it (the port is taken / the server
+died on start). Throw one of these for any user-facing failure, and **register a new
 class in the boundary's `known` list** — anything unlisted surfaces a generic message
 unless `TABBREW_DEBUG` is set. Because `parseArgs` runs in `strict` mode, **every
 accepted flag must be declared in `index.ts`** — even flags only used by one subcommand
@@ -59,14 +72,17 @@ accepted flag must be declared in `index.ts`** — even flags only used by one s
 `src/config.ts` is the seam that makes the same binary target prod/staging/local:
 all configuration comes from `TABBREW_*` env vars with sensible defaults, resolved
 once into the exported `config` object. Endpoints derive from `TABBREW_BASE_URL`
-unless individually overridden. Route new config through here — the only deliberate
-exceptions are the non-`TABBREW_*` presentation/agent knobs read at their point of use
-(`NO_COLOR` in `ui.ts`, `TABBREW_DEBUG` in `index.ts`, `CLAUDE_CONFIG_DIR` in
-`agents.ts`, which belongs to the agent target, not to TabBrew).
+unless individually overridden. Route new config through here — the deliberate exceptions
+are four knobs read at their point of use: `NO_COLOR` (`ui.ts`), `TABBREW_DEBUG`
+(`index.ts`), `CLAUDE_CONFIG_DIR` (`agents.ts` — it belongs to the agent target, not to
+TabBrew), and `TABBREW_NO_BROWSER` (`util.ts`, inside `openBrowser`, so it gates every
+caller: `login` *and* `docs open`).
 
-The codebase is four loosely-coupled subsystems that share only `config`, `ui`, and `util`
-(the fourth, `tabs`, never talks to the TabBrew server — its only `config` use is
-`config.serve`, the loopback port/output path):
+The codebase is four loosely-coupled subsystems. They share the leaf modules — `config`,
+`ui`, `util`, plus `fsops` (atomic writes) and `table` (display-width padding) — and
+nothing else; no subsystem imports another's command files. The fourth, `tabs`, never talks
+to the TabBrew server at all: its only `config` use is `config.serve`, the loopback port
+and the state-file path.
 
 **1. Auth / API (the original purpose)**
 - `auth.ts` — device-flow protocol: request a device code, then `pollForToken`
@@ -119,17 +135,19 @@ escape bytes are why `table.ts` measures width on escape-stripped text — see b
 **2. `init` — agent-awareness installer**
 `tabbrew init` teaches an AI agent (currently only Claude Code) that this CLI exists.
 It writes a slim `TABBREW-CLI.md` doc plus a version-tagged managed block in
-`CLAUDE.md` that `@import`s it, **and** installs **two skills** into the agent's skills
-dir — `resolveSkillsDir(scope, name)` on the `AgentTarget`, iterating `skillNames`
-(`.claude/skills/<name>/` locally, `<config>/skills/…` global):
-`tabbrew-tabs` (the interactive NL→TabBrew-Script prompt) and `tabbrew-auto` (the
-watch→propose→listen loop). Skill content is bundled from `tabbrew-script/skills.ts`;
-`--variant` picks compact/standard/full (default full) and applies **only** to
-`tabbrew-tabs` — the loop's instructions don't get cheaper with more tabs. `--no-skill`
-skips both (`--uninstall` removes everything). `--variant` is deliberately the same flag
-name `tabs prompt` uses — it selects from the same three prompts, and `--no-skill` is the
-separate install-or-not switch.
+`CLAUDE.md` that `@import`s it, **and** installs **one skill** into the agent's skills dir
+— `resolveSkillsDir(scope, name)` on the `AgentTarget`, iterating `skillNames`
+(`.claude/skills/<name>/` locally, `<config>/skills/…` global): `tabbrew-tabs`, the
+read→propose→listen prompt bundled from `tabbrew-script/skills.ts`. `--no-skill` skips it;
+`--uninstall` removes everything. There is no `--variant`: the three token-budget variants
+existed for a chat-shaped prompt pasted into someone's browser, and an agent with a
+terminal doesn't need the cheap one.
 Design constraints worth preserving:
+- **Legacy skills are deleted, not just left behind.** `agents.ts` carries
+  `legacySkillNames` (`tabbrew-auto`) alongside `skillNames`, and `init` removes those
+  dirs on **install as well as uninstall**. A stale `tabbrew-auto` is worse than clutter:
+  it tells the agent to run `tabbrew tabs watch`, which no longer exists, so upgrading
+  can't be left to the user noticing an orphaned directory.
 - `awareness.ts` is **filesystem-free** — the awareness doc and all block-manipulation
   are pure string constants/functions so they survive `bun build --compile` (no
   runtime file reads). Disk I/O lives in `fsops.ts`; orchestration in `commands/init.ts`.
@@ -170,87 +188,133 @@ is the thin presentation layer. Design constraints worth preserving:
   the full form has **no confirmation prompt** (the command *is* the intent) and is a
   no-op when already current. Throw `UpdateError` for any user-facing failure.
 
-**4. `tabs` — DSL toolbox + the local bridge**
-`tabbrew tabs` is the validator/teacher for the "agent generates a TabBrew Script"
-workflow, plus the loopback bridge to the extension. It never touches `chrome.*` —
-execution and live snapshots stay in the extension, and **no `tabs` command can change a
-user's tabs**. `check`/`prompt`/`list`/`history` are fully offline; `serve`/`push`/
-`suggest`/`watch` only ever talk to `127.0.0.1`.
+**4. `tabs` — the local bridge and the three-step loop**
+`tabbrew tabs` is three commands, which are the whole loop: `serve` runs the loopback
+bridge the extension pushes its tabs to, `list` reads what arrived, `suggest` puts a script
+in front of the user. It never touches `chrome.*` — execution, simulation and snapshot
+rendering all stay in the extension, so **no `tabs` command can change a user's tabs**, and
+none of them talks to the TabBrew server: `list` is offline, `serve`/`suggest` only ever
+speak to `127.0.0.1`.
 
-The bridge speaks **protocol 2** (`PROTOCOL` in `tabs-serve.ts`, echoed by `GET /health`).
-Both ends move independently — the extension updates via the Web Store, the CLI via
-`tabbrew update` — so **neither may assume the other is current**, and this is the one
-place in the repo where compatibility runs in *both* directions. `POST /tabs` and
-`GET /script` keep their protocol-1 shapes byte for byte; a new extension feature-detects
-by falling back from `/suggestion` to `/script` on a 404. Never repurpose an existing
-route's shape — add a new one.
-- `commands/tabs.ts` — `tabsCheck` parses a generated script (`parseTabbrewScript`), prints
-  line-numbered errors (**exit 1** on any), and — when `--snapshot` is given — runs
-  `simulateBatch` for a before/after preview. `tabsPrompt` prints the interactive skill
-  prompt. `tabsList` renders the file `tabs serve` wrote. Script input is a file arg or
-  stdin (`-`, accepts a whole ` ```tabbrew ` block); `TabsInputError` (registered in the
-  `index.ts` boundary) carries file/snapshot problems.
-- `commands/tabs-serve.ts` — the bridge. `resolveServePort()` lives here and is the **one**
-  place a port is decided; `tabs-push.ts` calls it too, so the listener and the client can't
-  disagree (they used to: `push` ignored `--port` and silently queued onto the default).
-  Security model: loopback-only bind, **no token**, plus two header gates — `Host` must be
-  `127.0.0.1|localhost:<port>` (this is the anti-DNS-rebinding one: a rebound page's GETs are
-  *same-origin*, so they carry no `Origin` and the check below can't see them), and `Origin`,
-  when present, must be `chrome-extension://` (blocks a drive-by `POST /tabs`). Keep both —
-  they cover different halves. `tabs.json` is written `0o600` via `atomicWrite`'s `mode` arg:
-  it's browsing history, the config dir is not reliably `0700`, and umask alone gives `0644`.
-  It also owns the long-poll parking lots (`park()` + `wake()`): a waiter must be dropped on
-  `req.signal` abort, or a Ctrl+C'd `tabs watch` leaks a resolver per run.
-- `tabs-history.ts` — the "what changed" half. `diffTabs` is **pure** (the caller owns the
-  clock and the version counter) and deliberately ignores `index`: it shifts for every tab
-  right of a close, so tracking it would report 40 changes for one `DEL` and bury the signal.
-  History is a **delta per line, never a snapshot** — 500 snapshots of 200 tabs is 20 MB.
-  It is also the only place the CLI accumulates browsing history *at rest* (`tabs.json` is
-  overwritten and only holds open tabs; the log remembers closed ones), so `0600` + the
-  `historyMax` cap + `--no-history` + `tabs history --clear` all have to stay.
-- `commands/tabs-push.ts` — validates, then POSTs to the bridge. Deliberately **not** named
-  `run`: it cannot execute anything, and the old name had users believing their tabs had
-  already changed. Rejects a zero-op script locally rather than letting the server's
-  empty-body guard answer with a misleading `invalid_payload`.
-- `commands/tabs-suggest.ts` — the auto-mode sibling of push, and a separate command on
-  purpose: `--note` is **required** (a suggestion the user didn't ask for has to explain
-  itself, and only a required flag makes that reliable), and it *waits* for the verdict.
-  Never exits non-zero on a denial — an agent that reads "no" as a failure retries instead
-  of listening.
-- `commands/tabs-watch.ts` — long-polls `GET /tabs?since=…`. No client-side `AbortSignal`
-  timeout: the server holds the request open deliberately and caps `wait` itself, so a
-  client timer would just race it into a false failure. A timeout prints nothing on stdout
-  and **exits 0**, so callers branch on empty output rather than an exit code.
-- `tabs list` is a **tolerant reader** — two extension surfaces POST different shapes (raw
-  `chrome.Tab` from the developer-mode panel, leaner `TabSnapshot` from the side panel), so
-  it reads only the fields common to both and ignores the rest. Note `chrome.Tab.groupId`
-  is `-1` for ungrouped while `TabSnapshot` omits the key.
-- `tabbrew-script/` — a **curated, Chrome-free vendor** of the DSL runtime. `parser.ts` +
-  `simulate.ts` + `types.ts` are copied from `tabbrew-skill/runtime/src`; the snapshot
-  *types* are pulled into `types.ts` so nothing imports the `chrome.*`-using `snapshot.ts`.
-  The only edits vs. upstream are the retargeted import and `!` assertions forced by
-  `noUncheckedIndexedAccess` (see each file's header). `render.ts` is **CLI-native, not a
-  mirror**: the `parseSnapshotMarkdown` reverse-parser (Copy-AI-Prompt markdown →
-  `SnapshotPayload`), a copy of `extract.ts`'s fenced-block extractor, and the summary /
-  preview renderers.
-- `SKILL.{compact,standard,full}.md` are verbatim copies of the `tabbrew-api` portable skill
-  variants, embedded via `import … with { type: "text" }` — a compile-time inline (no
-  runtime FS read, survives `--compile`; `assets.d.ts` types the import). `skills.ts` is the
-  bundling module `init` and `tabs prompt` both read.
-- `SKILL.auto.md` is the **exception to the copy rule: this repo is its source of truth.**
-  It documents `tabs watch`/`tabs suggest`, which don't exist upstream, so it is never
-  re-synced from `tabbrew-api`. It also *contradicts* `tabbrew-tabs` on one point by design —
-  no in-chat `DEL` confirmation, because the panel's Accept/Deny card is the confirmation —
-  which is why the two ship as separate skills rather than one skill with a mode. `init`
-  installs both (`agents.ts` `skillNames`), and `--variant` applies only to `tabbrew-tabs`.
+The bridge speaks **protocol 3** (`PROTOCOL` in `tabs-serve.ts`, echoed by `GET /health`),
+with exactly five routes: `POST /tabs`, `POST /suggestion`, `GET /suggestion` (pops the
+queued one), `POST /decision`, `GET /health`. Both ends move independently — the extension
+updates via the Web Store, the CLI via `tabbrew update` — so **neither may assume the other
+is current**, and this is the one place in the repo where compatibility runs in *both*
+directions. Protocol 3 is backwards-safe for a shipped protocol-2 extension: the four
+routes it actually calls are unchanged, byte for byte. What went away is what nothing in
+the browser ever called (`GET /tabs`, `GET /history`, `GET /decision`) plus the protocol-1
+`/script` fallback, which a current extension only reached after a 404 on `/suggestion`.
+Never repurpose an existing route's shape — add a new one.
 
-> **Cross-repo (this is a 4th copy):** the vendored `parser.ts`/`simulate.ts`/`types.ts` and
-> the `SKILL.*.md` prompts have their **source of truth in the `tabbrew` monorepo**
-> (`tabbrew-api/src/tabbrew-script` + `tabbrew-skill/runtime/src`, and
-> `tabbrew-api/src/skill/portable/*`). Never edit them here as the primary copy — re-sync on
-> any DSL grammar / phase-order change. `simulate.ts` MUST mirror the extension executor's
-> phase order (`DEL → UNPIN → UNGROUP → GROUP → PIN → MOVE`), and a new verb touches every
-> copy (see the monorepo `CLAUDE.md`'s "four-place change" note).
+**Nothing long-polls any more.** Every route is a plain request/response: the extension
+polls `GET /suggestion` on its own timer, and the verdict is read from disk by the next
+`tabs list` rather than waited on over a held-open socket. That deleted `park()`/`wake()`,
+their abort-on-`req.signal` bookkeeping, and the `idleTimeout: 0` workaround that existed
+only because Bun kills a 10s-idle request.
+- `commands/tabs-serve.ts` — the bridge, and the only writer of `tabs.json`. Security
+  model: loopback-only bind (hardcoded, not overridable), **no token**, plus two header
+  gates — `Host` must be `127.0.0.1|localhost:<port>` (this is the anti-DNS-rebinding one:
+  a rebound page's GETs are *same-origin*, so they carry no `Origin` and the check below
+  can't see them), and `Origin`, when present, must be `chrome-extension://` (blocks a
+  drive-by `POST /tabs`). Keep both — they cover different halves, and they're one
+  self-contained block so they're easy to rip out. `tabs.json` is written `0o600` via
+  `atomicWrite`'s `mode` arg: it's the URL and title of every open tab, the config dir is
+  not reliably `0700`, and umask alone gives `0644`.
+- **The suggestion ring** is the piece of state worth understanding. `tabs.json` carries a
+  `suggestions` array — newest first, capped at `SUGGESTION_RING` (5) — of
+  `{ id, note, opCount, basedOn, queuedAt, claimedAt, decision, reason, decidedAt }`. It is the
+  agent's memory of what it proposed and what the user said back, so it deliberately
+  outlives both a tab change (`POST /tabs` rebuilds the state wholesale but carries the
+  ring through `persist()`) and a restart of `serve` (`seedTabState()` reloads it, and
+  keeps the version counter climbing so `basedOn` staleness stays meaningful). The one gap
+  is cold start: `persist()` no-ops while `tabState` is null, so a suggestion queued before
+  the extension has ever posted tabs stays in memory only. That case is degenerate — an
+  agent with no tabs to read has nothing to write a script about — but don't describe the
+  ring as unconditionally durable.
+  `decision: null` prints as `PENDING` and is the "don't pile a second proposal on top of
+  the first" signal. `failed` is not a user decision — it's "the user said yes and Chrome
+  refused"; recording that as `accepted` would tell a watching agent its plan worked when
+  the tabs never moved. `POST /decision` matches by `id` when the extension sends one and
+  otherwise answers the newest undecided entry, so an older extension's verdict isn't
+  dropped on the floor.
+- **Nothing may leave a record `PENDING` forever**, because that is exactly the state the
+  skill treats as "wait, don't propose" — a stuck one silently ends the loop for the rest
+  of the session. Two mechanisms close that off, and they are deliberately different in
+  kind. `reconcileOnRestart()` is a *fact*: the queue is RAM, so an undecided record with
+  no `claimedAt` was never delivered and now never can be (the extension's next poll gets
+  a 204), and it is marked `stale` at startup. `claimedAt` exists only to make that call
+  precise — a record the extension *did* claim may still be on screen with a live Accept
+  button, and its decision still arrives with an id that is in the restored ring, so those
+  are left alone. The second mechanism is `tabs list`'s `UNANSWERED_AFTER_MS` (15 min),
+  which *is* a heuristic and is presentation-only: after the pop, elapsed time is the only
+  signal there is about whether anyone is looking.
+- `commands/tabs-list.ts` — prints the extension's **own** rendered snapshot markdown
+  (`# Cross-window / # Windows / # Groups / # Tabs`) verbatim, preceded by the suggestion
+  ring and a freshness line. Two reasons it isn't a hand-built table: that markdown is the
+  exact format the skill is written against, so an agent reads it with no translation step,
+  and the extension already renders it — a second renderer here would drift from
+  `renderSnapshot`. When the payload has no `snapshot` field (developer-mode panel, or an
+  older build) it **says so** rather than falling back to a table. It reads the state file
+  tolerantly — every field optional, since a file from an older build is a normal thing to
+  meet — and warns on stderr, not stdout, when the snapshot is older than 5 minutes, so the
+  warning can't land in the middle of what an agent is parsing.
+- `commands/tabs-suggest.ts` — validates the script (`parseTabbrewScript`, line-numbered
+  errors, **exit 1** on any), then POSTs it to the bridge. Script input is a file arg or
+  stdin (`-`, and `extractFencedTabbrewScript` accepts a whole ` ```tabbrew ` block).
+  `--note` is **required**: a suggestion the user didn't ask for has to explain itself in
+  their language, and only a required flag makes that reliable. It is **fire and forget** —
+  it returns as soon as the bridge has the script, with no `--wait`, because an agent that
+  blocked here would be holding a socket open across a human decision; the answer surfaces
+  in a later `tabs list`. It rejects a zero-op script locally rather than letting the
+  bridge's empty-body guard answer `invalid_payload`, which reads as a bridge failure when
+  the real problem is that nothing was passed in. It sends `basedOn` (the tab-state version
+  it reasoned about) so the extension can warn before the user accepts a plan written
+  against tabs that have since moved.
+- There is **no `--port` flag** on anything. The extension hard-codes 49227 in both
+  manifests' `optional_host_permissions`, so a bridge on any other port is unreachable from
+  the browser — an option that could only ever be wrong. `TABBREW_SERVE_PORT` survives for
+  tests, and `config.serve.port` is the single place it's resolved, so the listener and the
+  client cannot disagree.
+- `tabs serve` is a **tolerant reader** of the tab payload — two extension surfaces POST
+  different shapes (raw `chrome.Tab` from the developer-mode panel, leaner `TabSnapshot`
+  from the side panel), so `StoredTab` types only the fields common to both and everything
+  else rides along untouched into the file. Note `chrome.Tab.groupId` is `-1` for ungrouped
+  while `TabSnapshot` omits the key.
+- `tabbrew-script/` — what's left of the vendored DSL runtime, now just the **parse side**.
+  `parser.ts` + `types.ts` are copied from upstream; `types.ts` holds only `Op` /
+  `ParseError` / `ParseResult`, because the snapshot shapes it used to carry existed for a
+  simulator this repo no longer has. The only edits vs. upstream are the retargeted import
+  and `!` assertions forced by `noUncheckedIndexedAccess` (see each file's header).
+  `render.ts` is **CLI-native, not a mirror**: `extractFencedTabbrewScript` (a copy of
+  `extract.ts`'s fenced-block extractor, minus the Anthropic dependency), `summarizeOps`,
+  and `renderParseErrors`. It deliberately renders no tabs — see `tabs list` above.
+- `SKILL.md` is the **exception to the copy rule: this repo is its source of truth**, and it
+  must not be re-synced from `tabbrew-api`. It documents `tabs list` / `tabs suggest`, which
+  don't exist upstream, and it's written for a single `/loop` pass — read the tabs, decide
+  (default: do nothing), write the ops, `tabs suggest --note`. It replaced both the three
+  chat-shaped variants and the separate `tabbrew-auto` loop skill: with `push` and `check`
+  gone, a one-off request and a standing watch are the same three steps, so the two skills
+  had nothing left to disagree about (they used to differ on whether a `DEL` needs
+  confirming in chat — it doesn't; the panel's Accept button is the confirmation). It's
+  embedded via `import … with { type: "text" }`, a compile-time inline that survives
+  `--compile` (`assets.d.ts` types the import); `skills.ts` is the bundling module `init`
+  reads.
+
+> **Cross-repo (this is still a 3rd copy, but a smaller one):** `parser.ts` and `types.ts`
+> have their **source of truth in the `tabbrew` monorepo** (`tabbrew-api/src/tabbrew-script`
+> + `tabbrew-skill/runtime/src`). Never edit them here as the primary copy — re-sync on any
+> DSL grammar change, and remember a new verb still touches every copy (see the monorepo
+> `CLAUDE.md`'s "four-place change" note; this repo is one of them).
+>
+> **What this repo no longer owes upstream:** deleting `simulate.ts` ended the obligation to
+> mirror the extension executor's phase order (`DEL → UNPIN → UNGROUP → GROUP → PIN → MOVE`).
+> Nothing here simulates, previews, or orders operations — the extension does all of it — so
+> a phase-order change upstream is not a change here. Only the *grammar* is shared.
+>
+> **`SKILL.md` is not vendored at all.** The `SKILL.*.md` variants that used to be verbatim
+> copies of `tabbrew-api/src/skill/portable/*` are gone; the one skill that remains is
+> written against this CLI's commands and is owned here.
 
 `registry.ts` is **the command surface as data** — every command's name, help group,
 summary, and the flags it accepts. Both `ui.ts`'s `printHelp` and `index.ts`'s
@@ -263,9 +327,11 @@ command in `registry.ts`, or it will be rejected at runtime. Adding a command = 
 **One thing does *not* follow automatically:** `docs/commands.html`, the visual command map,
 is a **hand-written mirror** of this table — a card per command, coloured by how far the
 command reaches (offline / loopback / account / GitHub Releases). Nothing generates it and
-nothing tests it, so a new command, a renamed flag, or a reworded summary has to be carried
-over by hand or the page quietly goes stale. It is the only file in the repo that duplicates
-`registry.ts`; keep the duplication small enough to be worth it.
+nothing tests it, so a new command, a *deleted* command, a renamed flag, or a reworded
+summary has to be carried over by hand or the page quietly goes stale. It was rewritten
+for v0.7.0 (the removed commands survive there only as a struck-through "what changed"
+strip, which is the one thing a returning reader most needs). It is the only file in the
+repo that duplicates `registry.ts`; keep the duplication small enough to be worth it.
 
 Help is **three views** over that one table:
 - the **default** (`printHelp()`) — grouped commands (`GROUPS`, ordered by what the CLI is
@@ -319,24 +385,20 @@ src/
   agents.ts           # init: AgentTarget registry (Claude Code; extensible) + skills dir
   awareness.ts        # init: bundled awareness doc + managed-block string ops
   fsops.ts            # init: atomic write, writeIfChanged, backup, safe read/remove
-  tabs-history.ts     # tabs: pure diffTabs + the capped 0600 delta log
-  assets.d.ts         # ambient `declare module "*.md"` for the text-import skill assets
-  tabbrew-script/     # tabs: offline DSL toolbox
-    types.ts            #   vendored DSL + snapshot types (Chrome-free)
+  assets.d.ts         # ambient `declare module "*.md"` for the text-import skill asset
+  tabbrew-script/     # tabs: the parse side of the DSL, plus the skill
+    types.ts            #   vendored parse-side types (Op / ParseError / ParseResult)
     parser.ts           #   vendored parseTabbrewScript
-    simulate.ts         #   vendored simulateBatch (mirrors executor phase order)
-    render.ts           #   CLI-native: snapshot reverse-parser, fenced extractor, renderers
-    skills.ts           #   bundled interactive skill prompts (text imports)
-    SKILL.{compact,standard,full}.md  # verbatim tabbrew-api portable variants (source of truth upstream)
-    SKILL.auto.md       #   the watch→propose→listen loop (CLI-NATIVE: source of truth is here)
+    render.ts           #   CLI-native: fenced extractor, op summary, parse-error renderer
+    skills.ts           #   bundles SKILL.md as a compile-time string
+    SKILL.md            #   the tabbrew-tabs skill (CLI-NATIVE: source of truth is here)
   commands/
     login.ts logout.ts whoami.ts tools.ts init.ts update.ts
     docs.ts             # docs push / list / open
-    tabs.ts             # tabs check / prompt / list / history  (offline)
-    tabs-serve.ts       # tabs serve — the 127.0.0.1 bridge; owns resolveServePort()
-    tabs-push.ts        # tabs push  — validate, then queue on the bridge
-    tabs-suggest.ts     # tabs suggest — queue with a required --note, wait for the verdict
-    tabs-watch.ts       # tabs watch — long-poll until the tabs change
+    tabs-errors.ts      # TabsInputError / TabsBridgeError (shared by the tabs commands)
+    tabs-serve.ts       # tabs serve — the 127.0.0.1 bridge; owns tabs.json + the ring
+    tabs-list.ts        # tabs list  — the suggestion ring + the extension's own snapshot
+    tabs-suggest.ts     # tabs suggest — validate, queue with a required --note, return
 docs/
   commands.html         # visual command map — hand-written mirror of registry.ts
 ```
@@ -362,13 +424,10 @@ hosted TabBrew server at `https://www.tabbrew.com`:
 | `TABBREW_RELEASE_URL` | `github.com/$REPO/releases/latest` | Override the `update` latest-release redirect URL |
 | `TABBREW_DOWNLOAD_BASE_URL` | `github.com/$REPO/releases/latest/download` | Override the `update` release-asset download base |
 | `TABBREW_DOWNLOAD_TIMEOUT_MS` | `120000` | `update` binary-download timeout (separate from `TABBREW_TIMEOUT_MS`) |
-| `TABBREW_SERVE_PORT` | `49227` | Loopback port shared by `tabs serve` (listens) and `tabs push`/`suggest`/`watch` (connect) |
-| `TABBREW_TABS_PATH` | `~/.config/tabbrew/tabs.json` | Where `tabs serve` saves the exported tabs (read by `tabs list`) |
-| `TABBREW_TABS_HISTORY_PATH` | `~/.config/tabbrew/tabs-history.jsonl` | Where `tabs serve` appends per-version deltas (read by `tabs history`) |
-| `TABBREW_TABS_HISTORY_MAX` | `500` | Newest delta lines to keep; older ones are trimmed |
-| `TABBREW_TABS_HISTORY` | *(on)* | Set to `0` to never write the delta log (same as `tabs serve --no-history`) |
+| `TABBREW_SERVE_PORT` | `49227` | Loopback port for `tabs serve` (listens) and `tabs suggest` (connects). **A test override** — there is no `--port`, and the extension hard-codes 49227 |
+| `TABBREW_TABS_PATH` | `~/.config/tabbrew/tabs.json` | Where `tabs serve` saves the exported tabs + suggestion ring (read by `tabs list`) |
 | `TABBREW_TOKEN` | *(unset)* | Use this token directly; **wins over the stored file** (for CI/CD) |
-| `TABBREW_NO_BROWSER` | *(unset)* | Set to skip auto-opening the browser during `login` |
+| `TABBREW_NO_BROWSER` | *(unset)* | Print URLs instead of launching a browser (`login`, `docs open`) |
 | `TABBREW_TIMEOUT_MS` | `15000` | Per-request timeout in milliseconds (device code / poll / whoami) |
 | `TABBREW_DEBUG` | *(unset)* | Print stack traces on unexpected errors |
 | `NO_COLOR` | *(unset)* | Disable ANSI colors |

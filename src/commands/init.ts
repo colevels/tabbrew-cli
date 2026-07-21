@@ -1,7 +1,7 @@
 import { mkdir, rmdir } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { c } from "../ui";
-import { resolveAgent, SKILL_AUTO, type AgentTarget, type Scope } from "../agents";
+import { resolveAgent, type AgentTarget, type Scope } from "../agents";
 import {
   TABBREW_CLI_MD,
   buildManagedBlock,
@@ -9,14 +9,7 @@ import {
   removeManagedBlock,
   upsertManagedBlock,
 } from "../awareness";
-import {
-  AUTO_SKILL,
-  DEFAULT_SKILL_VARIANT,
-  isSkillVariant,
-  SKILL_VARIANTS,
-  type SkillVariant,
-} from "../tabbrew-script/skills";
-import { TabsInputError } from "./tabs";
+import { TABS_SKILL } from "../tabbrew-script/skills";
 import {
   atomicWrite,
   backupFile,
@@ -31,13 +24,7 @@ export interface InitOptions {
   uninstall?: boolean;
   yes?: boolean;
   agent?: string;
-  /**
-   * Skill variant to install (compact|standard|full; default full). Named to
-   * match `tabs prompt --variant`, which selects from the same three prompts —
-   * `--skill`/`--no-skill` is the install-or-not switch, `--variant` is which.
-   */
-  variant?: string;
-  /** Skip installing the skills (both of them). */
+  /** Skip installing the tabbrew-tabs skill. */
   noSkill?: boolean;
 }
 
@@ -56,15 +43,14 @@ interface Paths {
   awarenessPath: string;
   instructionsPath: string;
   skills: SkillPlan[];
+  /** Skill dirs from an older version to delete; see AgentTarget.legacySkillNames. */
+  legacySkillDirs: string[];
 }
 
 export async function init(opts: InitOptions): Promise<void> {
   const target = resolveAgent(opts.agent ?? "claude");
   const scope: Scope = opts.global ? "global" : "local";
   const dir = target.resolveDir(scope);
-  // Resolve (and validate) the variant up front so a bad --variant fails before
-  // any write — it only applies to tabbrew-tabs, the one skill that has variants.
-  const variant = resolveVariant(opts.variant);
   const paths: Paths = {
     target,
     scope,
@@ -77,28 +63,51 @@ export async function init(opts: InitOptions): Promise<void> {
         name,
         dir: skillDir,
         path: join(skillDir, target.skillFile),
-        content: name === SKILL_AUTO ? AUTO_SKILL : SKILL_VARIANTS[variant],
+        content: TABS_SKILL,
       };
     }),
+    legacySkillDirs: target.legacySkillNames.map((name) =>
+      target.resolveSkillsDir(scope, name),
+    ),
   };
 
   if (opts.uninstall) return uninstall(paths, opts);
   return install(paths, opts);
 }
 
-/** Resolve + validate the skill variant to install (default full). */
-function resolveVariant(v: string | undefined): SkillVariant {
-  const variant = (v ?? DEFAULT_SKILL_VARIANT).toLowerCase();
-  if (!isSkillVariant(variant)) {
-    throw new TabsInputError(
-      `Unknown --variant "${v}". Choose one of: compact, standard, full.`,
-    );
+/**
+ * Delete skills an older tabbrew-cli installed. This is cleanup, not
+ * uninstallation: `tabbrew-auto` tells the agent to run `tabbrew tabs watch`,
+ * which no longer exists, so leaving it behind is worse than leaving nothing.
+ * Best-effort and quiet — a skill the user never had is not news.
+ */
+async function removeLegacySkills(
+  target: AgentTarget,
+  dirs: string[],
+): Promise<string[]> {
+  const removed: string[] = [];
+  for (const dir of dirs) {
+    if (await removeFileIfExists(join(dir, target.skillFile))) removed.push(dir);
+    await rmdir(dir).catch(() => {});
   }
-  return variant;
+  return removed;
+}
+
+/** What removeLegacySkills *would* remove — so --dry-run reports the same set. */
+async function planLegacySkills(
+  target: AgentTarget,
+  dirs: string[],
+): Promise<string[]> {
+  const found: string[] = [];
+  for (const dir of dirs) {
+    if ((await readFileOrNull(join(dir, target.skillFile))) !== null) found.push(dir);
+  }
+  return found;
 }
 
 async function install(paths: Paths, opts: InitOptions): Promise<void> {
-  const { target, scope, dir, awarenessPath, instructionsPath, skills } = paths;
+  const { target, scope, dir, awarenessPath, instructionsPath, skills, legacySkillDirs } =
+    paths;
   const dryRun = !!opts.dryRun;
 
   const installSkills = !opts.noSkill;
@@ -128,6 +137,9 @@ async function install(paths: Paths, opts: InitOptions): Promise<void> {
         ),
       );
     }
+    for (const dir of await planLegacySkills(target, legacySkillDirs)) {
+      lines.push(statusLine(basename(dir), dir, "removed"));
+    }
     console.log(lines.join("\n"));
     console.log(c.dim("[dry-run] Nothing written."));
     return;
@@ -156,8 +168,7 @@ async function install(paths: Paths, opts: InitOptions): Promise<void> {
   }
   lines.push(statusLine(target.instructionsFile, instructionsPath, await writeIfChanged(instructionsPath, nextClaude)));
 
-  // Each skill in its own skills/<name>/ dir — one for one-off requests, one for
-  // the watch loop.
+  // The skill lives in its own skills/<name>/ dir.
   for (const skill of skills) {
     if (!installSkills) {
       lines.push(statusLine(skill.name, skill.path, "skipped (--no-skill)"));
@@ -167,18 +178,26 @@ async function install(paths: Paths, opts: InitOptions): Promise<void> {
     lines.push(statusLine(skill.name, skill.path, await writeIfChanged(skill.path, skill.content)));
   }
 
+  // Unconditional: an orphaned tabbrew-auto would keep telling the agent to run
+  // a command that's gone, whether or not this run installed anything.
+  for (const removed of await removeLegacySkills(target, legacySkillDirs)) {
+    lines.push(statusLine(basename(removed), removed, "removed"));
+  }
+
   console.log(lines.join("\n"));
   console.log("");
   console.log(`${c.green("✓")} tabbrew-cli awareness installed for ${c.bold(target.displayName)} ${c.dim(`(${scope})`)}.`);
   if (installSkills) {
-    console.log(c.dim(`  ${c.bold("tabbrew-tabs")} — turn one request into a TabBrew Script.`));
-    console.log(c.dim(`  ${c.bold("tabbrew-auto")} — watch your tabs and propose changes you accept or deny.`));
+    console.log(
+      c.dim(`  ${c.bold("tabbrew-tabs")} — read the tabs, propose a change, let them accept or deny.`),
+    );
   }
   console.log(c.dim(`  ${target.displayName} picks it up on its next run.`));
 }
 
 async function uninstall(paths: Paths, opts: InitOptions): Promise<void> {
-  const { target, scope, awarenessPath, instructionsPath, skills } = paths;
+  const { target, scope, awarenessPath, instructionsPath, skills, legacySkillDirs } =
+    paths;
   const dryRun = !!opts.dryRun;
 
   const currentAwareness = await readFileOrNull(awarenessPath);
@@ -204,6 +223,9 @@ async function uninstall(paths: Paths, opts: InitOptions): Promise<void> {
     for (const skill of skills) {
       const current = await readFileOrNull(skill.path);
       lines.push(statusLine(skill.name, skill.path, current === null ? "absent" : "removed"));
+    }
+    for (const dir of await planLegacySkills(target, legacySkillDirs)) {
+      lines.push(statusLine(basename(dir), dir, "removed"));
     }
     console.log(lines.join("\n"));
     console.log(c.dim("[dry-run] Nothing written."));
@@ -234,6 +256,10 @@ async function uninstall(paths: Paths, opts: InitOptions): Promise<void> {
     // Best-effort: drop the now-empty skills/<name>/ dir. Silently ignores a
     // non-empty dir (ENOTEMPTY) or an already-absent one.
     if (removedSkill) await rmdir(skill.dir).catch(() => {});
+  }
+
+  for (const removed of await removeLegacySkills(target, legacySkillDirs)) {
+    lines.push(statusLine(basename(removed), removed, "removed"));
   }
 
   console.log(lines.join("\n"));

@@ -1,20 +1,12 @@
-import { dirname } from "node:path";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { atomicWrite, readFileOrNull } from "../fsops";
+import { atomicWrite, readFileOrNull, removeFileIfExists } from "../fsops";
 import { config } from "../config";
-import {
-  appendDelta,
-  countHistoryLines,
-  diffTabs,
-  isEmptyDelta,
-  readHistory,
-  type HistoryTab,
-  type TabDelta,
-} from "../tabs-history";
 import { BIN, c } from "../ui";
 
-/** Bad `--port` (non-numeric/non-positive) or the port is already in use. */
+/** The port is already in use, or the server died on start. */
 export class ServeError extends Error {
   constructor(message: string) {
     super(message);
@@ -22,54 +14,93 @@ export class ServeError extends Error {
   }
 }
 
-export interface ServeOptions {
-  port?: number;
-  out?: string;
-  /** Skip the delta log entirely (see tabs-history.ts's privacy note). */
-  noHistory?: boolean;
-}
-
-/**
- * The one place a serve port is decided: an explicit `--port`, else
- * TABBREW_SERVE_PORT, else the default. `tabs push` calls this too — the two
- * commands have to agree on the port or a pushed script silently lands on a
- * different server (or nowhere), which is exactly what used to happen.
- */
-export function resolveServePort(port?: number): number {
-  if (port === undefined) return config.serve.port;
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    throw new ServeError(`Invalid --port: ${port}. Expected 1-65535.`);
-  }
-  return port;
-}
-
 /**
  * Wire-protocol version, echoed by `GET /health`. Both ends of this bridge move
  * independently — the extension updates through the Web Store, the CLI through
- * `tabbrew update` — so neither may assume the other is current. 1 = script-only
- * (`POST /tabs` + `GET /script`), 2 = adds tab versioning, long-poll watching,
- * and the suggestion/decision round trip.
+ * `tabbrew update` — so neither may assume the other is current.
+ *
+ *   1 = script-only (`POST /tabs` + `GET /script`)
+ *   2 = added tab versioning, long-poll watching, the suggestion/decision round trip
+ *   3 = dropped the long polls and the legacy `/script` routes; the verdict is
+ *       recorded in the state file instead of being waited on over the wire
+ *
+ * A protocol-2 extension is fully served by a protocol-3 bridge: the four routes
+ * it actually calls — `POST /tabs`, `GET /suggestion`, `POST /decision`,
+ * `GET /health` — are unchanged. What went is the three long polls only the CLI
+ * ever issued (`GET /tabs`, `GET /history`, `GET /decision`) and the protocol-1
+ * `/script` pair.
  */
-const PROTOCOL = 2;
+const PROTOCOL = 3;
 
-/** Ceiling for any `?wait=` long-poll, so a client can't park a socket forever. */
-const MAX_WAIT_MS = 300_000;
-/** In-memory delta ring, enough for a watcher that missed a few versions. */
-const DELTA_TAIL = 50;
+/**
+ * How many suggestions the state file remembers. This is the agent's memory of
+ * what it proposed and what the user said — small on purpose: it exists so a
+ * loop tick can see "my last suggestion was denied, and why", not to build a
+ * history of the user's decisions.
+ */
+const SUGGESTION_RING = 5;
+
+/**
+ * A tab as the extension sends it. Only the fields both extension surfaces
+ * agree on — the developer-mode panel POSTs raw `chrome.Tab`, the side panel
+ * POSTs the leaner `TabSnapshot`. Everything else rides along untouched inside
+ * the state file.
+ */
+interface StoredTab {
+  id?: number;
+  title?: string;
+  url?: string;
+  windowId?: number;
+  pinned?: boolean;
+  groupId?: number;
+}
+
+type DecisionKind = "accepted" | "denied" | "stale" | "failed";
+
+/**
+ * One proposal and its fate. `decision: null` means the user hasn't answered
+ * yet — the signal a watching agent needs to shut up and wait rather than
+ * queueing a second suggestion on top of the first.
+ *
+ * `failed` is not a user decision: it's "the user said yes and Chrome refused".
+ * It exists because the alternative was recording `accepted` for a batch that
+ * errored, which tells a watching agent its plan worked when the tabs never
+ * moved, and it will happily build the next suggestion on that fiction.
+ */
+interface SuggestionRecord {
+  id: string;
+  note: string | null;
+  opCount: number | null;
+  basedOn: number | null;
+  queuedAt: string;
+  /**
+   * When the extension claimed it, if it has. Persisted for exactly one reason:
+   * after a restart it is the only way to tell a suggestion that may still be
+   * sitting on the user's screen from one that was never delivered and now never
+   * can be. See `reconcileOnRestart`.
+   */
+  claimedAt: string | null;
+  decision: DecisionKind | null;
+  reason: string | null;
+  decidedAt: string | null;
+}
 
 interface TabState {
   version: number;
   savedAt: string;
   source: string;
   count: number;
-  tabs: HistoryTab[];
+  tabs: StoredTab[];
   groups: unknown[];
   windows: unknown[];
   allowCrossWindow: boolean;
   /** The extension's own rendered "Copy AI Prompt" markdown, when it sent one. */
   snapshot?: string;
+  /** Newest first, capped at SUGGESTION_RING. */
+  suggestions: SuggestionRecord[];
 }
 
+/** The queued-but-unclaimed suggestion, as `GET /suggestion` hands it over. */
 interface PendingSuggestion {
   id: string;
   script: string;
@@ -78,87 +109,87 @@ interface PendingSuggestion {
   queuedAt: string;
 }
 
-/**
- * `failed` is not a user decision — it's "the user said yes and Chrome refused".
- * It exists because the alternative was reporting `accepted` for a batch that
- * errored, which tells a watching agent its plan worked when the tabs never
- * moved, and it will happily build the next suggestion on that fiction.
- */
-type DecisionKind = "accepted" | "denied" | "stale" | "failed";
-
-interface Verdict {
-  id: string;
-  decision: DecisionKind;
-  reason: string | null;
-  opCount: number | null;
-  at: string;
-}
-
 const isDecision = (v: unknown): v is DecisionKind =>
   v === "accepted" || v === "denied" || v === "stale" || v === "failed";
 
 /**
- * `tabbrew tabs serve` — a local HTTP server the TabBrew Chrome extension talks
- * to. It receives the extension's tab state (saved as JSON on disk, plus a
- * delta log), hands out scripts queued by `tabs push` / `tabs suggest`, and
- * carries the user's accept/deny answer back to the CLI. Binds 127.0.0.1 only
- * (hardcoded, not overridable) — that's the whole security model, no auth
- * token. An `Origin` check adds cheap defense-in-depth against a random
- * webpage's JS hitting the port; it's intentionally a single self-contained
- * block so it's easy to rip out if it ever gets in the way.
+ * `tabbrew tabs serve` — the local HTTP bridge the TabBrew Chrome extension
+ * talks to. It receives the extension's tab state (saved as JSON on disk), hands
+ * out the script queued by `tabs suggest`, and records the user's accept/deny
+ * answer back into that same file for `tabs list` to report.
+ *
+ * Binds 127.0.0.1 only (hardcoded, not overridable) — that's the whole security
+ * model, no auth token. The Host/Origin checks add cheap defense-in-depth; they
+ * are deliberately one self-contained block so they're easy to rip out.
+ *
+ * Every route is a plain request/response. Nothing long-polls: the extension
+ * polls on its own timer, and the verdict is read from disk on the next
+ * `tabs list` rather than waited on over a held-open socket.
+ *
+ * The state path is deliberately NOT a flag. It used to be `--out`, which moved
+ * only the writer: `tabs list` and `tabs suggest` kept reading
+ * `config.serve.outPath`, so a served `--out ./here.json` left them silently
+ * reporting a stale default file. That is the same reader/writer split `--port`
+ * was removed for. `TABBREW_TABS_PATH` moves all three at once, so it is the
+ * only override.
  */
-export async function tabsServe(opts: ServeOptions): Promise<void> {
-  const port = resolveServePort(opts.port);
-  const outPath = opts.out ?? config.serve.outPath;
-  const historyPath = config.serve.historyPath;
-  const historyEnabled = config.serve.historyEnabled && opts.noHistory !== true;
+export async function tabsServe(): Promise<void> {
+  const port = config.serve.port;
+  const outPath = config.serve.outPath;
 
   await mkdir(dirname(outPath), { recursive: true, mode: 0o700 });
-  if (historyEnabled) {
-    await mkdir(dirname(historyPath), { recursive: true, mode: 0o700 });
-  }
+  const droppedLog = await removeStaleHistoryLog(outPath);
 
   let tabState: TabState | null = await seedTabState(outPath);
-  let deltas: TabDelta[] = [];
-  let historyLines = historyEnabled ? await countHistoryLines(historyPath) : 0;
+  // The suggestion ring outlives any single tab state — it's what the agent
+  // reads to know it was denied, so it must survive both a tab change (which
+  // rebuilds tabState wholesale) and a restart of this process.
+  const reconciled = reconcileOnRestart(tabState?.suggestions ?? []);
+  let suggestions: SuggestionRecord[] = reconciled.records;
 
-  // Single unclaimed script at a time — `tabs push` / `tabs suggest` overwrite,
-  // the extension's poll pops (claims + clears) it. Lives only for this
-  // process's lifetime; that's fine, it's meant to be picked up within seconds.
+  // Single unclaimed script at a time — `tabs suggest` overwrites, the
+  // extension's poll pops (claims + clears) it. Lives only for this process's
+  // lifetime; it's meant to be picked up within seconds.
   let pending: PendingSuggestion | null = null;
-  // The user's answer to the last claimed suggestion, waiting for `--wait` to
-  // collect it. One slot: a new suggestion clears it, so a stale "denied" from
-  // two rounds ago can never be mistaken for the answer to this one.
-  let verdict: Verdict | null = null;
 
-  // Long-poll parking lots. Each entry is a resolver; posting wakes them all
-  // and they re-check their own condition (a resolver can't know which waiter
-  // wanted what, so the loop is on the caller's side).
-  const tabWaiters = new Set<() => void>();
-  const verdictWaiters = new Set<() => void>();
+  // Writes are serialized through one chain. Three handlers persist, and two of
+  // them belong to different clients — the extension POSTs /tabs while the CLI
+  // POSTs /suggestion — so two writes really can be in flight at once. Without
+  // this, each one serializes the state it saw on entry and the *later* rename
+  // wins, which can silently roll back a version bump or drop a suggestion that
+  // was added while an earlier write was still landing. Chaining also means each
+  // write reads the state at its own turn, not at the caller's.
+  let writes: Promise<void> = Promise.resolve();
 
-  const wake = (set: Set<() => void>): void => {
-    for (const resolve of [...set]) resolve();
-  };
-
-  function park(set: Set<() => void>, ms: number, signal: AbortSignal): Promise<void> {
-    return new Promise<void>((resolve) => {
-      let settled = false;
-      const finish = (): void => {
-        if (settled) return;
-        settled = true;
-        set.delete(finish);
-        clearTimeout(timer);
-        signal.removeEventListener("abort", finish);
-        resolve();
-      };
-      const timer = setTimeout(finish, ms);
-      set.add(finish);
-      // A client that hangs up (Ctrl+C on `tabs watch`) must not leave a
-      // resolver behind — otherwise a long-lived serve slowly leaks them.
-      signal.addEventListener("abort", finish, { once: true });
+  /**
+   * 0600, like credentials.json. This is the URL and title of every open tab —
+   * browsing state, which is arguably worse to leak than the token: a token is
+   * revocable, a history isn't, and full URLs carry more than hostnames
+   * (account paths, doc links, share links with tokens in the query string).
+   * The default umask would leave it 0644, and the config dir is not reliably
+   * 0700, so the file mode is the only thing actually protecting it.
+   */
+  function persist(): Promise<void> {
+    const next = writes.then(async () => {
+      // Nothing to write until the extension has sent tabs at least once. A
+      // suggestion queued before then still lives in memory and still reaches
+      // the extension; it just isn't on disk for `tabs list` to report yet.
+      if (!tabState) return;
+      tabState = { ...tabState, suggestions };
+      await atomicWrite(outPath, JSON.stringify(tabState, null, 2) + "\n", 0o600);
     });
+    // The chain must survive a failed write. Without swallowing the rejection
+    // here, one transient ENOSPC would leave `writes` permanently rejected and
+    // every later persist would be skipped without ever being attempted. The
+    // caller still sees the real error through `next`.
+    writes = next.catch(() => {});
+    return next;
   }
+
+  // Flush the restart reconciliation now rather than waiting for the next tab
+  // change: the reason it exists is to unblock a `tabs list` that might be the
+  // very next thing to run, and the extension may never post again.
+  if (reconciled.closed > 0) await persist();
 
   async function handlePostTabs(req: Request): Promise<Response> {
     const body = await req.json().catch(() => null);
@@ -174,95 +205,33 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
       );
     }
 
-    const groups = Array.isArray(b.groups) ? b.groups : [];
-    const next: TabState = {
+    tabState = {
       version: (tabState?.version ?? 0) + 1,
       savedAt: new Date().toISOString(),
       // 'panel' | 'devtools' | 'auto' — free-form, only used for display.
       source: typeof b.source === "string" ? b.source : "panel",
       count: tabs.length,
-      tabs: tabs as HistoryTab[],
-      groups,
+      tabs: tabs as StoredTab[],
+      groups: Array.isArray(b.groups) ? b.groups : [],
       windows: Array.isArray(b.windows) ? b.windows : [],
       allowCrossWindow: b.allowCrossWindow === true,
       ...(typeof b.snapshot === "string" ? { snapshot: b.snapshot } : {}),
+      // Carried by persist() — a tab change must not erase what the user
+      // answered about the last suggestion.
+      suggestions,
     };
 
-    const delta = diffTabs(tabState?.tabs ?? [], next.tabs, {
-      v: next.version,
-      at: next.savedAt,
-      source: next.source,
-      groups: groups.length,
+    await persist();
+
+    return json({
+      ok: true,
+      path: outPath,
+      count: tabs.length,
+      version: tabState.version,
     });
-
-    tabState = next;
-
-    // 0600, like credentials.json. This is the URL and title of every open tab —
-    // browsing state, which is arguably worse to leak than the token: a token is
-    // revocable, a history isn't, and full URLs carry more than hostnames
-    // (account paths, doc links, share links with tokens in the query string).
-    // The default umask would leave it 0644, and the config dir is not reliably
-    // 0700, so the file mode is the only thing actually protecting it.
-    await atomicWrite(outPath, JSON.stringify(next, null, 2) + "\n", 0o600);
-
-    // A no-op delta still bumps the version (the extension asked us to record
-    // this moment), but writing "nothing happened" lines would fill the log
-    // with noise and push real changes out of the window.
-    if (!isEmptyDelta(delta)) {
-      deltas = [...deltas, delta].slice(-DELTA_TAIL);
-      if (historyEnabled) {
-        historyLines = await appendDelta(
-          historyPath,
-          delta,
-          config.serve.historyMax,
-          historyLines,
-        );
-      }
-    }
-
-    wake(tabWaiters);
-    return json({ ok: true, path: outPath, count: tabs.length, version: next.version });
   }
 
-  /**
-   * Long-poll the tab state. Never pops — unlike `/script`, this is a read a
-   * watcher repeats forever, and `since` (not consumption) is what stops it
-   * seeing the same version twice.
-   */
-  async function handleGetTabs(req: Request, url: URL): Promise<Response> {
-    const since = intParam(url, "since") ?? 0;
-    const wait = Math.min(intParam(url, "wait") ?? 0, MAX_WAIT_MS);
-    const deadline = Date.now() + wait;
-
-    for (;;) {
-      if (tabState && tabState.version > since) {
-        const changes = deltas.filter((d) => d.v > since);
-        // The ring only holds the last DELTA_TAIL versions. Say so rather than
-        // implying "these are all the changes" — a caller that has fallen
-        // behind should re-read the full state instead.
-        const oldest = deltas.length > 0 ? deltas[0]!.v : tabState.version;
-        return json({
-          ...tabState,
-          changes,
-          changesTruncated: since > 0 && oldest > since + 1,
-        });
-      }
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) return new Response(null, { status: 204 });
-      await park(tabWaiters, remaining, req.signal);
-      if (req.signal.aborted) return new Response(null, { status: 499 });
-    }
-  }
-
-  async function handleGetHistory(url: URL): Promise<Response> {
-    const limit = Math.max(1, Math.min(intParam(url, "limit") ?? 20, 1000));
-    // The file is the durable copy; the ring is the fallback when the log is
-    // switched off (in which case the tail is all that has ever existed).
-    const all = historyEnabled ? await readHistory(historyPath) : deltas;
-    return json({ ok: true, enabled: historyEnabled, deltas: all.slice(-limit) });
-  }
-
-  async function handlePostScript(req: Request): Promise<Response> {
+  async function handlePostSuggestion(req: Request): Promise<Response> {
     const body = await req.json().catch(() => null);
     if (body === null || typeof body !== "object") {
       return json({ error: "invalid_json" }, 400);
@@ -275,38 +244,48 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
         400,
       );
     }
+
+    const id = `s_${randomUUID().slice(0, 8)}`;
+    const queuedAt = new Date().toISOString();
     pending = {
-      id: `s_${randomUUID().slice(0, 8)}`,
+      id,
       script,
       note: typeof b.note === "string" && b.note.trim() ? b.note.trim() : null,
       basedOn: typeof b.basedOn === "number" ? b.basedOn : null,
-      queuedAt: new Date().toISOString(),
+      queuedAt,
     };
-    // Whatever the user said about the *previous* suggestion is now history —
-    // dropping it here is what keeps `GET /decision?id=…` unambiguous.
-    verdict = null;
-    return json({ ok: true, id: pending.id, queuedAt: pending.queuedAt });
+    suggestions = [
+      {
+        id,
+        note: pending.note,
+        opCount: typeof b.opCount === "number" ? b.opCount : null,
+        basedOn: pending.basedOn,
+        queuedAt,
+        claimedAt: null,
+        decision: null,
+        reason: null,
+        decidedAt: null,
+      },
+      ...suggestions,
+    ].slice(0, SUGGESTION_RING);
+    await persist();
+
+    return json({ ok: true, id, queuedAt });
   }
 
-  /**
-   * Pop the queued suggestion. Two routes claim the same single slot:
-   * `/suggestion` (protocol 2, carries the note and an id to answer with) and
-   * `/script` (what extension builds predating auto mode poll). Whichever asks
-   * first gets it.
-   */
-  function handleGetSuggestion(): Response {
+  /** Pop the queued suggestion. Claiming it clears it. */
+  async function handleGetSuggestion(): Promise<Response> {
     if (!pending) return new Response(null, { status: 204 });
     const item = pending;
     pending = null;
+    // Record the claim before answering. This is the fact a restart needs to
+    // tell "may still be on their screen" from "never delivered".
+    const record = suggestions.find((s) => s.id === item.id);
+    if (record) {
+      record.claimedAt = new Date().toISOString();
+      await persist();
+    }
     return json(item);
-  }
-
-  function handleGetScript(): Response {
-    if (!pending) return new Response(null, { status: 204 });
-    const item = pending;
-    pending = null;
-    // Old shape exactly — an old extension parses `script` and ignores the rest.
-    return json({ script: item.script, queuedAt: item.queuedAt });
   }
 
   async function handlePostDecision(req: Request): Promise<Response> {
@@ -324,37 +303,24 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
         400,
       );
     }
-    verdict = {
-      id: typeof b.id === "string" && b.id ? b.id : "",
-      decision: b.decision,
-      reason: typeof b.reason === "string" && b.reason.trim() ? b.reason.trim() : null,
-      opCount: typeof b.opCount === "number" ? b.opCount : null,
-      at: new Date().toISOString(),
-    };
-    wake(verdictWaiters);
-    return json({ ok: true });
-  }
 
-  /**
-   * Long-poll for the answer to one suggestion. Does not clear the verdict: a
-   * `--wait` that timed out and retried has to be able to read it again, and
-   * the next `POST /suggestion` clears it anyway.
-   */
-  async function handleGetDecision(req: Request, url: URL): Promise<Response> {
-    const id = url.searchParams.get("id") ?? "";
-    const wait = Math.min(intParam(url, "wait") ?? 0, MAX_WAIT_MS);
-    const deadline = Date.now() + wait;
-
-    const matches = (): boolean =>
-      verdict !== null && (id === "" || verdict.id === "" || verdict.id === id);
-
-    for (;;) {
-      if (matches()) return json(verdict);
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) return new Response(null, { status: 204 });
-      await park(verdictWaiters, remaining, req.signal);
-      if (req.signal.aborted) return new Response(null, { status: 499 });
+    const id = typeof b.id === "string" && b.id ? b.id : "";
+    // Match by id when the extension sent one; otherwise answer the newest
+    // suggestion nobody has answered yet. An older extension POSTs no id, and
+    // dropping its verdict on the floor would leave the agent waiting forever.
+    const target = id
+      ? suggestions.find((s) => s.id === id)
+      : suggestions.find((s) => s.decision === null);
+    if (target) {
+      target.decision = b.decision;
+      target.reason =
+        typeof b.reason === "string" && b.reason.trim() ? b.reason.trim() : null;
+      if (typeof b.opCount === "number") target.opCount = b.opCount;
+      target.decidedAt = new Date().toISOString();
+      await persist();
     }
+
+    return json({ ok: true });
   }
 
   async function handleRequest(req: Request): Promise<Response> {
@@ -388,39 +354,24 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
       if (req.method === "POST" && url.pathname === "/tabs") {
         return await handlePostTabs(req);
       }
-      if (req.method === "GET" && url.pathname === "/tabs") {
-        return await handleGetTabs(req, url);
-      }
-      if (req.method === "GET" && url.pathname === "/history") {
-        return await handleGetHistory(url);
-      }
-      // `/script` and `/suggestion` POST the same thing; the two names exist so
-      // an old CLI's `tabs push` still reaches a new serve.
-      if (req.method === "POST" && (url.pathname === "/script" || url.pathname === "/suggestion")) {
-        return await handlePostScript(req);
+      if (req.method === "POST" && url.pathname === "/suggestion") {
+        return await handlePostSuggestion(req);
       }
       if (req.method === "GET" && url.pathname === "/suggestion") {
-        return handleGetSuggestion();
-      }
-      if (req.method === "GET" && url.pathname === "/script") {
-        return handleGetScript();
+        return await handleGetSuggestion();
       }
       if (req.method === "POST" && url.pathname === "/decision") {
         return await handlePostDecision(req);
       }
-      if (req.method === "GET" && url.pathname === "/decision") {
-        return await handleGetDecision(req, url);
-      }
-      // Cheap, non-destructive reachability check — the extension's "Connect"
-      // toggle pings this to show a connected/disconnected status, separate
-      // from claiming a pending script. `ok` must stay, older extensions test it.
+      // Cheap, non-destructive reachability check — the extension pings this to
+      // show a connected/disconnected status, separate from claiming a pending
+      // script. `ok` must stay, older extensions test it.
       if (req.method === "GET" && url.pathname === "/health") {
         return json({
           ok: true,
           protocol: PROTOCOL,
           tabsVersion: tabState?.version ?? 0,
           hasPending: pending !== null,
-          history: historyEnabled,
         });
       }
       return json({ error: "not_found" }, 404);
@@ -431,18 +382,7 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
 
   let server: ReturnType<typeof Bun.serve>;
   try {
-    server = Bun.serve({
-      hostname: "127.0.0.1",
-      port,
-      // `Bun.serve` defaults to a 10-SECOND idle timeout and kills any request
-      // that quiet — which is every long-poll this server exists to hold open.
-      // The symptom is nasty and misleading: the socket dies mid-wait, the
-      // client's fetch rejects, and `tabs watch` reports "nothing is listening"
-      // about a server that is running fine. 0 disables it; the handlers cap
-      // their own wait at MAX_WAIT_MS, so nothing here can park forever.
-      idleTimeout: 0,
-      fetch: handleRequest,
-    });
+    server = Bun.serve({ hostname: "127.0.0.1", port, fetch: handleRequest });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     throw new ServeError(`Couldn't start the server on port ${port}: ${detail}`);
@@ -454,22 +394,26 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
     `${c.bold("TabBrew bridge")} ${c.dim("· ready on")} ${c.cyan(`127.0.0.1:${port}`)}`,
   );
   console.log(`  ${c.dim("Exported tabs are saved to")} ${outPath}`);
-  console.log(
-    historyEnabled
-      ? `  ${c.dim("Changes are logged to")} ${historyPath} ${c.dim(`(newest ${config.serve.historyMax})`)}`
-      : `  ${c.dim("Change log off — no browsing history is kept on disk.")}`,
-  );
+  for (const path of droppedLog) {
+    console.log(`  ${c.green("Deleted")} ${path}`);
+    console.log(
+      c.dim("    left by an older version — it recorded tabs you had closed."),
+    );
+  }
   console.log("");
-  console.log(`  ${c.bold("Next, in Chrome:")} open the TabBrew sidepanel and click ${c.bold("Send to Claude Code")},`);
-  console.log(`  ${c.dim("or in Developer mode → TabBrew Script, click")} ${c.bold("Connect")}${c.dim(" to receive a")} \`${BIN} tabs push\`.`);
+  console.log(
+    `  ${c.bold("Next, in Chrome:")} open the TabBrew sidepanel, click ${c.bold("Send to Claude Code")},`,
+  );
+  console.log(
+    `  ${c.dim("and switch")} ${c.bold("Auto mode")} ${c.dim("on. Then read the tabs with")} \`${BIN} tabs list\`.`,
+  );
   console.log("");
   console.log(c.dim("Press Ctrl+C to stop."));
   if (process.env.TABBREW_DEBUG) {
     console.log(
       c.dim(
-        "  routes: POST /tabs · GET /tabs (long-poll) · GET /history · " +
-          "POST /suggestion · GET /suggestion (pop) · GET /script (pop) · " +
-          "POST /decision · GET /decision (long-poll) · GET /health",
+        "  routes: POST /tabs · POST /suggestion · GET /suggestion (pop) · " +
+          "POST /decision · GET /health",
       ),
     );
   }
@@ -486,26 +430,10 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
 }
 
 /**
- * Is the bridge up? Used by the long-polling clients to tell "the server is
- * gone" apart from "this one connection dropped" — two situations with opposite
- * correct responses (report an error vs. quietly poll again).
- */
-export async function pingBridge(port: number): Promise<boolean> {
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/health`, {
-      signal: AbortSignal.timeout(2000),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Restore enough state from the last run that a restart isn't a cliff: the
- * version keeps counting up (so a watcher's `--since 13` doesn't go unanswered
- * forever) and the first delta after the restart diffs against real tabs
- * instead of reporting all 187 as brand new.
+ * version keeps counting up (so a suggestion's `basedOn` staleness check stays
+ * meaningful) and the suggestion ring survives, which is the only record of
+ * what the user already said no to.
  */
 async function seedTabState(outPath: string): Promise<TabState | null> {
   const text = await readFileOrNull(outPath);
@@ -518,22 +446,85 @@ async function seedTabState(outPath: string): Promise<TabState | null> {
       savedAt: typeof p.savedAt === "string" ? p.savedAt : new Date(0).toISOString(),
       source: typeof p.source === "string" ? p.source : "panel",
       count: p.tabs.length,
-      tabs: p.tabs as HistoryTab[],
+      tabs: p.tabs as StoredTab[],
       groups: Array.isArray(p.groups) ? p.groups : [],
       windows: Array.isArray(p.windows) ? p.windows : [],
       allowCrossWindow: p.allowCrossWindow === true,
       ...(typeof p.snapshot === "string" ? { snapshot: p.snapshot } : {}),
+      // A file written before the ring existed simply has none.
+      suggestions: Array.isArray(p.suggestions)
+        ? (p.suggestions as SuggestionRecord[])
+        : [],
     };
   } catch {
     return null;
   }
 }
 
-function intParam(url: URL, name: string): number | undefined {
-  const raw = url.searchParams.get(name);
-  if (raw === null) return undefined;
-  const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : undefined;
+/**
+ * Close out suggestions this process can no longer deliver.
+ *
+ * The queue is RAM — `pending` does not survive a restart — but the ring does.
+ * So a suggestion written to disk as undecided and never claimed is now
+ * unreachable in both directions: the extension's next `GET /suggestion` gets a
+ * 204, and no `POST /decision` will ever name it. Left alone it reads as
+ * `PENDING` forever, and `PENDING` is precisely the state the skill treats as
+ * "wait, don't propose" — so one bridge restart would quietly end the loop for
+ * the rest of the session.
+ *
+ * This is not a guess about elapsed time; `claimedAt` makes it a fact. A
+ * suggestion the extension *did* claim may still be on screen with the Accept
+ * button live, and answering it still works — the decision arrives with an id
+ * that is still in the restored ring — so those are deliberately left alone.
+ */
+function reconcileOnRestart(
+  restored: SuggestionRecord[],
+): { records: SuggestionRecord[]; closed: number } {
+  const at = new Date().toISOString();
+  let closed = 0;
+  for (const s of restored) {
+    if (!s || typeof s !== "object") continue;
+    if (s.decision === null && !s.claimedAt) {
+      s.decision = "stale";
+      s.reason = "the bridge restarted before the extension picked it up";
+      s.decidedAt = at;
+      closed += 1;
+    }
+  }
+  return { records: restored, closed };
+}
+
+/**
+ * Delete the delta log v0.6.0 wrote, if it's still lying around.
+ *
+ * That file is the one place this CLI ever accumulated browsing history at
+ * rest — unlike `tabs.json`, which only describes tabs that are open right now,
+ * it remembered the titles and URLs of tabs the user had *closed*. v0.7.0 stopped
+ * writing it and removed `tabs history --clear`, which would have left an
+ * upgrading user with that file on disk and no supported way to get rid of it.
+ * Deleting the data along with the feature is the only honest option, and
+ * `tabs serve` is where it happens because it's the command that created it.
+ *
+ * Best-effort by design: it checks the default location and, if the state file
+ * has been moved with TABBREW_TABS_PATH, the sibling of wherever that now lives.
+ * A log parked somewhere else by the old TABBREW_TABS_HISTORY_PATH is the user's
+ * to delete — nothing records where they put it.
+ */
+async function removeStaleHistoryLog(outPath: string): Promise<string[]> {
+  const LOG = "tabs-history.jsonl";
+  const candidates = new Set([
+    join(homedir(), ".config", "tabbrew", LOG),
+    join(dirname(outPath), LOG),
+  ]);
+  const removed: string[] = [];
+  for (const path of candidates) {
+    try {
+      if (await removeFileIfExists(path)) removed.push(path);
+    } catch {
+      // Unreadable or not ours — never let cleanup stop the bridge starting.
+    }
+  }
+  return removed;
 }
 
 function json(body: unknown, status = 200): Response {

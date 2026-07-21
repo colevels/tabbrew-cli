@@ -1,23 +1,17 @@
+import { resolve } from "node:path";
 import { config } from "../config";
 import { readFileOrNull } from "../fsops";
-import { readScriptInput, TabsInputError } from "./tabs";
 import { parseTabbrewScript } from "../tabbrew-script/parser";
 import {
   extractFencedTabbrewScript,
   renderParseErrors,
-  summarizeOps,
 } from "../tabbrew-script/render";
-import { pingBridge, resolveServePort } from "./tabs-serve";
-import { TabsPushError } from "./tabs-push";
+import { TabsBridgeError, TabsInputError } from "./tabs-errors";
 import { BIN, c } from "../ui";
 
 export interface TabsSuggestOptions {
-  port?: number;
   /** Required: the plain-language sentence the user actually reads. */
   note?: string;
-  /** Seconds to wait for accept/deny. 0 (via --no-wait) returns immediately. */
-  wait?: number;
-  noWait?: boolean;
   json?: boolean;
 }
 
@@ -28,31 +22,22 @@ interface QueueResponse {
   detail?: string;
 }
 
-interface VerdictResponse {
-  id?: string;
-  decision?: string;
-  reason?: string | null;
-  opCount?: number | null;
-  at?: string;
-}
-
-const DEFAULT_WAIT_S = 300;
-const MAX_WAIT_S = 300;
-
 /**
- * `tabbrew tabs suggest <file> --note "…"` — the auto-mode sibling of
- * `tabs push`. Three things make it a separate command rather than two flags on
- * push:
+ * `tabbrew tabs suggest <file> --note "…"` — validate a TabBrew Script and put
+ * it in front of the user.
  *
- *  1. `--note` is REQUIRED. A suggestion the user didn't ask for has to explain
- *     itself in their own language, and making that structural is the only way
- *     it reliably happens. `tabs push` stays note-free for the manual flow.
- *  2. It waits for the answer by default, so the agent loop learns whether the
- *     user accepted, and why they didn't.
- *  3. "push" is a fire-and-forget verb; this one is a proposal.
+ * `--note` is REQUIRED. A suggestion the user didn't ask for has to explain
+ * itself in their own language, and making that structural is the only way it
+ * reliably happens.
  *
- * Like push, it cannot change a single tab — the extension previews it and the
- * user applies it.
+ * This returns as soon as the bridge has the script. It does not wait for an
+ * answer: the extension polls on its own timer, the user answers whenever they
+ * look at the panel, and `tabs serve` records the verdict in the state file for
+ * the next `tabs list` to report. An agent that blocked here would be holding a
+ * socket open across a human decision.
+ *
+ * It cannot change a single tab. The extension previews the script and the user
+ * applies it — so never report tabs as closed or grouped from here.
  */
 export async function tabsSuggest(
   fileArg: string | undefined,
@@ -62,7 +47,7 @@ export async function tabsSuggest(
   if (!note) {
     throw new TabsInputError(
       `\`${BIN} tabs suggest\` needs --note "<what this does, in the user's own words>" — ` +
-        `it's the only thing they see before deciding. Use \`${BIN} tabs push\` for a bare script.`,
+        `it's the only thing they see before deciding.`,
     );
   }
 
@@ -76,13 +61,16 @@ export async function tabsSuggest(
     return;
   }
 
+  // Refuse locally rather than letting the bridge's empty-body guard answer with
+  // "invalid_payload", which reads as a bridge failure when the real problem is
+  // that nothing was passed in.
   if (ops.length === 0) {
-    throw new TabsPushError(
+    throw new TabsInputError(
       `That script has no operations to send. Write at least one op (DEL/PIN/UNPIN/GROUP/UNGROUP/MOVE), then \`${BIN} tabs suggest\` again.`,
     );
   }
 
-  const port = resolveServePort(opts.port);
+  const port = config.serve.port;
   const basedOn = await lastSeenVersion();
 
   let res: Response;
@@ -90,129 +78,61 @@ export async function tabsSuggest(
     res = await fetch(`http://127.0.0.1:${port}/suggestion`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ script, note, basedOn }),
+      body: JSON.stringify({ script, note, basedOn, opCount: ops.length }),
     });
   } catch {
-    throw new TabsPushError(
-      `Nothing is listening on 127.0.0.1:${port} — start the bridge with \`${BIN} tabs serve\` first` +
-        (opts.port === undefined ? "." : ", or pass a matching --port."),
+    throw new TabsBridgeError(
+      `Nothing is listening on 127.0.0.1:${port} — start the bridge with \`${BIN} tabs serve\` first.`,
     );
   }
 
   const body = (await res.json().catch(() => null)) as QueueResponse | null;
   if (!res.ok) {
-    throw new TabsPushError(
+    throw new TabsBridgeError(
       `The bridge rejected the suggestion: ${body?.error ?? `HTTP ${res.status}`}${body?.detail ? ` — ${body.detail}` : ""}`,
     );
   }
 
   const id = body?.id ?? "";
-  const stats = summarizeOps(ops);
-  const waitS = opts.noWait ? 0 : Math.min(opts.wait ?? DEFAULT_WAIT_S, MAX_WAIT_S);
-
-  if (waitS <= 0) {
-    if (opts.json) {
-      console.log(JSON.stringify({ ok: true, id, decision: null, opCount: stats.total }, null, 2));
-      return;
-    }
-    console.log(
-      `${c.green("✓ Sent")} ${c.dim(`(${stats.total} op${stats.total === 1 ? "" : "s"})`)} — waiting for the user in the TabBrew sidepanel.`,
-    );
-    console.log(c.dim("  Nothing has changed in your browser yet."));
-    return;
-  }
-
-  if (!opts.json) {
-    console.log(
-      `${c.dim("→ Sent")} ${c.dim(`(${stats.total} op${stats.total === 1 ? "" : "s"})`)} — waiting up to ${waitS}s for Accept or Deny…`,
-    );
-  }
-
-  const verdict = await waitForDecision(port, id, waitS);
 
   if (opts.json) {
     console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          id,
-          decision: verdict?.decision ?? null,
-          reason: verdict?.reason ?? null,
-          opCount: verdict?.opCount ?? null,
-          sentOps: stats.total,
-        },
-        null,
-        2,
-      ),
+      JSON.stringify({ ok: true, id, opCount: ops.length, basedOn }, null, 2),
     );
     return;
   }
 
-  // Deliberately never a non-zero exit: "the user said no" is an answer, not a
-  // failure, and an agent that treats it as one will retry instead of listen.
-  if (!verdict) {
-    console.log(
-      c.yellow("… No answer yet.") +
-        ` The suggestion is still waiting — the user may not have the TabBrew sidepanel open.`,
+  console.log(
+    `${c.green("✓ Sent")} ${c.dim(`(${ops.length} op${ops.length === 1 ? "" : "s"})`)} — it's waiting for Accept or Deny in the TabBrew sidepanel.`,
+  );
+  console.log(
+    c.dim(
+      `  Nothing has changed in your browser yet. Run \`${BIN} tabs list\` later to see what they decided.`,
+    ),
+  );
+}
+
+/** Read the script from a file argument, or from stdin for `-` / no argument. */
+async function readScriptInput(fileArg: string | undefined): Promise<string> {
+  if (fileArg && fileArg !== "-") {
+    const abs = resolve(process.cwd(), fileArg);
+    const f = Bun.file(abs);
+    if (!(await f.exists())) throw new TabsInputError(`Script file not found: ${abs}`);
+    return await f.text();
+  }
+  if (process.stdin.isTTY) {
+    throw new TabsInputError(
+      `No script given. Pass a file (${BIN} tabs suggest plan.txt --note "…") or pipe one (… | ${BIN} tabs suggest - --note "…").`,
     );
-    return;
   }
-  if (verdict.decision === "accepted") {
-    const n = verdict.opCount ?? stats.total;
-    console.log(`${c.green("✓ Accepted")} ${c.dim(`— ${n} op${n === 1 ? "" : "s"} applied.`)}`);
-    return;
-  }
-  if (verdict.decision === "stale") {
-    console.log(
-      `${c.yellow("↺ Out of date")} ${c.dim("— those tabs changed before it could run. Re-read the tabs and suggest again.")}`,
-    );
-    return;
-  }
-  if (verdict.decision === "failed") {
-    // Accepted by the user, refused by the browser. Distinct from a denial:
-    // they wanted this, so fix the script rather than dropping the idea.
-    console.log(`${c.red("✗ Accepted, but it didn't run")}${verdict.reason ? ` — ${verdict.reason}` : "."}`);
-    console.log(c.dim("  The tabs are unchanged. Re-read them before trying again."));
-    return;
-  }
-  console.log(`${c.red("✗ Denied")}${verdict.reason ? ` — ${verdict.reason}` : ""}`);
-  console.log(c.dim("  Nothing changed. Don't re-send this one."));
+  return await Bun.stdin.text();
 }
 
 /**
- * Long-poll for the verdict, re-issuing the request if the server's own wait
- * ceiling is shorter than ours. Any transport hiccup ends the wait rather than
- * spinning — the suggestion is still queued, and the caller can ask again.
+ * The tab-state version this suggestion was reasoned about. The extension
+ * compares it against what it sees now, and warns the user before they Accept a
+ * plan written against tabs that have since moved.
  */
-async function waitForDecision(
-  port: number,
-  id: string,
-  waitS: number,
-): Promise<VerdictResponse | null> {
-  const deadline = Date.now() + waitS * 1000;
-  for (;;) {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) return null;
-    const url = `http://127.0.0.1:${port}/decision?id=${encodeURIComponent(id)}&wait=${remaining}`;
-    let res: Response;
-    try {
-      res = await fetch(url);
-    } catch {
-      // A dropped connection isn't an answer. Only give up if the bridge is
-      // actually gone — otherwise keep waiting with the time that's left, since
-      // the suggestion is still sitting on the user's screen.
-      if (!(await pingBridge(port))) return null;
-      continue;
-    }
-    if (res.status === 204) continue;
-    if (!res.ok) return null;
-    const body = (await res.json().catch(() => null)) as VerdictResponse | null;
-    if (body?.decision) return body;
-    return null;
-  }
-}
-
-/** The tab-state version this suggestion was reasoned about, for staleness. */
 async function lastSeenVersion(): Promise<number> {
   const text = await readFileOrNull(config.serve.outPath);
   if (text === null) return 0;

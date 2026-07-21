@@ -5,10 +5,14 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Bun](https://img.shields.io/badge/Bun-%E2%89%A5%201.1-000?logo=bun&logoColor=white)](https://bun.sh)
 
-> **Status: proof of concept.** `v0.6.0` is the high-water mark of the exploration —
-> everything the CLI can currently do, kept together in one release. The next versions
-> deliberately **remove** commands to cut complexity, and some of them will come back
-> later in a simpler shape. Pin `v0.6.0` if you depend on a command that disappears.
+> **Status: proof of concept.** `v0.6.0` was the high-water mark of the exploration;
+> `v0.7.0` is where the subtraction started. **`tabs check`, `tabs push`, `tabs watch`,
+> `tabs history` and `tabs prompt` are gone**, and the `--port`, `--out` and `--variant`
+> flags with them — the tab surface is three commands now (`serve` / `list` / `suggest`).
+> `init` follows: it installs one skill instead of two, and deletes the orphaned
+> `tabbrew-auto` it finds. `docs`, `login`/`whoami`/`logout` and `update` are untouched. Pin
+> [`v0.6.0`](https://github.com/colevels/tabbrew-cli/releases/tag/v0.6.0) if you depend
+> on a command that disappeared; some of them may come back in a simpler shape.
 
 The command-line companion to **TabBrew** — it brings your TabBrew account to the
 terminal and to the AI coding agents working there.
@@ -21,29 +25,23 @@ This CLI does a few things:
 
 - **Sign in** to your TabBrew account from the terminal — `login` / `whoami` / `logout`
 - **Push HTML docs** (a plan, a report, a viewer) into the sidepanel Docs view — `docs push`
-- **Work with your tabs** — export them from the extension, validate a generated TabBrew
-  Script, and send it back for you to run — `tabs serve` / `tabs list` / `tabs check` / `tabs push`
-- **Or let the agent watch** — it sees your tabs change and proposes edits with a plain-language
-  note you Accept or Deny in the panel — `tabs watch` / `tabs suggest` / `tabs history`
+- **Work with your tabs** — the extension sends your open tabs to a local bridge, your
+  agent reads them and proposes a TabBrew Script with a one-sentence note, and you
+  **Accept** or **Deny** it in the sidepanel — `tabs serve` / `tabs list` / `tabs suggest`
 - **Teach your AI agent** that TabBrew exists and how to generate tab scripts — `init` (installs the
-  awareness doc *and* the `tabbrew-tabs` / `tabbrew-auto` skills)
+  awareness doc *and* the `tabbrew-tabs` skill)
 
 The payoff: an AI agent working in your repo generates a report as HTML and pushes it
-straight into your browser's Docs view — or takes your open tabs, writes a validated
-TabBrew Script, and drops it into the extension for you to run.
+straight into your browser's Docs view — or reads your open tabs, writes a validated
+TabBrew Script, and puts it in the sidepanel for you to accept.
 
 ## Commands
 
 ```
 TABS  organize your Chrome tabs
   tabs serve           Start the local bridge the extension exports your tabs to
-  tabs watch           Wait for the extension to report a tab change
-  tabs list            Show the tabs the extension last exported
-  tabs check <file>    Validate a TabBrew Script (--snapshot for a preview)
-  tabs push <file>     Send a script to the extension to preview & run
-  tabs suggest <file>  Propose a script with a note, and wait for the answer
-  tabs history         Show what changed between exported tab states
-  tabs prompt          Print the interactive TabBrew Script skill prompt
+  tabs list            Show the tabs the extension last sent, and recent answers
+  tabs suggest <file>  Propose a script, with a note they read before deciding
 
 DOCS  send HTML into the sidepanel
   docs push <file>     Send an HTML file to the TabBrew sidepanel Docs view
@@ -56,7 +54,7 @@ ACCOUNT
   logout               Delete the stored token
 
 SETUP
-  init                 Set up an AI agent to use tabbrew (+ the tab skills)
+  init                 Set up an AI agent to use tabbrew (+ the tabs skill)
   update               Update the installed binary to the latest release
   help                 Show this help
 ```
@@ -65,13 +63,13 @@ SETUP
 one-liner has no room for. `tabbrew help --all` prints everything: hidden commands,
 every per-command flag, and the environment overrides.
 
-Every `tabs` command is offline except `serve`/`push`/`suggest`/`watch`, which only ever
-talk to `127.0.0.1`. **None of them can change your tabs** — the browser does that, after
-you click **Run** (or **Accept**).
+`tabs list` only reads a file on disk; `tabs serve` and `tabs suggest` only ever talk to
+`127.0.0.1`. **None of them can change your tabs** — the browser does that, after you press
+**Accept**.
 
 Prefer a picture? [`docs/commands.html`](./docs/commands.html) is a single-page visual map
-of the whole surface — every command colour-coded by how far it reaches, both workflows as
-diagrams, the bridge's routes, and the six-verb Script grammar.
+of the whole surface — every command colour-coded by how far it reaches, the tab loop as a
+diagram, the bridge's routes, and the six-verb Script grammar.
 
 ## Install
 
@@ -217,57 +215,237 @@ existing `CLAUDE.md` prompts for confirmation (default **No**); non-interactive 
 decline unless `--yes` is passed, so it's safe in CI. The `AgentTarget` registry in
 `src/agents.ts` is the seam for adding Cursor/Codex/Gemini later.
 
-`init` also installs **two skills** into the agent's skills dir
-(`./.claude/skills/<name>/SKILL.md` locally, `~/.claude/skills/…` with `--global`):
+`init` also installs the **`tabbrew-tabs`** skill into the agent's skills dir
+(`./.claude/skills/tabbrew-tabs/SKILL.md` locally, `~/.claude/skills/…` with `--global`).
+It is the loop written down: read `tabs list` → decide (**default: do nothing**) → write
+the ops → `tabs suggest --note` → read the verdict on the next pass, plus the rules for
+writing a note and for treating a denial as a standing instruction.
 
-- **`tabbrew-tabs`** — the interactive prompt that turns one request ("group my tabs")
-  into a TabBrew Script. `--variant standard|compact` picks a smaller prompt (default
-  `full`).
-- **`tabbrew-auto`** — the watch loop: `tabs watch` → decide → `tabs suggest --note` →
-  read the Accept/Deny answer. It deliberately *contradicts* the first skill on one
-  point — no in-chat confirmation before closing tabs — because in auto mode the panel's
-  Accept button is the confirmation.
+There used to be two skills — an interactive one and a separate `tabbrew-auto` watch
+loop — which disagreed on purpose about whether to confirm a `DEL` in chat. With the
+Accept/Deny card being the confirmation either way, a one-off request and a standing watch
+are the same three steps, so there is one skill and no `--variant` flag. `init` **deletes
+an orphaned `tabbrew-auto` directory** it finds (on install as well as `--uninstall`),
+because that skill tells the agent to run `tabs watch`, which no longer exists.
 
-`--no-skill` skips both; `--uninstall` removes everything. (You can also install the
-interactive skill standalone with `npx skills add colevels/tabbrew-skill`, the plugin
-form — the two are complementary.)
+`--no-skill` skips the install; `--uninstall` removes everything.
 
-## Managing tabs (`tabs check` / `tabs prompt`)
+The skill installed here is written for an agent with a terminal — it runs commands and
+reads their output. If you want the **chat-shaped** version instead, the one you paste
+into ChatGPT, Gemini, or claude.ai alongside the extension's **Copy AI Prompt** output,
+that lives in its own package: `npx skills add colevels/tabbrew-skill`. Same DSL, no CLI.
 
-An AI agent already running in your terminal can generate a **TabBrew Script** itself —
-no server round-trip. This CLI is the local toolbox around that: it teaches the agent the
-DSL (`init` / `tabs prompt`) and validates what it produced (`tabs check`). It never reads
-or changes your tabs — the browser does that.
+## The tab loop (`tabs serve` / `tabs list` / `tabs suggest`)
 
-The copy-paste loop (no bridge, no automation of your browser). If you'd rather not
-copy-paste, [the local bridge](#the-local-bridge-tabs-serve--tabs-push) does the same
-round trip over `127.0.0.1`:
+Three commands, one direction of travel. The extension pushes your open tabs down to a
+loopback bridge; your agent reads them and proposes a TabBrew Script with a sentence
+explaining it; you press **Accept** or **Deny** in the sidepanel; the answer comes back on
+the next read. The CLI is on one side of that loop only — **it cannot change a tab**.
 
-1. In the extension, click **Copy AI Prompt** and paste the result into your agent (it
-   contains your live tabs as `# Windows` / `# Groups` / `# Tabs` sections).
-2. The agent, following the installed `tabbrew-tabs` skill, generates a `` ```tabbrew `` block.
-3. Validate it locally before running:
+```
+  Chrome  ──── your tabs ─────▶  tabs serve ──▶ tabs.json ──▶  tabs list
+  Chrome  ◀──── a script ─────   tabs serve  ◀───────────────  tabs suggest --note
+  Chrome  ──── Accept/Deny ───▶  tabs serve ──▶ tabs.json ──▶  tabs list   (next pass)
+```
 
-   ```bash
-   tabbrew tabs check script.txt                       # parse only — syntax, unknown verbs, DEL count
-   tabbrew tabs check script.txt --snapshot snap.md    # + before/after preview from the pasted snapshot
-   printf 'DEL 101 102\nGROUP 103 104 "Code"\n' | tabbrew tabs check -   # or pipe it (accepts a fenced block)
-   ```
+### 1. Start the bridge
 
-   `check` exits non-zero on any parse error (with line numbers), so it drops into scripts
-   and pre-run gates. `--json` emits `{ ok, ops, errors, stats, preview }`. The `--snapshot`
-   argument accepts the Copy-AI-Prompt markdown **or** a raw `SnapshotPayload` `.json`.
+```bash
+tabbrew tabs serve                            # 127.0.0.1:49227 — blocks until Ctrl+C
+TABBREW_TABS_PATH=./tabs.json tabbrew tabs serve   # put the state file elsewhere
+```
 
-4. Paste the validated script into the extension's developer mode and click **Run** —
-   execution happens in the browser.
+`TABBREW_TABS_PATH` is the only way to move that file, and it has to be set for
+`tabs list` and `tabs suggest` too — they read the same path. A `--out` flag used to move
+just the writer, which left the other two silently reading a stale default; it's gone for
+the same reason `--port` is.
 
-`tabbrew tabs prompt [--variant full|standard|compact]` prints the same interactive skill
-prompt `init` installs — handy to `pbcopy` into a chat AI or inspect it.
+It blocks, so give it its own shell (or the background). Then, in Chrome, open the
+TabBrew sidepanel, click **Send to Claude Code**, and switch **Auto mode** on — that is
+what keeps sending tabs as they change. (Developer mode → Tab List → **Send to CLI**
+exports too, but without the rendered snapshot — see below.)
 
-> The preview is a **directional** simulation (it mirrors the extension's phase order:
-> `DEL → UNPIN → UNGROUP → GROUP → PIN → MOVE`), not a byte-exact prediction of Chrome's
-> final layout. It's meant to catch mistakes — wrong ids, surprise closes, stale ids — not
-> to replace running the script.
+### 2. Read the tabs
+
+```bash
+tabbrew tabs list          # header, recent answers, then the snapshot
+tabbrew tabs list --json   # the raw saved payload
+```
+
+```
+4 tabs · 1 window · v1 · exported just now
+
+# Cross-window: no
+# Windows
+{"id":1,"focused":true,"tabCount":4}
+# Groups
+# Tabs
+{"id":901,"idx":0,"pinned":true,"winId":1,"title":"Gmail","url":"https://mail.google.com/"}
+{"id":4310,"idx":1,"winId":1,"title":"colevels/tabbrew","url":"https://github.com/colevels/tabbrew"}
+{"id":4311,"idx":2,"winId":1,"title":"Pull requests","url":"https://github.com/pulls"}
+{"id":4471,"idx":3,"winId":1,"title":"YouTube","url":"https://youtube.com/watch?v=…"}
+```
+
+That snapshot is the extension's **own** rendering, printed verbatim — not a table this
+CLI builds. Two reasons: it's the exact format the skill is written against, so the agent
+reads it without a translation step, and the CLI can never drift from what the extension
+shows. An export that arrives without one (the developer-mode panel, or an older build)
+says so rather than falling back to a second renderer.
+
+It's a file on disk, not a live query, which is why the header prints how old it is — and
+why an export older than five minutes also prints a staleness warning **on stderr**, where
+it won't land in the middle of the snapshot an agent is parsing.
+
+### 3. Propose a change
+
+Write the ops to a file — one verb per line, `#` for comments:
+
+```bash
+cat > /tmp/plan.txt <<'EOF'
+DEL 4471
+GROUP 4310 4311 "Code"
+EOF
+
+tabbrew tabs suggest /tmp/plan.txt \
+  --note "ปิดแท็บ YouTube 1 อัน แล้วรวม github 2 แท็บเป็นกลุ่ม Code"
+```
+
+```
+✓ Sent (2 ops) — it's waiting for Accept or Deny in the TabBrew sidepanel.
+  Nothing has changed in your browser yet. Run `tabbrew tabs list` later to see what they decided.
+```
+
+The six verbs are `DEL` / `PIN` / `UNPIN` / `GROUP` / `UNGROUP` / `MOVE`; the installed
+skill has the full grammar. `suggest` parses the script first and refuses to send a broken
+or empty one — parse errors print with line numbers and exit 1:
+
+```
+✗ 1 parse error:
+  line 1: DELL 1
+            → unknown verb "DELL"
+```
+
+`--note` is **required**. It's the only thing most people read before deciding, so a
+suggestion nobody asked for has to explain itself — in their language, leading with
+anything that closes tabs. The script can also come from stdin (`tabs suggest -`, which
+accepts a whole `` ```tabbrew `` block), and `--json` prints
+`{ ok, id, opCount, basedOn }` instead of the two lines above.
+
+**It returns as soon as the bridge has the script — it does not wait for an answer.**
+Earlier versions held the socket open across a human decision, which is a bad shape for
+both ends: the agent burns a turn blocking on someone who has gone to lunch, and the
+bridge grows long-polling to serve it. The extension polls on its own timer and the
+verdict is recorded on disk instead.
+
+### 4. Read the answer on the next pass
+
+```bash
+tabbrew tabs list
+```
+
+```
+4 tabs · 1 window · v1 · exported just now
+
+recent suggestions
+  2 minutes ago  DENIED  ปิดแท็บ YouTube 1 อัน แล้วรวม github 2 แท็บเป็นกลุ่ม Code — "อย่าปิด youtube เปิดฟังเพลงอยู่"
+```
+
+`tabs.json` keeps a ring of the **newest 5** suggestions — id, note, op count, the tab
+version it was written against, and what became of it. Once the extension has sent tabs at
+least once, it survives both a tab change and a restart of `tabs serve` — it's the agent's
+only memory of what you already said no to, and without it a loop re-proposes the thing you
+just rejected, forever.
+
+| State | Meaning |
+| --- | --- |
+| `PENDING` | Not answered yet. Wait — don't pile a second proposal on the first. |
+| `ACCEPTED` | It ran. The tabs have actually moved; re-read before planning anything else. |
+| `DENIED` | With a reason, if one was given. A standing rule, not a one-off no. |
+| `STALE` | The tabs changed before it could run, so it never applied. |
+| `FAILED` | You said yes and Chrome refused. The tabs are unchanged. |
+
+`FAILED` exists because the alternative — recording `accepted` for a batch that errored —
+tells a watching agent its plan worked when nothing moved, and it will happily build the
+next suggestion on that fiction.
+
+### A worked pass with Claude Code
+
+The three steps are one turn, whether you asked once or asked for a standing watch. In one
+shell:
+
+```bash
+tabbrew tabs serve
+```
+
+Then in Claude Code, for a one-off:
+
+```
+> tidy up my tabs
+```
+
+or, to keep it going, hand the pacing to Claude Code's `/loop`:
+
+```
+> /loop 10m watch my tabs and suggest tidy-ups
+```
+
+Each invocation is **one pass**: read `tabs list`, decide, maybe suggest, report in a line,
+stop. The skill deliberately does not `sleep`, poll, or re-invoke itself — a loop inside a
+loop just burns tokens. And the default decision is to do nothing: a high tab count is not
+a problem, 200 open tabs may be exactly how you work.
+
+### The bridge
+
+`tabs serve` speaks **protocol 3** (echoed by `GET /health`) over five plain
+request/response routes — nothing long-polls:
+
+| Route | Who calls it | What it does |
+| --- | --- | --- |
+| `POST /tabs` | extension | Save the current tab state (bumps `version`) |
+| `POST /suggestion` | `tabs suggest` | Queue a script (one at a time; a new one replaces it) |
+| `GET /suggestion` | extension | **Pops** the queued script — claimed by exactly one poll |
+| `POST /decision` | extension | Record accepted / denied / stale / failed |
+| `GET /health` | extension | Reachability + protocol version |
+
+Both ends of this bridge move independently — the extension updates through the Web Store,
+the CLI through `tabbrew update` — so neither may assume the other is current. All four
+routes a protocol-2 extension actually calls (`POST /tabs`, `GET /suggestion`,
+`POST /decision`, `GET /health`) are unchanged; what protocol 3 dropped is the three long
+polls only the CLI ever issued, and the legacy `/script` pair.
+
+**There is no `--port` flag.** The extension hard-codes `49227` in both manifests'
+`optional_host_permissions`, so a bridge listening anywhere else is unreachable from the
+browser — a flag that could only ever produce a broken setup isn't worth having.
+`TABBREW_SERVE_PORT` still moves it, for tests.
+
+### Security model
+
+A departure from every other command, which is OAuth-gated: `tabs serve` binds
+**`127.0.0.1` only** (hardcoded, not configurable) and requires **no token** — the
+loopback-only bind is the entire boundary against the network. Anything already
+running as you on this machine can reach it.
+
+Two header checks keep a *browser* from being used as the way in:
+
+- **`Host` must be `127.0.0.1:<port>` or `localhost:<port>`.** This is what stops
+  [DNS rebinding](https://en.wikipedia.org/wiki/DNS_rebinding): a page on
+  `http://evil.com` whose DNS is flipped to `127.0.0.1` reaches this server while
+  keeping its own origin, making its requests *same-origin* — and browsers omit
+  `Origin` on same-origin GETs, so the check below alone would let it read a
+  queued script. The browser sets `Host` from the URL the page asked for, and
+  page JS can't forge it (it's a forbidden header name).
+- **`Origin`, when present, must be `chrome-extension://…`.** Browsers always
+  attach `Origin` to non-GET requests, so this is what blocks a drive-by
+  `POST /tabs` from writing to your disk.
+
+Neither affects `curl` or scripts run by you, which address `127.0.0.1` directly
+and send no `Origin`.
+
+The saved `tabs.json` is written **`chmod 600`**, like `credentials.json` — it holds the
+URL and title of every open tab, which is browsing history and doesn't become un-leaked
+the way a revoked token does. It is also the *only* thing the CLI keeps: it's overwritten
+on every export and holds just the currently-open tabs. (v0.6.0's `tabs-history.jsonl`
+delta log, which remembered tabs you had since closed, is gone along with `tabs history`.)
 
 ## Docs view (`docs push` / `docs list`)
 
@@ -321,150 +499,55 @@ Like `docs push`, the list route authenticates with the **OAuth login token** �
 the same one `whoami` uses. Every `/api/v1/html_files/*` route the CLI calls now
 accepts the bearer.
 
-## The local bridge (`tabs serve` / `tabs push`)
+## Testing each subcommand
 
-The bridge replaces the copy-paste round trip with a loopback one. `tabbrew tabs
-serve` starts a small HTTP server on `127.0.0.1` that does three things: the
-extension **POSTs your open tabs to it** (saved as JSON on disk), it **hands back
-a script** you send with `tabbrew tabs push`, and — in [auto
-mode](#auto-mode-tabs-watch--tabs-suggest) — it carries your **Accept/Deny answer
-back** to whoever suggested it.
+`bun test` covers only the pure functions (help layout, display width); everything that
+touches the network, the filesystem, or a terminal is verified by hand. There's no
+mock server — point the binary at a real one:
 
 ```bash
-tabbrew tabs serve                   # listens on 127.0.0.1:49227 — leave it running
-tabbrew tabs serve --out ./tabs.json # save somewhere other than the default
+export TABBREW_BASE_URL="http://localhost:3000"   # or your staging deploy
+export TABBREW_TOKEN="tbcli_…"                    # skip the interactive login
+bun run src/index.ts whoami
+bun run src/index.ts docs push ./fixture.html --title "Test"
+bun run src/index.ts docs list --json
 ```
 
-Then, in Chrome, click **Send to Claude Code** in the sidepanel (or **Send to CLI**
-in Developer mode → Tab List). Your tabs land on disk:
+The three `tabs` commands need no server at all — just the bridge and something
+speaking to it. Give the run its own port and state file so it can't disturb yours:
 
 ```bash
-tabbrew tabs list          # human-readable, with how stale the export is
-tabbrew tabs list --json   # { "savedAt": "…", "version": 3, "count": 2, "tabs": [ /* … */ ] }
+export TABBREW_SERVE_PORT=49999
+export TABBREW_TABS_PATH=/tmp/tabs-test.json
+
+bun run src/index.ts tabs serve &                 # 1. the bridge
+
+curl -s -X POST http://127.0.0.1:49999/tabs \
+  -H 'content-type: application/json' \
+  -H 'origin: chrome-extension://test' \
+  -d '{"tabs":[{"id":901,"title":"Gmail","url":"https://mail.google.com/","windowId":1}],
+       "windows":[{"id":1}],"snapshot":"# Tabs\n{\"id\":901,\"idx\":0,\"winId\":1}"}'
+
+bun run src/index.ts tabs list                    # 2. what the extension "sent"
+
+printf 'DEL 901\n' | bun run src/index.ts tabs suggest - --note "close Gmail"   # 3. propose
+
+curl -s http://127.0.0.1:49999/suggestion         # play the extension: pop it,
+curl -s -X POST http://127.0.0.1:49999/decision \
+  -H 'content-type: application/json' \
+  -d '{"decision":"denied","reason":"reading it"}'                              #    then answer
+
+bun run src/index.ts tabs list                    # 4. DENIED, with the reason
 ```
 
-Hand a script back the same way. `tabs push` validates it first (the same parse
-step as `tabs check`) and then queues it; the extension picks it up while its
-**Developer mode → TabBrew Script** panel is connected, and shows it to you as a
-preview:
+Two things to remember while doing this by hand: the bridge rejects a request whose
+`Host` isn't `127.0.0.1:<port>`/`localhost:<port>` (so address it by IP, not by a name
+that resolves there), and `GET /suggestion` **pops** — the second call returns 204.
 
-```bash
-tabbrew tabs push ./group-tabs.txt
-```
-
-**`tabs push` does not run anything.** It has no access to your browser — the
-script sits in the panel until *you* click **Run**. That's the whole reason this
-command isn't called `run`.
-
-### Auto mode (`tabs watch` / `tabs suggest`)
-
-`push` is a one-shot: you ask, the agent answers, done. Auto mode is the same
-bridge run as a loop — the extension streams your tabs as they change, and the
-agent proposes edits you accept or deny, without you asking each time.
-
-Turn **Auto mode** on in the sidepanel's *Send to Claude Code* card (it only runs
-while the panel is open). Then, in the agent's shell:
-
-```bash
-tabbrew tabs watch --timeout 60     # blocks until your tabs actually change
-```
-
-It prints what moved (`+ opened`, `- closed`, `~ regrouped`) plus the current
-snapshot in the same format the skill reads. A timeout prints nothing and still
-exits 0, so a loop can branch on empty output rather than on an exit code.
-
-When the agent sees something worth doing, it proposes it — with a sentence you
-can actually read:
-
-```bash
-tabbrew tabs suggest ./plan.txt \
-  --note "ปิดแท็บ YouTube ที่ค้าง 6 อัน แล้วรวม github 5 แท็บเป็นกลุ่ม Code" \
-  --wait 300 --json
-```
-
-`--note` is **required**. It's the only thing most people read before deciding, so
-a suggestion nobody asked for has to explain itself. The card in the panel shows
-that note, the simulated preview, and **Accept** / **Deny** — and Deny takes an
-optional reason, which comes straight back to the agent:
-
-```json
-{ "id": "s_4f3a", "decision": "denied", "reason": "อย่าปิด youtube เปิดฟังเพลงอยู่" }
-```
-
-That round trip is the point: without it a loop re-proposes the thing you just
-rejected, forever. `tabs suggest` always exits 0 — a Deny is an answer, not a
-failure.
-
-`tabbrew init` installs the **`tabbrew-auto`** skill, which is the loop written
-down: watch → decide (default: do nothing) → check → suggest → listen, plus the
-rules for writing a note and for treating a denial as a standing instruction.
-
-#### What changed, not just what's open (`tabs history`)
-
-`tabs.json` only answers "what is open right now". `tabs serve` also appends one
-line per version to `~/.config/tabbrew/tabs-history.jsonl` — a **delta**, not a
-snapshot (500 snapshots of 200 tabs would be a 20 MB file; a delta is a few
-hundred bytes):
-
-```bash
-tabbrew tabs history --limit 20   # v13  2m ago  +2 -1 ~2   187 tabs
-tabbrew tabs history --json       # the raw lines
-tabbrew tabs history --clear      # delete the log
-```
-
-⚠️ This log is the one place the CLI accumulates browsing history **at rest**:
-`tabs.json` is overwritten and only ever holds currently-open tabs, while the
-deltas keep the titles and URLs of tabs you have since closed. So it's `chmod
-600`, capped at `TABBREW_TABS_HISTORY_MAX` entries (default 500), and easy to
-switch off:
-
-```bash
-tabbrew tabs serve --no-history   # or TABBREW_TABS_HISTORY=0
-```
-
-### Ports
-
-Both commands default to **49227** and take a matching `--port` (or
-`TABBREW_SERVE_PORT`) — if they disagree, `tabs push` reports that nothing is
-listening rather than quietly sending your script somewhere else.
-
-⚠️ **The extension only ever talks to 49227.** The port is baked into its
-`optional_host_permissions`, so a non-default port works for your own scripts but
-reads as "bridge isn't running" in the UI. Change it only if 49227 is taken, and
-expect the extension side not to follow.
-
-### Security model
-
-A departure from every other command, which is OAuth-gated: `tabs serve` binds
-**`127.0.0.1` only** (hardcoded, not configurable) and requires **no token** — the
-loopback-only bind is the entire boundary against the network. Anything already
-running as you on this machine can reach it.
-
-Two header checks keep a *browser* from being used as the way in:
-
-- **`Host` must be `127.0.0.1:<port>` or `localhost:<port>`.** This is what stops
-  [DNS rebinding](https://en.wikipedia.org/wiki/DNS_rebinding): a page on
-  `http://evil.com` whose DNS is flipped to `127.0.0.1` reaches this server while
-  keeping its own origin, making its requests *same-origin* — and browsers omit
-  `Origin` on same-origin GETs, so the check below alone would let it read a
-  queued script. The browser sets `Host` from the URL the page asked for, and
-  page JS can't forge it (it's a forbidden header name).
-- **`Origin`, when present, must be `chrome-extension://…`.** Browsers always
-  attach `Origin` to non-GET requests, so this is what blocks a drive-by
-  `POST /tabs` from writing to your disk.
-
-Neither affects `curl` or scripts run by you, which address `127.0.0.1` directly
-and send no `Origin`.
-
-The saved `tabs.json` is written **`chmod 600`**, like `credentials.json` — it
-holds the URL and title of every open tab, which is browsing history and doesn't
-become un-leaked the way a revoked token does. `tabs-history.jsonl` is the same
-mode and a strictly bigger version of that concern (it remembers tabs you closed),
-which is why it's capped and can be turned off — see
-[`tabs history`](#what-changed-not-just-whats-open-tabs-history).
-
-A queued script is claimed by exactly one poll, so if the extension isn't
-connected yet it simply waits; pushing again replaces whatever is still pending.
+`tabs serve` blocks until Ctrl+C, so background it or use a second shell.
+`tabbrew update --check` works from a source checkout, but the swap refuses to run there
+(it would overwrite `bun` itself) — test that against a compiled `dist/tabbrew`, with
+`TABBREW_REPO` / `TABBREW_RELEASE_URL` pointed at a fork.
 
 ## Credentials
 
