@@ -138,6 +138,15 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
   // lifetime; it's meant to be picked up within seconds.
   let pending: PendingSuggestion | null = null;
 
+  // Writes are serialized through one chain. Three handlers persist, and two of
+  // them belong to different clients — the extension POSTs /tabs while the CLI
+  // POSTs /suggestion — so two writes really can be in flight at once. Without
+  // this, each one serializes the state it saw on entry and the *later* rename
+  // wins, which can silently roll back a version bump or drop a suggestion that
+  // was added while an earlier write was still landing. Chaining also means each
+  // write reads the state at its own turn, not at the caller's.
+  let writes: Promise<void> = Promise.resolve();
+
   /**
    * 0600, like credentials.json. This is the URL and title of every open tab —
    * browsing state, which is arguably worse to leak than the token: a token is
@@ -146,10 +155,21 @@ export async function tabsServe(opts: ServeOptions): Promise<void> {
    * The default umask would leave it 0644, and the config dir is not reliably
    * 0700, so the file mode is the only thing actually protecting it.
    */
-  async function persist(): Promise<void> {
-    if (!tabState) return;
-    tabState = { ...tabState, suggestions };
-    await atomicWrite(outPath, JSON.stringify(tabState, null, 2) + "\n", 0o600);
+  function persist(): Promise<void> {
+    const next = writes.then(async () => {
+      // Nothing to write until the extension has sent tabs at least once. A
+      // suggestion queued before then still lives in memory and still reaches
+      // the extension; it just isn't on disk for `tabs list` to report yet.
+      if (!tabState) return;
+      tabState = { ...tabState, suggestions };
+      await atomicWrite(outPath, JSON.stringify(tabState, null, 2) + "\n", 0o600);
+    });
+    // The chain must survive a failed write. Without swallowing the rejection
+    // here, one transient ENOSPC would leave `writes` permanently rejected and
+    // every later persist would be skipped without ever being attempted. The
+    // caller still sees the real error through `next`.
+    writes = next.catch(() => {});
+    return next;
   }
 
   async function handlePostTabs(req: Request): Promise<Response> {
