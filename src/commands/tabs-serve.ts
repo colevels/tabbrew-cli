@@ -73,6 +73,13 @@ interface SuggestionRecord {
   opCount: number | null;
   basedOn: number | null;
   queuedAt: string;
+  /**
+   * When the extension claimed it, if it has. Persisted for exactly one reason:
+   * after a restart it is the only way to tell a suggestion that may still be
+   * sitting on the user's screen from one that was never delivered and now never
+   * can be. See `reconcileOnRestart`.
+   */
+  claimedAt: string | null;
   decision: DecisionKind | null;
   reason: string | null;
   decidedAt: string | null;
@@ -137,7 +144,8 @@ export async function tabsServe(): Promise<void> {
   // The suggestion ring outlives any single tab state — it's what the agent
   // reads to know it was denied, so it must survive both a tab change (which
   // rebuilds tabState wholesale) and a restart of this process.
-  let suggestions: SuggestionRecord[] = tabState?.suggestions ?? [];
+  const reconciled = reconcileOnRestart(tabState?.suggestions ?? []);
+  let suggestions: SuggestionRecord[] = reconciled.records;
 
   // Single unclaimed script at a time — `tabs suggest` overwrites, the
   // extension's poll pops (claims + clears) it. Lives only for this process's
@@ -177,6 +185,11 @@ export async function tabsServe(): Promise<void> {
     writes = next.catch(() => {});
     return next;
   }
+
+  // Flush the restart reconciliation now rather than waiting for the next tab
+  // change: the reason it exists is to unblock a `tabs list` that might be the
+  // very next thing to run, and the extension may never post again.
+  if (reconciled.closed > 0) await persist();
 
   async function handlePostTabs(req: Request): Promise<Response> {
     const body = await req.json().catch(() => null);
@@ -248,6 +261,7 @@ export async function tabsServe(): Promise<void> {
         opCount: typeof b.opCount === "number" ? b.opCount : null,
         basedOn: pending.basedOn,
         queuedAt,
+        claimedAt: null,
         decision: null,
         reason: null,
         decidedAt: null,
@@ -260,10 +274,17 @@ export async function tabsServe(): Promise<void> {
   }
 
   /** Pop the queued suggestion. Claiming it clears it. */
-  function handleGetSuggestion(): Response {
+  async function handleGetSuggestion(): Promise<Response> {
     if (!pending) return new Response(null, { status: 204 });
     const item = pending;
     pending = null;
+    // Record the claim before answering. This is the fact a restart needs to
+    // tell "may still be on their screen" from "never delivered".
+    const record = suggestions.find((s) => s.id === item.id);
+    if (record) {
+      record.claimedAt = new Date().toISOString();
+      await persist();
+    }
     return json(item);
   }
 
@@ -337,7 +358,7 @@ export async function tabsServe(): Promise<void> {
         return await handlePostSuggestion(req);
       }
       if (req.method === "GET" && url.pathname === "/suggestion") {
-        return handleGetSuggestion();
+        return await handleGetSuggestion();
       }
       if (req.method === "POST" && url.pathname === "/decision") {
         return await handlePostDecision(req);
@@ -438,6 +459,39 @@ async function seedTabState(outPath: string): Promise<TabState | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Close out suggestions this process can no longer deliver.
+ *
+ * The queue is RAM — `pending` does not survive a restart — but the ring does.
+ * So a suggestion written to disk as undecided and never claimed is now
+ * unreachable in both directions: the extension's next `GET /suggestion` gets a
+ * 204, and no `POST /decision` will ever name it. Left alone it reads as
+ * `PENDING` forever, and `PENDING` is precisely the state the skill treats as
+ * "wait, don't propose" — so one bridge restart would quietly end the loop for
+ * the rest of the session.
+ *
+ * This is not a guess about elapsed time; `claimedAt` makes it a fact. A
+ * suggestion the extension *did* claim may still be on screen with the Accept
+ * button live, and answering it still works — the decision arrives with an id
+ * that is still in the restored ring — so those are deliberately left alone.
+ */
+function reconcileOnRestart(
+  restored: SuggestionRecord[],
+): { records: SuggestionRecord[]; closed: number } {
+  const at = new Date().toISOString();
+  let closed = 0;
+  for (const s of restored) {
+    if (!s || typeof s !== "object") continue;
+    if (s.decision === null && !s.claimedAt) {
+      s.decision = "stale";
+      s.reason = "the bridge restarted before the extension picked it up";
+      s.decidedAt = at;
+      closed += 1;
+    }
+  }
+  return { records: restored, closed };
 }
 
 /**

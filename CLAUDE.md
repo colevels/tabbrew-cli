@@ -223,7 +223,7 @@ only because Bun kills a 10s-idle request.
   not reliably `0700`, and umask alone gives `0644`.
 - **The suggestion ring** is the piece of state worth understanding. `tabs.json` carries a
   `suggestions` array — newest first, capped at `SUGGESTION_RING` (5) — of
-  `{ id, note, opCount, basedOn, queuedAt, decision, reason, decidedAt }`. It is the
+  `{ id, note, opCount, basedOn, queuedAt, claimedAt, decision, reason, decidedAt }`. It is the
   agent's memory of what it proposed and what the user said back, so it deliberately
   outlives both a tab change (`POST /tabs` rebuilds the state wholesale but carries the
   ring through `persist()`) and a restart of `serve` (`seedTabState()` reloads it, and
@@ -238,6 +238,17 @@ only because Bun kills a 10s-idle request.
   the tabs never moved. `POST /decision` matches by `id` when the extension sends one and
   otherwise answers the newest undecided entry, so an older extension's verdict isn't
   dropped on the floor.
+- **Nothing may leave a record `PENDING` forever**, because that is exactly the state the
+  skill treats as "wait, don't propose" — a stuck one silently ends the loop for the rest
+  of the session. Two mechanisms close that off, and they are deliberately different in
+  kind. `reconcileOnRestart()` is a *fact*: the queue is RAM, so an undecided record with
+  no `claimedAt` was never delivered and now never can be (the extension's next poll gets
+  a 204), and it is marked `stale` at startup. `claimedAt` exists only to make that call
+  precise — a record the extension *did* claim may still be on screen with a live Accept
+  button, and its decision still arrives with an id that is in the restored ring, so those
+  are left alone. The second mechanism is `tabs list`'s `UNANSWERED_AFTER_MS` (15 min),
+  which *is* a heuristic and is presentation-only: after the pop, elapsed time is the only
+  signal there is about whether anyone is looking.
 - `commands/tabs-list.ts` — prints the extension's **own** rendered snapshot markdown
   (`# Cross-window / # Windows / # Groups / # Tabs`) verbatim, preceded by the suggestion
   ring and a freshness line. Two reasons it isn't a hand-built table: that markdown is the
