@@ -64,6 +64,10 @@ Every `tabs` command is offline except `serve`/`push`/`suggest`/`watch`, which o
 talk to `127.0.0.1`. **None of them can change your tabs** — the browser does that, after
 you click **Run** (or **Accept**).
 
+Prefer a picture? [`docs/commands.html`](./docs/commands.html) is a single-page visual map
+of the whole surface — every command colour-coded by how far it reaches, both workflows as
+diagrams, the bridge's routes, and the six-verb Script grammar.
+
 ## Install
 
 ### Prebuilt binary (recommended)

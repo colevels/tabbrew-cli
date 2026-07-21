@@ -1,0 +1,1345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>tabbrew CLI — visual command map</title>
+</head>
+<body>
+<style>
+/* ------------------------------------------------------------------ *\
+   tabbrew-cli — visual command map
+   Palette derives from Chrome's tab-group colours (the product's own
+   material): teal = the loopback bridge, green = offline, purple =
+   your account, slate = GitHub releases. Neutrals are biased cool so
+   the teal accent sits in the same family as the ground.
+   Theming: one mechanism. `color-scheme` drives every light-dark()
+   token, and the viewer's data-theme stamp just re-declares it.
+\* ------------------------------------------------------------------ */
+:root {
+  color-scheme: light dark;
+
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --bg:        light-dark(#EDF1F2, #0B1113);
+  --surface:   light-dark(#FFFFFF, #131C1F);
+  --surface-2: light-dark(#E4EAEC, #182428);
+  --ink:       light-dark(#0E1618, #E7EEF0);
+  --ink-2:     light-dark(#3D5057, #B3C4CA);
+  --muted:     light-dark(#5C7078, #8AA0A7);
+  --line:      light-dark(#D3DCDF, #222F34);
+  --line-soft: light-dark(#E3EAEC, #1A2528);
+
+  --local:     light-dark(#00707B, #3FCBD9);
+  --offline:   light-dark(#1A7A3E, #5FD08A);
+  --account:   light-dark(#7239C7, #C193FF);
+  --release:   light-dark(#586A71, #96A9B0);
+
+  --danger:    light-dark(#BE2F1C, #FF8E79);
+  --warn:      light-dark(#8E6100, #F0B84B);
+
+  --tint-local:   light-dark(#00707B14, #3FCBD91F);
+  --tint-offline: light-dark(#1A7A3E14, #5FD08A1F);
+  --tint-account: light-dark(#7239C714, #C193FF1F);
+  --tint-release: light-dark(#586A7114, #96A9B01F);
+  --tint-danger:  light-dark(#BE2F1C12, #FF8E791C);
+
+  --radius: 10px;
+  --pad: clamp(1.15rem, 0.7rem + 1.6vw, 2rem);
+  --gap: clamp(0.9rem, 0.6rem + 1vw, 1.35rem);
+
+  --fs-hero: clamp(2rem, 1.15rem + 3.6vw, 3.35rem);
+  --fs-h2:   clamp(1.2rem, 1.02rem + 0.8vw, 1.55rem);
+  --fs-h3:   1.02rem;
+  --fs-body: 0.985rem;
+  --fs-sm:   0.83rem;
+  --fs-xs:   0.7rem;
+}
+:root[data-theme="dark"]  { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+a { color: inherit; text-underline-offset: 3px; text-decoration-color: var(--local); }
+a:hover { color: var(--local); }
+:focus-visible { outline: 2px solid var(--local); outline-offset: 3px; border-radius: 3px; }
+code, kbd, pre { font-family: var(--mono); }
+
+/* ---------- shell ---------- */
+.wrap { width: min(1180px, 100% - 2.4rem); margin-inline: auto; }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---------- sticky nav ---------- */
+.nav {
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.nav__inner { display: flex; align-items: center; gap: 1.4rem; height: 46px; overflow-x: auto; scrollbar-width: none; }
+.nav__inner::-webkit-scrollbar { display: none; }
+.nav__brand {
+  font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700;
+  letter-spacing: -0.01em; white-space: nowrap; color: var(--ink);
+}
+.nav__brand span { color: var(--local); }
+.nav__links { display: flex; gap: 1.1rem; margin-left: auto; }
+.nav__links a {
+  font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.13em;
+  text-transform: uppercase; color: var(--muted); text-decoration: none; white-space: nowrap;
+}
+.nav__links a:hover { color: var(--ink); }
+
+/* ---------- hero ---------- */
+.hero { padding: clamp(2.6rem, 1.5rem + 5vw, 5rem) 0 clamp(2rem, 1rem + 3vw, 3rem); }
+.hero__kicker { display: flex; align-items: baseline; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 1.1rem; }
+/* Both halves use "·" internally, so a gap alone reads as one long string. */
+.hero__kicker .eyebrow + .eyebrow { padding-left: 0.8rem; border-left: 1px solid var(--line); }
+.hero h1 {
+  font-family: var(--mono);
+  font-size: var(--fs-hero);
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  max-width: 16ch;
+}
+.hero h1 em { font-style: normal; color: var(--local); }
+.hero__lede { margin-top: 1.15rem; max-width: 62ch; color: var(--ink-2); font-size: clamp(1rem, 0.95rem + 0.3vw, 1.12rem); }
+.hero__rule { margin-top: 1.6rem; padding: 0.9rem 1.1rem; border: 1px solid var(--line); border-left: 3px solid var(--local); border-radius: var(--radius); background: var(--tint-local); max-width: 70ch; }
+.hero__rule b { color: var(--local); }
+
+/* ---------- topology ---------- */
+.topo {
+  margin-top: clamp(2rem, 1rem + 3vw, 3rem);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.node {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem 1.05rem 1.1rem;
+  display: flex; flex-direction: column; gap: 0.45rem;
+}
+.node__tag { font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); }
+.node__name { font-family: var(--mono); font-weight: 700; font-size: 1rem; letter-spacing: -0.01em; }
+.node__body { font-size: var(--fs-sm); color: var(--ink-2); }
+.node--cli { border-color: color-mix(in srgb, var(--local) 45%, var(--line)); box-shadow: 0 0 0 3px var(--tint-local); }
+.node--cli .node__name { color: var(--local); }
+.node__flag {
+  margin-top: auto; font-family: var(--mono); font-size: var(--fs-xs);
+  letter-spacing: 0.04em; padding-top: 0.5rem; border-top: 1px dashed var(--line);
+}
+.node--chrome .node__flag { color: var(--offline); }
+.node--cli .node__flag { color: var(--muted); }
+.node--cloud .node__flag { color: var(--account); }
+
+.wire { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem; min-width: 116px; color: var(--muted); }
+.wire__label { font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.04em; text-align: center; color: var(--muted); }
+.wire__track { position: relative; height: 2px; width: 100%; background: currentColor; }
+.wire__track::before, .wire__track::after { content: ""; position: absolute; top: 50%; transform: translateY(-50%); width: 0; height: 0; border-block: 5px solid transparent; }
+.wire__track::before { left: 0; border-right: 7px solid currentColor; }
+.wire__track::after  { right: 0; border-left: 7px solid currentColor; }
+.wire--local { color: var(--local); }
+.wire--account { color: var(--account); }
+
+@media (max-width: 860px) {
+  .topo { grid-template-columns: 1fr; }
+  .wire { min-width: 0; padding: 0.15rem 0; }
+  .wire__track { width: 2px; height: 30px; }
+  .wire__track::before, .wire__track::after { inset-inline: auto; left: 50%; top: auto; transform: translateX(-50%); border-block: 0; border-inline: 5px solid transparent; }
+  .wire__track::before { top: 0; border-bottom: 7px solid currentColor; border-top: 0; }
+  .wire__track::after  { bottom: 0; border-top: 7px solid currentColor; border-bottom: 0; }
+}
+
+/* ---------- sections ---------- */
+.section { padding: clamp(2.6rem, 1.6rem + 3.5vw, 4.4rem) 0; border-top: 1px solid var(--line); }
+.section__head { display: flex; flex-direction: column; gap: 0.55rem; margin-bottom: clamp(1.4rem, 1rem + 1.2vw, 2.2rem); }
+.section__head h2 { font-family: var(--mono); font-size: var(--fs-h2); font-weight: 700; letter-spacing: -0.02em; }
+.section__head p { max-width: 68ch; color: var(--ink-2); font-size: var(--fs-sm); }
+
+/* ---------- reach legend ---------- */
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.6rem; margin-bottom: 1.6rem; }
+.chip {
+  appearance: none; text-align: left; cursor: pointer; font: inherit;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-left: 3px solid var(--dot, var(--muted));
+  border-radius: var(--radius); padding: 0.7rem 0.85rem;
+  display: flex; flex-direction: column; gap: 0.2rem;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.chip:hover { border-color: color-mix(in srgb, var(--dot) 50%, var(--line)); }
+.chip[aria-pressed="true"] { background: var(--tint); border-color: color-mix(in srgb, var(--dot) 60%, var(--line)); }
+.chip__top { display: flex; align-items: center; gap: 0.5rem; font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.02em; color: var(--dot); }
+.chip__n { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 400; }
+.chip__why { font-size: var(--fs-sm); color: var(--ink-2); }
+.chip--local   { --dot: var(--local);   --tint: var(--tint-local); }
+.chip--offline { --dot: var(--offline); --tint: var(--tint-offline); }
+.chip--account { --dot: var(--account); --tint: var(--tint-account); }
+.chip--release { --dot: var(--release); --tint: var(--tint-release); }
+
+.filterbar { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1.4rem; font-size: var(--fs-sm); color: var(--muted); min-height: 1.9rem; }
+.filterbar button {
+  appearance: none; font: inherit; font-family: var(--mono); font-size: var(--fs-xs);
+  letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
+  background: none; border: 1px solid var(--line); border-radius: 99px;
+  padding: 0.25rem 0.7rem; color: var(--ink-2);
+}
+.filterbar button:hover { border-color: var(--local); color: var(--local); }
+
+/* ---------- command groups ---------- */
+.group { margin-bottom: 2rem; }
+.group__head { display: flex; align-items: baseline; gap: 0.8rem; padding-bottom: 0.55rem; margin-bottom: 0.9rem; border-bottom: 1px solid var(--line); }
+.group__head h3 { font-family: var(--mono); font-size: 0.95rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; }
+.group__head span { font-size: var(--fs-sm); color: var(--muted); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--gap); }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--dot);
+  border-radius: var(--radius);
+  padding: 0.95rem 1.05rem 1.05rem;
+  display: flex; flex-direction: column; gap: 0.6rem;
+  transition: opacity 160ms ease, border-color 160ms ease;
+}
+.card--local   { --dot: var(--local); }
+.card--offline { --dot: var(--offline); }
+.card--account { --dot: var(--account); }
+.card--release { --dot: var(--release); }
+.cards[data-filter] .card { opacity: 0.24; }
+.cards[data-filter="local"]   .card--local,
+.cards[data-filter="offline"] .card--offline,
+.cards[data-filter="account"] .card--account,
+.cards[data-filter="release"] .card--release { opacity: 1; }
+
+.card__cmd { font-family: var(--mono); font-size: var(--fs-h3); font-weight: 700; letter-spacing: -0.015em; overflow-wrap: anywhere; }
+.card__cmd i { font-style: normal; color: var(--muted); font-weight: 400; }
+.card__sum { font-size: var(--fs-sm); color: var(--ink-2); }
+.card__flags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.flag {
+  font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.01em;
+  background: var(--surface-2); border-radius: 5px; padding: 0.12rem 0.42rem; color: var(--ink-2);
+  white-space: nowrap;
+}
+.flag--req { background: var(--tint-danger); color: var(--danger); font-weight: 700; }
+.card__note {
+  font-size: var(--fs-sm); color: var(--muted);
+  padding-top: 0.55rem; border-top: 1px dashed var(--line); margin-top: auto;
+}
+.card__note b { color: var(--ink-2); }
+.card__note.is-danger b { color: var(--danger); }
+.badge {
+  font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 0.05rem 0.45rem;
+  vertical-align: 0.15em;
+}
+
+/* ---------- flow diagrams ---------- */
+.flows { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: clamp(1.2rem, 0.8rem + 1.5vw, 2rem); }
+.flow { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--pad); }
+.flow__head { margin-bottom: 1.1rem; }
+.flow__head h3 { font-family: var(--mono); font-size: var(--fs-h3); font-weight: 700; letter-spacing: -0.01em; }
+.flow__head p { font-size: var(--fs-sm); color: var(--muted); margin-top: 0.25rem; }
+
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.step { display: grid; grid-template-columns: 78px 1fr; gap: 0.85rem; padding-bottom: 1rem; position: relative; }
+.step:last-child { padding-bottom: 0; }
+.step::before {
+  content: ""; position: absolute; left: 38px; top: 1.55rem; bottom: -0.15rem;
+  width: 1px; background: var(--line);
+}
+.step:last-child::before { display: none; }
+.step__who {
+  font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); text-align: right; padding-top: 0.15rem; white-space: nowrap;
+}
+.step--you .step__who { color: var(--local); font-weight: 700; }
+.step__body { display: flex; flex-direction: column; gap: 0.3rem; padding-left: 0.9rem; border-left: 1px solid transparent; }
+.step__cmd { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; overflow-wrap: anywhere; }
+.step--you .step__cmd { color: var(--local); }
+.step__say { font-size: var(--fs-sm); color: var(--ink-2); }
+.step__say em { font-style: normal; color: var(--muted); }
+
+.loopback-note {
+  margin-top: 1rem; padding: 0.7rem 0.85rem; border-radius: var(--radius);
+  background: var(--tint-local); border: 1px dashed color-mix(in srgb, var(--local) 40%, var(--line));
+  font-size: var(--fs-sm); color: var(--ink-2);
+}
+.loopback-note b { color: var(--local); font-family: var(--mono); }
+
+/* ---------- turning auto mode on ---------- */
+.stack { display: flex; flex-direction: column; gap: clamp(1.7rem, 1.1rem + 1.6vw, 2.7rem); }
+.blockhead { font-family: var(--mono); font-size: var(--fs-h3); font-weight: 700; letter-spacing: -0.01em; margin-bottom: 0.85rem; }
+.blockhead + p { margin-top: -0.5rem; margin-bottom: 0.9rem; color: var(--ink-2); font-size: var(--fs-sm); max-width: 68ch; }
+
+.setup { display: grid; grid-template-columns: repeat(auto-fit, minmax(272px, 1fr)); gap: var(--gap); }
+.setupcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.1rem 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.setupcard__n { font-family: var(--mono); font-size: 2rem; font-weight: 700; line-height: 1; letter-spacing: -0.05em; color: var(--local); }
+.setupcard__where {
+  font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 0.08rem 0.55rem; align-self: flex-start;
+}
+.setupcard__do { font-weight: 600; }
+/* Wraps rather than scrolls: step 2 is a click-path, and a clipped path with a
+   hidden scrollbar reads as a typo, not as "there is more to the right". */
+.setupcard__cmd { font-family: var(--mono); font-size: var(--fs-sm); background: var(--surface-2); border-radius: 6px; padding: 0.4rem 0.6rem; line-height: 1.55; overflow-wrap: break-word; }
+.setupcard__say { font-size: var(--fs-sm); color: var(--ink-2); }
+.setupcard__say b { color: var(--warn); }
+.setupcard__ok { margin-top: auto; padding-top: 0.6rem; border-top: 1px dashed var(--line); font-family: var(--mono); font-size: var(--fs-xs); color: var(--offline); line-height: 1.5; }
+
+/* the Accept/Deny card, drawn — it's the only screen most people ever read */
+.panelcard { max-width: 400px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 26px light-dark(#0E161814, #00000059); }
+.panelcard__bar { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.9rem; background: var(--surface-2); border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.panelcard__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--local); flex: none; }
+.panelcard__body { padding: 0.95rem 0.95rem 1rem; display: flex; flex-direction: column; gap: 0.8rem; }
+/* Notes are written in the user's own language — Thai stacks vowel marks above
+   and below the line, so both places a note appears get extra leading. */
+.panelcard__note { font-size: 0.97rem; line-height: 1.75; }
+.panelcard__prev { border-top: 1px dashed var(--line); padding-top: 0.7rem; display: flex; flex-direction: column; gap: 0.15rem; font-family: var(--mono); font-size: var(--fs-sm); }
+.panelcard__prev .rm { color: var(--danger); }
+.panelcard__prev .add { color: var(--offline); }
+.panelcard__btns { display: flex; gap: 0.5rem; }
+.btnmock { flex: 1; text-align: center; font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; padding: 0.42rem 0.6rem; border-radius: 7px; border: 1px solid; }
+.btnmock--ok { color: light-dark(#FFFFFF, #06231A); background: var(--offline); border-color: var(--offline); }
+.btnmock--no { color: var(--ink-2); background: none; border-color: var(--line); }
+.panelcard__cap { margin-top: 0.7rem; font-size: var(--fs-sm); color: var(--muted); max-width: 400px; }
+
+.answers { display: flex; flex-direction: column; gap: 0.75rem; }
+.answer { border: 1px solid var(--line); border-left: 3px solid var(--tone); border-radius: var(--radius); padding: 0.75rem 0.9rem; background: var(--surface); }
+.answer h4 { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; color: var(--tone); margin-bottom: 0.2rem; }
+.answer p { font-size: var(--fs-sm); color: var(--ink-2); line-height: 1.7; }
+.answer--ok { --tone: var(--offline); }
+.answer--no { --tone: var(--danger); }
+.answer--none { --tone: var(--muted); }
+
+/* ---------- bridge ---------- */
+.bridge { display: flex; flex-direction: column; gap: 1rem; }
+.convo { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--pad); }
+.convo__head { display: flex; align-items: baseline; gap: 0.7rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+.convo__head h3 { font-family: var(--mono); font-size: var(--fs-h3); font-weight: 700; }
+.convo__head p { font-size: var(--fs-sm); color: var(--muted); }
+
+.routes { display: flex; flex-direction: column; gap: 0.55rem; }
+.route { display: grid; grid-template-columns: minmax(120px, 0.8fr) minmax(220px, 1.4fr) minmax(120px, 0.8fr); align-items: center; gap: 0.7rem; }
+.route__party { font-family: var(--mono); font-size: var(--fs-sm); color: var(--ink-2); }
+.route__party--r { text-align: right; }
+.route__pipe { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
+.route__name {
+  font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; color: var(--local);
+  white-space: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none;
+}
+.route__name::-webkit-scrollbar { display: none; }
+.route__arrow { position: relative; width: 100%; height: 2px; background: var(--line); }
+.route__arrow::after { content: ""; position: absolute; top: 50%; transform: translateY(-50%); width: 0; height: 0; border-block: 4px solid transparent; }
+.route--r .route__arrow::after { right: 0; border-left: 6px solid var(--local); }
+.route--l .route__arrow::after { left: 0; border-right: 6px solid var(--local); }
+.route__what { font-size: var(--fs-sm); color: var(--muted); grid-column: 1 / -1; margin-top: -0.2rem; }
+@media (max-width: 620px) {
+  /* Stacked, the arrow is gone — so top-to-bottom has to carry the direction. */
+  .route { grid-template-columns: 1fr; gap: 0.2rem; }
+  .route__party--r { text-align: left; }
+  .route__party--r::before { content: "→ "; color: var(--local); }
+  .route__pipe { align-items: flex-start; }
+  .route__arrow { display: none; }
+}
+
+.guards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0.6rem; margin-top: 1rem; }
+.guard { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.7rem 0.85rem; background: var(--surface); }
+.guard h4 { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); margin-bottom: 0.2rem; }
+.guard p { font-size: var(--fs-sm); color: var(--muted); }
+
+/* ---------- DSL ---------- */
+.verbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); gap: var(--gap); }
+.verb { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.verb--del { border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); background: var(--tint-danger); }
+.verb__name { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; letter-spacing: 0.03em; }
+.verb--del .verb__name { color: var(--danger); }
+.verb__syn { font-family: var(--mono); font-size: var(--fs-sm); color: var(--ink-2); overflow-x: auto; white-space: nowrap; scrollbar-width: thin; }
+.verb__say { font-size: var(--fs-sm); color: var(--muted); }
+
+.phases { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; margin: 1.4rem 0 0.7rem; }
+.phase {
+  font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700;
+  border: 1px solid var(--line); border-radius: 99px; padding: 0.25rem 0.75rem;
+  background: var(--surface);
+}
+.phase--del { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+.phases .sep { color: var(--muted); font-family: var(--mono); }
+
+pre.term {
+  margin: 0; padding: 1rem 1.1rem; border-radius: var(--radius);
+  background: light-dark(#0E1618, #050A0C); color: #D7E3E6;
+  border: 1px solid light-dark(#0E1618, #1B282C);
+  font-size: var(--fs-sm); line-height: 1.55; overflow-x: auto;
+}
+pre.term .ok  { color: #6FE0A0; }
+pre.term .bad { color: #FF8E79; }
+pre.term .dim { color: #7E949B; }
+pre.term .cy  { color: #55D4E2; }
+
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: clamp(1rem, 0.7rem + 1.2vw, 1.7rem); align-items: start; }
+
+/* ---------- verdicts ---------- */
+.verdicts { display: grid; grid-template-columns: repeat(auto-fit, minmax(238px, 1fr)); gap: var(--gap); }
+.verdict { background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--tone); border-radius: var(--radius); padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.verdict__k { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; color: var(--tone); letter-spacing: 0.04em; }
+.verdict__m { font-size: var(--fs-sm); color: var(--ink-2); }
+.verdict__do { font-size: var(--fs-sm); color: var(--muted); margin-top: auto; padding-top: 0.5rem; border-top: 1px dashed var(--line); }
+.verdict--ok    { --tone: var(--offline); }
+.verdict--no    { --tone: var(--danger); }
+.verdict--stale { --tone: var(--warn); }
+.verdict--fail  { --tone: var(--release); }
+
+/* ---------- tables ---------- */
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: var(--fs-sm); min-width: 480px; }
+th, td { text-align: left; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 400; }
+td code { font-size: 0.95em; color: var(--ink); }
+td.mode { font-variant-numeric: tabular-nums; color: var(--danger); font-family: var(--mono); }
+
+.callout { margin-top: 1rem; padding: 0.85rem 1rem; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line)); background: light-dark(#8E610010, #F0B84B1A); font-size: var(--fs-sm); color: var(--ink-2); }
+.callout b { color: var(--warn); }
+
+/* ---------- quick index ---------- */
+.index { display: grid; gap: 0.5rem; }
+.idx { display: grid; grid-template-columns: minmax(180px, 0.9fr) 1.4fr; gap: 0.9rem; align-items: baseline; padding: 0.65rem 0.9rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.idx__want { font-size: var(--fs-sm); color: var(--ink-2); }
+.idx__run { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; color: var(--local); overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+.idx__run::-webkit-scrollbar { display: none; }
+@media (max-width: 620px) { .idx { grid-template-columns: 1fr; gap: 0.2rem; } }
+
+/* ---------- footer ---------- */
+footer { border-top: 1px solid var(--line); padding: 2rem 0 3rem; font-size: var(--fs-sm); color: var(--muted); }
+footer .row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; align-items: baseline; }
+footer code { color: var(--ink-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+</style>
+
+<nav class="nav">
+  <div class="wrap nav__inner">
+    <div class="nav__brand">tabbrew<span>-cli</span></div>
+    <div class="nav__links">
+      <a href="#map">Commands</a>
+      <a href="#flows">Workflows</a>
+      <a href="#auto">Auto mode</a>
+      <a href="#bridge">Bridge</a>
+      <a href="#script">Script</a>
+      <a href="#verdicts">Verdicts</a>
+      <a href="#state">State</a>
+    </div>
+  </div>
+</nav>
+
+<header class="wrap hero" id="top">
+  <div class="hero__kicker">
+    <span class="eyebrow">tabbrew-cli · v0.5.5</span>
+    <span class="eyebrow">18 commands · 4 groups</span>
+  </div>
+  <h1>The terminal half of <em>TabBrew</em></h1>
+  <p class="hero__lede">
+    TabBrew is a Chrome extension for people running 100–200 tabs. This CLI is how a terminal —
+    and the AI agent working in it — joins that conversation: it reads your exported tabs, validates
+    the scripts an agent writes about them, and hands those scripts back to the browser.
+  </p>
+  <p class="hero__rule">
+    <b>The one rule worth memorising:</b> no command here can close, pin, group, or move a tab.
+    The CLI only ever writes files and talks to a loopback port. Tabs move in Chrome, after
+    <b>you</b> press <b>Run</b> or <b>Accept</b>.
+  </p>
+
+  <div class="topo">
+    <figure class="node node--chrome">
+      <span class="node__tag">In the browser</span>
+      <span class="node__name">TabBrew extension</span>
+      <span class="node__body">Sidepanel &amp; developer-mode panel. Exports your tabs, previews a script, runs it.</span>
+      <span class="node__flag">✓ the only place a tab moves</span>
+    </figure>
+
+    <div class="wire wire--local">
+      <span class="wire__label">127.0.0.1:49227<br>loopback only</span>
+      <span class="wire__track"></span>
+    </div>
+
+    <figure class="node node--cli">
+      <span class="node__tag">In the terminal</span>
+      <span class="node__name">tabbrew + your agent</span>
+      <span class="node__body">Runs the bridge, validates and simulates scripts, proposes changes, waits for your answer.</span>
+      <span class="node__flag">writes files · never touches chrome.*</span>
+    </figure>
+
+    <div class="wire wire--account">
+      <span class="wire__label">HTTPS<br>OAuth device flow</span>
+      <span class="wire__track"></span>
+    </div>
+
+    <figure class="node node--cloud">
+      <span class="node__tag">On the internet</span>
+      <span class="node__name">tabbrew.com</span>
+      <span class="node__body">Your account and the sidepanel Docs view. Only the <code>login</code> and <code>docs</code> commands go here.</span>
+      <span class="node__flag">6 of 18 commands</span>
+    </figure>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ============================ COMMAND MAP ============================ -->
+<section class="section" id="map">
+  <div class="section__head">
+    <span class="eyebrow">01 · The map</span>
+    <h2>Every command, coloured by how far it reaches</h2>
+    <p>
+      The groups below are the same ones <code>tabbrew help</code> prints. The colour is the extra
+      idea: how far the command's blast radius goes. Pick a reach to isolate it.
+    </p>
+  </div>
+
+  <div class="legend">
+    <button type="button" class="chip chip--offline" data-reach="offline" aria-pressed="false">
+      <span class="chip__top">Offline <span class="chip__n">7</span></span>
+      <span class="chip__why">No network at all. Reads and writes files on this machine.</span>
+    </button>
+    <button type="button" class="chip chip--local" data-reach="local" aria-pressed="false">
+      <span class="chip__top">Loopback <span class="chip__n">4</span></span>
+      <span class="chip__why">Talks to <code>127.0.0.1</code> and nothing else. Never leaves the box.</span>
+    </button>
+    <button type="button" class="chip chip--account" data-reach="account" aria-pressed="false">
+      <span class="chip__top">Account <span class="chip__n">6</span></span>
+      <span class="chip__why">HTTPS to tabbrew.com with your OAuth bearer token.</span>
+    </button>
+    <button type="button" class="chip chip--release" data-reach="release" aria-pressed="false">
+      <span class="chip__top">Releases <span class="chip__n">1</span></span>
+      <span class="chip__why">GitHub Releases only — not the TabBrew server.</span>
+    </button>
+  </div>
+
+  <div class="filterbar">
+    <span id="filterState">Showing all 18 commands.</span>
+    <button type="button" id="clearFilter" hidden>Show all</button>
+  </div>
+
+  <div class="cards-scope" id="cardsScope">
+
+    <div class="group">
+      <div class="group__head">
+        <h3>Tabs</h3>
+        <span>organize your Chrome tabs — the reason the CLI exists</span>
+      </div>
+      <div class="cards">
+        <article class="card card--local">
+          <h4 class="card__cmd">tabs serve</h4>
+          <p class="card__sum">Start the local bridge the extension exports your tabs to.</p>
+          <div class="card__flags"><span class="flag">--port &lt;n&gt;</span><span class="flag">--out &lt;path&gt;</span><span class="flag">--no-history</span></div>
+          <p class="card__note">Binds <code>127.0.0.1</code> and <b>blocks until Ctrl+C</b> — give it its own shell.</p>
+        </article>
+
+        <article class="card card--local">
+          <h4 class="card__cmd">tabs watch</h4>
+          <p class="card__sum">Wait for the extension to report a tab change.</p>
+          <div class="card__flags"><span class="flag">--timeout &lt;s&gt;</span><span class="flag">--since &lt;n&gt;</span><span class="flag">--changes-only</span><span class="flag">--json</span><span class="flag">--port &lt;n&gt;</span></div>
+          <p class="card__note">Long-polls, so an idle browser costs nothing. <b>A timeout prints nothing and still exits 0.</b></p>
+        </article>
+
+        <article class="card card--offline">
+          <h4 class="card__cmd">tabs list</h4>
+          <p class="card__sum">Show the tabs the extension last exported.</p>
+          <div class="card__flags"><span class="flag">--json</span></div>
+          <p class="card__note">A snapshot on disk, <b>not a live query</b> — check <code>savedAt</code> before trusting tab ids.</p>
+        </article>
+
+        <article class="card card--offline">
+          <h4 class="card__cmd">tabs check <i>&lt;file&gt;</i></h4>
+          <p class="card__sum">Validate a TabBrew Script, with a before/after preview.</p>
+          <div class="card__flags"><span class="flag">--snapshot &lt;f&gt;</span><span class="flag">--json</span></div>
+          <p class="card__note"><b>Exits 1 on any parse error</b>, so it drops into pre-run gates. Takes <code>-</code> for stdin.</p>
+        </article>
+
+        <article class="card card--local">
+          <h4 class="card__cmd">tabs push <i>&lt;file&gt;</i></h4>
+          <p class="card__sum">Send a script to the extension to preview &amp; run.</p>
+          <div class="card__flags"><span class="flag">--port &lt;n&gt;</span></div>
+          <p class="card__note"><b>It does not run anything.</b> The script waits in the panel until you click Run — which is why it isn't called <code>run</code>.</p>
+        </article>
+
+        <article class="card card--local">
+          <h4 class="card__cmd">tabs suggest <i>&lt;file&gt;</i></h4>
+          <p class="card__sum">Propose a script with a note, and wait for the answer.</p>
+          <div class="card__flags"><span class="flag flag--req">--note &lt;text&gt; required</span><span class="flag">--wait &lt;s&gt;</span><span class="flag">--no-wait</span><span class="flag">--json</span><span class="flag">--port &lt;n&gt;</span></div>
+          <p class="card__note"><b>Always exits 0</b> — a Deny is an answer, not a failure.</p>
+        </article>
+
+        <article class="card card--offline">
+          <h4 class="card__cmd">tabs history</h4>
+          <p class="card__sum">Show what changed between exported tab states.</p>
+          <div class="card__flags"><span class="flag">--limit &lt;n&gt;</span><span class="flag">--json</span><span class="flag">--clear</span></div>
+          <p class="card__note is-danger">One delta per line, newest last. It <b>remembers tabs you have since closed</b> — <code>--clear</code> deletes it.</p>
+        </article>
+
+        <article class="card card--offline">
+          <h4 class="card__cmd">tabs prompt</h4>
+          <p class="card__sum">Print the interactive TabBrew Script skill prompt.</p>
+          <div class="card__flags"><span class="flag">--variant &lt;v&gt;</span></div>
+          <p class="card__note">The same prompt <code>init</code> installs as the <b>tabbrew-tabs</b> skill — for pasting somewhere by hand.</p>
+        </article>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group__head">
+        <h3>Docs</h3>
+        <span>send HTML into the sidepanel — like this page</span>
+      </div>
+      <div class="cards">
+        <article class="card card--account">
+          <h4 class="card__cmd">docs push <i>&lt;file&gt;</i></h4>
+          <p class="card__sum">Send an HTML file to the TabBrew sidepanel Docs view.</p>
+          <div class="card__flags"><span class="flag">--cloud</span><span class="flag">--title &lt;t&gt;</span></div>
+          <p class="card__note"><b>Local by default</b>: only the absolute path is registered, and it opens as <code>file://</code>. <code>--cloud</code> uploads the content (≤ 2 MB).</p>
+        </article>
+
+        <article class="card card--account">
+          <h4 class="card__cmd">docs list</h4>
+          <p class="card__sum">List your pushed docs — titles are click-to-open.</p>
+          <div class="card__flags"><span class="flag">--json</span></div>
+          <p class="card__note">Titles are wrapped in <b>OSC 8 hyperlinks</b>: ⌘/Ctrl-click one in a capable terminal.</p>
+        </article>
+
+        <article class="card card--account">
+          <h4 class="card__cmd">docs open <i>&lt;id&gt;</i></h4>
+          <p class="card__sum">Open a pushed HTML doc in your browser.</p>
+          <div class="card__flags"><span class="flag">no options</span></div>
+          <p class="card__note">The fallback for terminals that don't do hyperlinks. <code>TABBREW_NO_BROWSER</code> makes it print the URL instead.</p>
+        </article>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group__head">
+        <h3>Account</h3>
+        <span>who you are to tabbrew.com</span>
+      </div>
+      <div class="cards">
+        <article class="card card--account">
+          <h4 class="card__cmd">login</h4>
+          <p class="card__sum">Sign in via OAuth device flow and store the token.</p>
+          <div class="card__flags"><span class="flag">no options</span></div>
+          <p class="card__note">Opens a browser, prints a code. The token lands in <code>~/.config/tabbrew/credentials.json</code> at <b>chmod 600</b>.</p>
+        </article>
+
+        <article class="card card--account">
+          <h4 class="card__cmd">whoami</h4>
+          <p class="card__sum">Print the signed-in user.</p>
+          <div class="card__flags"><span class="flag">no options</span></div>
+          <p class="card__note"><b>Exits 1 when signed out</b>, so CI can gate on it. <code>TABBREW_TOKEN</code> wins over the stored file.</p>
+        </article>
+
+        <article class="card card--account">
+          <h4 class="card__cmd">logout</h4>
+          <p class="card__sum">Delete the stored token.</p>
+          <div class="card__flags"><span class="flag">no options</span></div>
+          <p class="card__note">Removes the credentials file. It cannot unset a <code>TABBREW_TOKEN</code> in your environment.</p>
+        </article>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group__head">
+        <h3>Setup</h3>
+        <span>get the CLI, and your agent, ready</span>
+      </div>
+      <div class="cards">
+        <article class="card card--offline">
+          <h4 class="card__cmd">init</h4>
+          <p class="card__sum">Set up an AI agent to use tabbrew, plus the two tab skills.</p>
+          <div class="card__flags"><span class="flag">-g, --global</span><span class="flag">--dry-run</span><span class="flag">--uninstall</span><span class="flag">-y, --yes</span><span class="flag">--agent &lt;id&gt;</span><span class="flag">--variant &lt;v&gt;</span><span class="flag">--no-skill</span></div>
+          <p class="card__note">Writes an awareness doc + a managed block in <code>CLAUDE.md</code>, and installs <b>tabbrew-tabs</b> and <b>tabbrew-auto</b>. Idempotent; a re-run reports <code>unchanged</code>.</p>
+        </article>
+
+        <article class="card card--release">
+          <h4 class="card__cmd">update</h4>
+          <p class="card__sum">Update the installed binary to the latest release.</p>
+          <div class="card__flags"><span class="flag">--check</span><span class="flag">--json</span></div>
+          <p class="card__note">Verifies SHA-256, then atomically renames over itself. <b>Refuses to run from a source checkout</b>; <code>--check</code> always exits 0.</p>
+        </article>
+
+        <article class="card card--offline">
+          <h4 class="card__cmd">tools repo-info <span class="badge">hidden</span></h4>
+          <p class="card__sum">Demo: orchestrate git via Bun shell for repo stats.</p>
+          <div class="card__flags"><span class="flag">no options</span></div>
+          <p class="card__note">Listed only under <code>help --all</code>. Guards every call with <code>which()</code> before shelling out.</p>
+        </article>
+
+        <article class="card card--offline">
+          <h4 class="card__cmd">help</h4>
+          <p class="card__sum">Show the command listing.</p>
+          <div class="card__flags"><span class="flag">--all</span></div>
+          <p class="card__note">Three views over one table: default, <code>tabbrew &lt;cmd&gt; --help</code> for one command, and <b><code>help --all</code></b> for flags, env vars and hidden rows.</p>
+        </article>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================ WORKFLOWS ============================ -->
+<section class="section" id="flows">
+  <div class="section__head">
+    <span class="eyebrow">02 · Two ways to use it</span>
+    <h2>One request, or a standing watch</h2>
+    <p>
+      Both paths end the same way: a human presses a button in Chrome. What differs is who starts
+      the conversation — you, or the agent noticing something.
+    </p>
+  </div>
+
+  <div class="flows">
+    <div class="flow">
+      <div class="flow__head">
+        <h3>A · One request → one script</h3>
+        <p>You ask for something. The agent answers once.</p>
+      </div>
+      <ol class="steps">
+        <li class="step step--you">
+          <span class="step__who">You</span>
+          <span class="step__body">
+            <span class="step__cmd">Send to Claude Code</span>
+            <span class="step__say">In the sidepanel — your open tabs land on the bridge. <em>(Or Copy AI Prompt and paste them.)</em></span>
+          </span>
+        </li>
+        <li class="step">
+          <span class="step__who">CLI</span>
+          <span class="step__body">
+            <span class="step__cmd">tabbrew tabs list</span>
+            <span class="step__say">The agent reads the snapshot: windows, groups, tab ids, titles, URLs.</span>
+          </span>
+        </li>
+        <li class="step">
+          <span class="step__who">Agent</span>
+          <span class="step__body">
+            <span class="step__cmd">writes plan.txt</span>
+            <span class="step__say">A TabBrew Script — one op per line, following the <em>tabbrew-tabs</em> skill.</span>
+          </span>
+        </li>
+        <li class="step">
+          <span class="step__who">CLI</span>
+          <span class="step__body">
+            <span class="step__cmd">tabbrew tabs check plan.txt --snapshot tabs.json</span>
+            <span class="step__say">Line-numbered parse errors, a simulated before/after, and a count of what would close.</span>
+          </span>
+        </li>
+        <li class="step">
+          <span class="step__who">CLI</span>
+          <span class="step__body">
+            <span class="step__cmd">tabbrew tabs push plan.txt</span>
+            <span class="step__say">Queued on the bridge. The extension pops it and shows a preview. <em>Still nothing has moved.</em></span>
+          </span>
+        </li>
+        <li class="step step--you">
+          <span class="step__who">You</span>
+          <span class="step__body">
+            <span class="step__cmd">click Run</span>
+            <span class="step__say">Chrome executes it. This is the only step in the whole diagram where a tab actually changes.</span>
+          </span>
+        </li>
+      </ol>
+      <p class="loopback-note">
+        No bridge? The same loop works by hand: <b>Copy AI Prompt</b> → paste to your agent →
+        <b>tabs check</b> → paste the script into developer mode → Run.
+      </p>
+    </div>
+
+    <div class="flow">
+      <div class="flow__head">
+        <h3>B · Auto mode → a standing watch</h3>
+        <p>The agent watches and offers. You judge each offer.</p>
+      </div>
+      <ol class="steps">
+        <li class="step step--you">
+          <span class="step__who">Setup</span>
+          <span class="step__body">
+            <span class="step__cmd">tabbrew tabs serve &amp; + Auto mode on</span>
+            <span class="step__say">The bridge in a second shell, and the Auto switch in the sidepanel's <em>Send to Claude Code</em> card.</span>
+          </span>
+        </li>
+        <li class="step">
+          <span class="step__who">1 · Wait</span>
+          <span class="step__body">
+            <span class="step__cmd">tabbrew tabs watch --timeout 60</span>
+            <span class="step__say">Blocks until tabs actually move, then prints the diff plus the snapshot. <em>No output means nothing changed.</em></span>
+          </span>
+        </li>
+        <li class="step">
+          <span class="step__who">2 · Decide</span>
+          <span class="step__body">
+            <span class="step__cmd">default: do nothing</span>
+            <span class="step__say">Only propose a concrete win — exact duplicates, ≥3 loose tabs on one topic, <code>about:blank</code> clutter. A high tab count is not a problem.</span>
+          </span>
+        </li>
+        <li class="step">
+          <span class="step__who">3 · Check</span>
+          <span class="step__body">
+            <span class="step__cmd">tabbrew tabs check plan.txt --snapshot …</span>
+            <span class="step__say">Never propose something that hasn't parsed and simulated cleanly.</span>
+          </span>
+        </li>
+        <li class="step">
+          <span class="step__who">4 · Offer</span>
+          <span class="step__body">
+            <span class="step__cmd">tabbrew tabs suggest plan.txt --note "…"</span>
+            <span class="step__say">The note is one plain sentence in your language, destructive part first. It's the only thing most people read.</span>
+          </span>
+        </li>
+        <li class="step step--you">
+          <span class="step__who">5 · You</span>
+          <span class="step__body">
+            <span class="step__cmd">Accept / Deny</span>
+            <span class="step__say">A card in the panel: the note, the preview, two buttons. Deny takes an optional reason.</span>
+          </span>
+        </li>
+        <li class="step">
+          <span class="step__who">6 · Listen</span>
+          <span class="step__body">
+            <span class="step__cmd">verdict → back to step 1</span>
+            <span class="step__say">A denial is a standing rule, not a retry signal. <em>Never re-send the thing you were told no about.</em></span>
+          </span>
+        </li>
+      </ol>
+      <p class="loopback-note">
+        In auto mode the agent does <b>not</b> ask you to confirm a close in chat — the Accept card
+        is the confirmation, and the <b>--note</b> is where the closes are named.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ TURNING IT ON ============================ -->
+<section class="section" id="auto">
+  <div class="section__head">
+    <span class="eyebrow">03 · Turning it on</span>
+    <h2>Auto mode, from the human's side</h2>
+    <p>
+      Loop B above is what the agent does. This is the other half — three things you set up
+      once, and one decision you make each time a card appears.
+    </p>
+  </div>
+
+  <div class="stack">
+
+    <div>
+      <h3 class="blockhead">You do three things. The agent does the rest.</h3>
+      <div class="setup">
+        <div class="setupcard">
+          <span class="setupcard__n">1</span>
+          <span class="setupcard__where">Terminal</span>
+          <span class="setupcard__do">Start the bridge</span>
+          <span class="setupcard__cmd">tabbrew tabs serve</span>
+          <span class="setupcard__say">It binds <code>127.0.0.1</code> and <b>blocks until Ctrl+C</b> — give it a second shell, never the one you're still working in.</span>
+          <span class="setupcard__ok">✓ TabBrew bridge · ready on 127.0.0.1:49227</span>
+        </div>
+
+        <div class="setupcard">
+          <span class="setupcard__n">2</span>
+          <span class="setupcard__where">Chrome</span>
+          <span class="setupcard__do">Switch Auto mode on</span>
+          <span class="setupcard__cmd">sidepanel → Manage Tabs → Send to Claude Code</span>
+          <span class="setupcard__say">Flip the <b>Auto mode</b> switch on that card. <b>Keep the sidepanel open</b> — closing it pauses the whole stream.</span>
+          <span class="setupcard__ok">✓ tabs watch starts returning changes</span>
+        </div>
+
+        <div class="setupcard">
+          <span class="setupcard__n">3</span>
+          <span class="setupcard__where">Chat</span>
+          <span class="setupcard__do">Ask the agent to watch</span>
+          <span class="setupcard__cmd">"keep an eye on my tabs"</span>
+          <span class="setupcard__say">That's what loads the <b>tabbrew-auto</b> skill: the loop, the rules for writing a note, and the rule that a denial is permanent.</span>
+          <span class="setupcard__ok">✓ it reads tabs history first, to catch up</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="blockhead">Then you browse. Until a card appears.</h3>
+      <p>
+        This is the entire interface. The note is one sentence written in whatever language
+        you've been using, and it leads with anything that closes tabs — so you can decide
+        without reading a diff.
+      </p>
+      <div class="split">
+        <div>
+          <div class="panelcard">
+            <div class="panelcard__bar"><span class="panelcard__dot"></span>TabBrew · suggestion</div>
+            <div class="panelcard__body">
+              <p class="panelcard__note">ปิดแท็บ YouTube ที่ค้าง 6 อัน แล้วรวม github 5 แท็บเป็นกลุ่ม Code</p>
+              <div class="panelcard__prev">
+                <span class="rm">− 6 tabs close</span>
+                <span class="add">+ group "Code" · 5 tabs</span>
+              </div>
+              <div class="panelcard__btns">
+                <span class="btnmock btnmock--ok">Accept</span>
+                <span class="btnmock btnmock--no">Deny</span>
+              </div>
+            </div>
+          </div>
+          <p class="panelcard__cap">
+            Nothing in your browser has changed at this point. The script is only a proposal
+            sitting in the panel.
+          </p>
+        </div>
+
+        <div class="answers">
+          <div class="answer answer--ok">
+            <h4>Accept</h4>
+            <p>Chrome runs the ops. <b>This is the moment tabs actually move</b> — the first and only one in the whole loop.</p>
+          </div>
+          <div class="answer answer--no">
+            <h4>Deny — and say why</h4>
+            <p>Nothing changes. The reason you type comes straight back to the agent and becomes a <b>standing rule for the session</b>: "อย่าปิด youtube เปิดฟังเพลงอยู่" means YouTube is off the table from now on, not just this once. That round trip is what stops a loop re-proposing what you just rejected.</p>
+          </div>
+          <div class="answer answer--none">
+            <h4>Ignore it</h4>
+            <p>You weren't looking. The agent leaves it alone rather than stacking a second suggestion on top — the bridge holds exactly one, and a new push would silently replace it.</p>
+          </div>
+        </div>
+      </div>
+      <p class="callout">
+        <b>No double-confirming.</b> In auto mode the agent will <em>not</em> ask you in chat before
+        closing anything — this card is the confirmation, and the note is where the closes are
+        named. That's the one point where the <code>tabbrew-auto</code> skill deliberately
+        contradicts <code>tabbrew-tabs</code>, which does require an explicit "yes" in chat.
+      </p>
+    </div>
+
+    <div class="split">
+      <div>
+        <h3 class="blockhead">When it isn't working</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>What you see</th><th>What's actually wrong</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>nothing is listening on 127.0.0.1:49227</code></td>
+                <td>Step 1. The bridge isn't running, or that shell was closed.</td>
+              </tr>
+              <tr>
+                <td><code>tabs watch</code> keeps timing out while you're clearly browsing</td>
+                <td>Step 2. Auto mode is off — or the sidepanel is closed, which pauses everything.</td>
+              </tr>
+              <tr>
+                <td>The agent says it can't see a snapshot</td>
+                <td>An extension build predating auto mode. It sends bare tabs; run <code>tabs list</code> for the table.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="blockhead">How it stops</h3>
+        <div class="guards" style="margin-top: 0;">
+          <div class="guard">
+            <h4>You say so</h4>
+            <p>The loop ends when you tell it to, and the pending suggestion just expires.</p>
+          </div>
+          <div class="guard">
+            <h4>Ctrl+C the bridge</h4>
+            <p>With <code>tabs serve</code> gone, <code>tabs watch</code> reports nothing is listening and the loop can't continue.</p>
+          </div>
+          <div class="guard">
+            <h4>Three denials in a row</h4>
+            <p>The agent stops on its own — that many refusals means its read of what you want is wrong, so it asks you directly instead of guessing a fourth time.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================ BRIDGE ============================ -->
+<section class="section" id="bridge">
+  <div class="section__head">
+    <span class="eyebrow">04 · The bridge</span>
+    <h2>What actually crosses <code>127.0.0.1:49227</code></h2>
+    <p>
+      <code>tabs serve</code> is a small HTTP server holding three conversations. Protocol&nbsp;2,
+      no auth token — the loopback bind is the entire boundary. Both ends update independently
+      (extension via the Web Store, CLI via <code>tabbrew update</code>), so no route ever changes
+      shape; new capability gets a new route.
+    </p>
+  </div>
+
+  <div class="bridge">
+    <div class="convo">
+      <div class="convo__head">
+        <h3>1 · Tabs in</h3>
+        <p>the extension is the only source of truth about your tabs</p>
+      </div>
+      <div class="routes">
+        <div class="route route--r">
+          <span class="route__party">Extension</span>
+          <span class="route__pipe"><span class="route__name">POST /tabs</span><span class="route__arrow"></span></span>
+          <span class="route__party route__party--r">bridge</span>
+          <span class="route__what">Saves <code>tabs.json</code> (mode 0600), bumps the version, appends one delta line to the change log.</span>
+        </div>
+        <div class="route route--l">
+          <span class="route__party">bridge</span>
+          <span class="route__pipe"><span class="route__name">GET /tabs?since=&amp;wait=</span><span class="route__arrow"></span></span>
+          <span class="route__party route__party--r">tabs watch</span>
+          <span class="route__what">Long-poll, held open until a newer version exists. Never pops — <code>since</code> is what stops a watcher seeing the same version twice. <code>204</code> on timeout.</span>
+        </div>
+        <div class="route route--l">
+          <span class="route__party">bridge</span>
+          <span class="route__pipe"><span class="route__name">GET /history?limit=</span><span class="route__arrow"></span></span>
+          <span class="route__party route__party--r">caller</span>
+          <span class="route__what">The delta log — what changed between versions, not a series of snapshots.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="convo">
+      <div class="convo__head">
+        <h3>2 · Script out</h3>
+        <p>one unclaimed script at a time; a new push replaces it</p>
+      </div>
+      <div class="routes">
+        <div class="route route--r">
+          <span class="route__party">tabs push / suggest</span>
+          <span class="route__pipe"><span class="route__name">POST /suggestion  ·  POST /script</span><span class="route__arrow"></span></span>
+          <span class="route__party route__party--r">bridge</span>
+          <span class="route__what">Both names write the same slot, so an old CLI still reaches a new bridge. Queuing also clears the previous verdict.</span>
+        </div>
+        <div class="route route--l">
+          <span class="route__party">bridge</span>
+          <span class="route__pipe"><span class="route__name">GET /suggestion → GET /script</span><span class="route__arrow"></span></span>
+          <span class="route__party route__party--r">Extension</span>
+          <span class="route__what">A pop: claimed by exactly one poll. A new extension asks for <code>/suggestion</code> (note + id) and falls back to <code>/script</code>'s protocol-1 shape on a 404.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="convo">
+      <div class="convo__head">
+        <h3>3 · Answer back</h3>
+        <p>the half that makes a loop able to listen</p>
+      </div>
+      <div class="routes">
+        <div class="route route--r">
+          <span class="route__party">Extension</span>
+          <span class="route__pipe"><span class="route__name">POST /decision</span><span class="route__arrow"></span></span>
+          <span class="route__party route__party--r">bridge</span>
+          <span class="route__what">Carries <code>accepted</code> / <code>denied</code> / <code>stale</code> / <code>failed</code>, plus the reason you typed.</span>
+        </div>
+        <div class="route route--l">
+          <span class="route__party">bridge</span>
+          <span class="route__pipe"><span class="route__name">GET /decision?id=&amp;wait=</span><span class="route__arrow"></span></span>
+          <span class="route__party route__party--r">tabs suggest</span>
+          <span class="route__what">Long-poll for the answer to one suggestion. Doesn't clear it, so a retried wait can still read it.</span>
+        </div>
+        <div class="route route--l">
+          <span class="route__party">bridge</span>
+          <span class="route__pipe"><span class="route__name">GET /health</span><span class="route__arrow"></span></span>
+          <span class="route__party route__party--r">both ends</span>
+          <span class="route__what">Cheap reachability: <code>{ ok, protocol: 2, tabsVersion, hasPending, history }</code>. How a client tells "the server is gone" from "this connection dropped".</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="guards">
+    <div class="guard">
+      <h4>Loopback bind, hardcoded</h4>
+      <p><code>127.0.0.1</code> is not configurable. Anything already running as you on this machine can reach it — that's the accepted trade.</p>
+    </div>
+    <div class="guard">
+      <h4>Host must match</h4>
+      <p><code>127.0.0.1:port</code> or <code>localhost:port</code>. This is the anti-DNS-rebinding gate: a rebound page's GETs are same-origin, so they carry no Origin at all.</p>
+    </div>
+    <div class="guard">
+      <h4>Origin, when present</h4>
+      <p>Must start <code>chrome-extension://</code>. Browsers always attach Origin to non-GET, so this blocks a drive-by <code>POST /tabs</code>. Invisible to curl.</p>
+    </div>
+    <div class="guard">
+      <h4>0600 on disk</h4>
+      <p>Your tabs are browsing history, not a revocable token. Both the snapshot and the change log are written owner-only.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ THE SCRIPT ============================ -->
+<section class="section" id="script">
+  <div class="section__head">
+    <span class="eyebrow">05 · TabBrew Script</span>
+    <h2>Six verbs, one per line</h2>
+    <p>
+      The DSL an agent writes and <code>tabs check</code> validates. Ids are Chrome tab ids straight
+      from the snapshot. Blank lines and <code>#</code> comments are ignored.
+    </p>
+  </div>
+
+  <div class="verbs">
+    <div class="verb verb--del">
+      <span class="verb__name">DEL</span>
+      <span class="verb__syn">DEL &lt;id&gt; [&lt;id&gt; …]</span>
+      <span class="verb__say">Close tabs. The only destructive verb — <code>check</code> counts these separately for a reason.</span>
+    </div>
+    <div class="verb">
+      <span class="verb__name">GROUP</span>
+      <span class="verb__syn">GROUP &lt;id&gt; … "Name"<br>GROUP &lt;id&gt; … @&lt;gid&gt;</span>
+      <span class="verb__say">Into a new named group, or into an existing group by id.</span>
+    </div>
+    <div class="verb">
+      <span class="verb__name">UNGROUP</span>
+      <span class="verb__syn">UNGROUP &lt;id&gt; [&lt;id&gt; …]</span>
+      <span class="verb__say">Pull tabs out of whatever group they're in.</span>
+    </div>
+    <div class="verb">
+      <span class="verb__name">PIN</span>
+      <span class="verb__syn">PIN &lt;id&gt; [&lt;id&gt; …]</span>
+      <span class="verb__say">Pin to the front of the window.</span>
+    </div>
+    <div class="verb">
+      <span class="verb__name">UNPIN</span>
+      <span class="verb__syn">UNPIN &lt;id&gt; [&lt;id&gt; …]</span>
+      <span class="verb__say">Unpin. Runs early, so a tab can be unpinned and regrouped in one script.</span>
+    </div>
+    <div class="verb">
+      <span class="verb__name">MOVE</span>
+      <span class="verb__syn">MOVE &lt;id&gt; &lt;index&gt; [@win=&lt;wid&gt;]</span>
+      <span class="verb__say">Reposition, optionally into another window. The only single-id verb.</span>
+    </div>
+  </div>
+
+  <div class="phases">
+    <span class="phase phase--del">DEL</span><span class="sep">→</span>
+    <span class="phase">UNPIN</span><span class="sep">→</span>
+    <span class="phase">UNGROUP</span><span class="sep">→</span>
+    <span class="phase">GROUP</span><span class="sep">→</span>
+    <span class="phase">PIN</span><span class="sep">→</span>
+    <span class="phase">MOVE</span>
+  </div>
+  <p style="max-width: 72ch; color: var(--ink-2); font-size: var(--fs-sm);">
+    <b>Line order does not matter.</b> The extension collects every op and runs the six phases in
+    this fixed order, and the CLI's simulator mirrors it exactly — which is why a preview is
+    <em>directionally</em> correct rather than a byte-exact prediction of Chrome's final layout.
+  </p>
+
+  <div class="split" style="margin-top: 1.8rem;">
+    <div>
+      <p class="eyebrow" style="margin-bottom: 0.6rem;">A script</p>
+<pre class="term"><span class="dim"># close two duplicates, file the rest</span>
+<span class="bad">DEL</span> 101 102
+<span class="cy">GROUP</span> 103 104 <span class="ok">"Code"</span>
+<span class="cy">PIN</span> 105
+<span class="cy">MOVE</span> 106 0 @win=1
+BOGUS 9</pre>
+    </div>
+    <div>
+      <p class="eyebrow" style="margin-bottom: 0.6rem;">tabbrew tabs check</p>
+<pre class="term"><span class="bad">✗ 1 parse error:</span>
+  line 5: BOGUS 9
+            <span class="dim">→ unknown verb "BOGUS"</span>
+
+<span class="ok">✓ Parsed 4 ops</span>  <span class="dim">· DEL 1, GROUP 1, PIN 1, MOVE 1</span>
+  <span class="dim">affects 6 tabs  ·</span>  <span class="bad">2 to close (DEL — destructive)</span></pre>
+      <p style="margin-top: 0.7rem; font-size: var(--fs-sm); color: var(--muted);">
+        Exit code 1. Add <code>--snapshot</code> to get the simulated before/after and the list of
+        stale ids that were silently dropped.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ VERDICTS ============================ -->
+<section class="section" id="verdicts">
+  <div class="section__head">
+    <span class="eyebrow">06 · The answer</span>
+    <h2>Four things a suggestion can come back as</h2>
+    <p>
+      <code>tabs suggest</code> waits up to 300 seconds and prints one of these. It
+      <b>always exits 0</b> — an agent that reads "no" as a failure retries instead of listening.
+    </p>
+  </div>
+
+  <div class="verdicts">
+    <div class="verdict verdict--ok">
+      <span class="verdict__k">✓ accepted</span>
+      <span class="verdict__m">You pressed Accept and Chrome applied the ops.</span>
+      <span class="verdict__do">Tabs really moved. Re-read the state before the next idea.</span>
+    </div>
+    <div class="verdict verdict--no">
+      <span class="verdict__k">✗ denied</span>
+      <span class="verdict__m">You said no, optionally with a reason that comes straight back.</span>
+      <span class="verdict__do">A standing rule. Never re-send this one; fold the reason into every later decision.</span>
+    </div>
+    <div class="verdict verdict--stale">
+      <span class="verdict__k">↺ stale</span>
+      <span class="verdict__m">The tabs changed between the snapshot and the click, so the ids no longer line up.</span>
+      <span class="verdict__do">Not a rejection of the idea. Re-read the tabs and offer it again.</span>
+    </div>
+    <div class="verdict verdict--fail">
+      <span class="verdict__k">! failed</span>
+      <span class="verdict__m">You accepted, and Chrome refused. Nothing moved.</span>
+      <span class="verdict__do">They wanted this — fix the script, don't drop the idea. Reporting it as accepted would leave the agent building on a fiction.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ STATE ============================ -->
+<section class="section" id="state">
+  <div class="section__head">
+    <span class="eyebrow">07 · On disk &amp; in the environment</span>
+    <h2>Where the CLI keeps things</h2>
+    <p>Three files, all owner-only, none of them inside your project folder.</p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Path</th><th>Mode</th><th>What it holds</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>~/.config/tabbrew/credentials.json</code></td>
+          <td class="mode">0600</td>
+          <td>Your login token. Re-asserted to 600 on every save. <code>TABBREW_TOKEN</code> overrides it.</td>
+        </tr>
+        <tr>
+          <td><code>~/.config/tabbrew/tabs.json</code></td>
+          <td class="mode">0600</td>
+          <td>The last export: every open tab's id, title and URL. Overwritten each time.</td>
+        </tr>
+        <tr>
+          <td><code>~/.config/tabbrew/tabs-history.jsonl</code></td>
+          <td class="mode">0600</td>
+          <td>One delta per version, newest last, capped at 500 lines.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="callout">
+    <b>The one privacy sharp edge.</b> <code>tabs.json</code> only ever holds tabs that are currently
+    open, but the change log remembers the titles and URLs of tabs you have <em>closed</em> — the only
+    place the CLI accumulates browsing history at rest. Hence the cap, and three ways off:
+    <code>tabs serve --no-history</code>, <code>TABBREW_TABS_HISTORY=0</code>, or
+    <code>tabs history --clear</code>.
+  </p>
+
+  <div class="tablewrap" style="margin-top: 1.4rem;">
+    <table>
+      <thead>
+        <tr><th>Environment</th><th>Default</th><th>Why you'd set it</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>TABBREW_TOKEN</code></td><td>—</td><td>Authenticate in CI without an interactive login. Wins over the stored file.</td></tr>
+        <tr><td><code>TABBREW_SERVE_PORT</code></td><td><code>49227</code></td><td>Move the bridge if the port is taken. See the warning below.</td></tr>
+        <tr><td><code>TABBREW_TABS_HISTORY</code></td><td>on</td><td>Set to <code>0</code> to never write the change log.</td></tr>
+        <tr><td><code>TABBREW_BASE_URL</code></td><td><code>www.tabbrew.com</code></td><td>Point the same binary at staging or a local server.</td></tr>
+        <tr><td><code>TABBREW_NO_BROWSER</code></td><td>—</td><td>Print URLs instead of launching a browser (<code>login</code>, <code>docs open</code>).</td></tr>
+        <tr><td><code>NO_COLOR</code> / <code>TABBREW_DEBUG</code></td><td>—</td><td>Drop ANSI colour; print stack traces on unexpected errors.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="callout">
+    <b>About that port.</b> The extension only ever talks to <b>49227</b> — it's baked into its
+    host permissions. A custom port works fine for your own scripts, but the extension will report
+    the bridge as not running.
+  </p>
+</section>
+
+<!-- ============================ INDEX ============================ -->
+<section class="section" id="quick">
+  <div class="section__head">
+    <span class="eyebrow">08 · Quick index</span>
+    <h2>I want to…</h2>
+  </div>
+  <div class="index">
+    <div class="idx"><span class="idx__want">teach my AI agent this exists</span><span class="idx__run">tabbrew init</span></div>
+    <div class="idx"><span class="idx__want">sign in / check who I am</span><span class="idx__run">tabbrew login  ·  tabbrew whoami</span></div>
+    <div class="idx"><span class="idx__want">see my tabs from the terminal</span><span class="idx__run">tabbrew tabs serve  →  tabbrew tabs list</span></div>
+    <div class="idx"><span class="idx__want">know what a script does before it runs</span><span class="idx__run">tabbrew tabs check plan.txt --snapshot ~/.config/tabbrew/tabs.json</span></div>
+    <div class="idx"><span class="idx__want">hand a script to the browser</span><span class="idx__run">tabbrew tabs push plan.txt</span></div>
+    <div class="idx"><span class="idx__want">let the agent watch and offer</span><span class="idx__run">tabbrew tabs watch  →  tabbrew tabs suggest plan.txt --note "…"</span></div>
+    <div class="idx"><span class="idx__want">catch up on what changed while I was away</span><span class="idx__run">tabbrew tabs history --limit 20</span></div>
+    <div class="idx"><span class="idx__want">read an HTML report in the sidepanel</span><span class="idx__run">tabbrew docs push report.html</span></div>
+    <div class="idx"><span class="idx__want">get the newest binary</span><span class="idx__run">tabbrew update --check  →  tabbrew update</span></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap row">
+    <span>Generated from source at <code>3d1f665</code> · tabbrew-cli <code>v0.5.5</code></span>
+    <span>Command surface read from <code>src/registry.ts</code></span>
+    <span><a href="https://github.com/colevels/tabbrew-cli">github.com/colevels/tabbrew-cli</a></span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const scope = document.getElementById("cardsScope");
+  const chips = [...document.querySelectorAll(".chip")];
+  const grids = [...scope.querySelectorAll(".cards")];
+  const state = document.getElementById("filterState");
+  const clear = document.getElementById("clearFilter");
+  const LABELS = { offline: "offline", local: "loopback", account: "account", release: "release" };
+  let active = null;
+
+  const apply = () => {
+    for (const grid of grids) {
+      if (active) grid.dataset.filter = active;
+      else delete grid.dataset.filter;
+    }
+    for (const chip of chips) {
+      chip.setAttribute("aria-pressed", String(chip.dataset.reach === active));
+    }
+    const n = active ? scope.querySelectorAll(".card--" + active).length : 18;
+    state.textContent = active
+      ? `Showing ${n} ${LABELS[active]} command${n === 1 ? "" : "s"}.`
+      : "Showing all 18 commands.";
+    clear.hidden = !active;
+  };
+
+  for (const chip of chips) {
+    chip.addEventListener("click", () => {
+      active = active === chip.dataset.reach ? null : chip.dataset.reach;
+      apply();
+    });
+  }
+  clear.addEventListener("click", () => { active = null; apply(); });
+})();
+</script>
+</body>
+</html>
