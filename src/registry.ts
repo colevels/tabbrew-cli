@@ -86,12 +86,6 @@ export const GLOBAL_FLAGS: readonly FlagSpec[] = [
   },
 ];
 
-const VARIANT_FLAG: FlagSpec = {
-  name: "variant",
-  value: "<v>",
-  summary: "Prompt variant: full|standard|compact (default full)",
-};
-
 /**
  * Longest a `summary` may be. The help row is 2 spaces + the label column +
  * 2 spaces + the summary, and the longest label is `tabs suggest <file>` (19),
@@ -102,8 +96,8 @@ export const SUMMARY_MAX = 57;
 
 // Display order *is* array order (ui.ts filters by group, it never sorts), so
 // these are grouped and sequenced deliberately. Within `tabs` that means
-// workflow order — serve, then list what arrived, then check and push a script —
-// not the order the commands happened to be written in.
+// workflow order — serve the bridge, read what arrived, propose a change — which
+// is also the whole loop, in three commands.
 export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "tabs serve",
@@ -112,156 +106,48 @@ export const COMMANDS: readonly CommandSpec[] = [
     details:
       "Long-running: it binds 127.0.0.1 only and blocks until Ctrl+C, so start it " +
       "in a second shell. The extension POSTs your open tabs to it, and it saves " +
-      "them (mode 0600 — they're browsing history) for `tabs list` to read.",
+      "them (mode 0600 — they're browsing history) for `tabs list` to read. It also " +
+      "hands your queued suggestion to the extension and records what you decided.",
     flags: [
-      { name: "port", value: "<n>", summary: "Port to listen on (default 49227)" },
       {
         name: "out",
         value: "<path>",
         summary: "Where to save the received tabs JSON",
-      },
-      {
-        name: "no-history",
-        summary: "Don't log what changed between tab states",
-      },
-    ],
-  },
-  {
-    name: "tabs watch",
-    group: "tabs",
-    summary: "Wait for the extension to report a tab change",
-    details:
-      "Blocks until the tabs actually change, then prints what moved plus the " +
-      "current snapshot — the eye of an agent loop. Needs `tabs serve` running and " +
-      "Auto mode on in the sidepanel. A timeout prints nothing and still exits 0.",
-    flags: [
-      {
-        name: "timeout",
-        value: "<s>",
-        summary: "Seconds to wait before giving up (default 60)",
-      },
-      {
-        name: "since",
-        value: "<n>",
-        summary: "Only report versions newer than this one",
-      },
-      { name: "changes-only", summary: "Print just what changed, not the tabs" },
-      { name: "json", summary: "Print structured JSON instead of text" },
-      {
-        name: "port",
-        value: "<n>",
-        summary: "Port `tabs serve` is listening on (default 49227)",
       },
     ],
   },
   {
     name: "tabs list",
     group: "tabs",
-    summary: "Show the tabs the extension last exported",
+    summary: "Show the tabs the extension last sent, and recent answers",
     details:
-      "Reads the file `tabs serve` wrote — a snapshot on disk, not a live query. " +
-      "Check its `savedAt` before trusting the tab ids.",
+      "Reads the file `tabs serve` wrote — a snapshot on disk, not a live query, so " +
+      "check the age it prints before trusting the tab ids. Prints the extension's " +
+      "own snapshot format, preceded by what became of your recent suggestions " +
+      "(accepted, denied and why, or still waiting).",
     flags: [
-      { name: "json", summary: "Print the raw saved JSON instead of a table" },
-    ],
-  },
-  {
-    name: "tabs check",
-    args: "<file>",
-    group: "tabs",
-    summary: "Validate a TabBrew Script (--snapshot for a preview)",
-    details:
-      "Fully offline — no server, no browser. Prints line-numbered parse errors and " +
-      "exits 1 if there are any. Takes a file or `-` for stdin, and accepts a whole " +
-      "```tabbrew fenced block.",
-    flags: [
-      {
-        name: "snapshot",
-        value: "<f>",
-        summary:
-          "Snapshot for the before/after preview (.md or .json)",
-      },
-      {
-        name: "json",
-        summary:
-          "Print structured JSON instead of text",
-      },
-    ],
-  },
-  {
-    name: "tabs push",
-    args: "<file>",
-    group: "tabs",
-    summary: "Send a script to the extension to preview & run",
-    details:
-      "Requires `tabbrew tabs serve` to already be running. This does not run the " +
-      "script: it lands in the extension's panel and you click Run there. Nothing " +
-      "the CLI does can change your tabs.",
-    flags: [
-      {
-        name: "port",
-        value: "<n>",
-        summary: "Port `tabs serve` is listening on (default 49227)",
-      },
+      { name: "json", summary: "Print the raw saved JSON instead" },
     ],
   },
   {
     name: "tabs suggest",
     args: "<file>",
     group: "tabs",
-    summary: "Propose a script with a note, and wait for the answer",
+    summary: "Propose a script, with a note they read before deciding",
     details:
-      "The auto-mode sibling of `tabs push`. --note is required: it's the plain " +
-      "sentence the user reads before deciding, so say what changes and lead with " +
-      "anything that closes tabs. Waits for Accept or Deny and prints the verdict " +
-      "(with the user's reason, if they gave one). Always exits 0 — a Deny is an " +
-      "answer, not a failure.",
+      "Validates the script, then puts it in front of the user in the TabBrew " +
+      "sidepanel. --note is required: it's the plain sentence they read before " +
+      "deciding, so say what changes and lead with anything that closes tabs. " +
+      "Returns as soon as it's queued — the answer shows up in `tabs list`. Nothing " +
+      "the CLI does can change your tabs.",
     flags: [
       {
         name: "note",
         value: "<text>",
         summary: "Required. What this does, in the user's language",
       },
-      {
-        name: "wait",
-        value: "<s>",
-        summary: "Seconds to wait for an answer (default 300)",
-      },
-      { name: "no-wait", summary: "Queue it and return immediately" },
       { name: "json", summary: "Print structured JSON instead of text" },
-      {
-        name: "port",
-        value: "<n>",
-        summary: "Port `tabs serve` is listening on (default 49227)",
-      },
     ],
-  },
-  {
-    name: "tabs history",
-    group: "tabs",
-    summary: "Show what changed between exported tab states",
-    details:
-      "Reads the delta log `tabs serve` appends — one line per tab-state version, " +
-      "newest last. It holds titles and URLs of tabs you have since closed, so " +
-      "`--clear` deletes it and `tabs serve --no-history` never writes it.",
-    flags: [
-      {
-        name: "limit",
-        value: "<n>",
-        summary: "How many recent changes to show (default 20)",
-      },
-      { name: "json", summary: "Print the raw delta lines" },
-      { name: "clear", summary: "Delete the change log" },
-    ],
-  },
-  {
-    name: "tabs prompt",
-    group: "tabs",
-    summary: "Print the interactive TabBrew Script skill prompt",
-    details:
-      "The same prompt `init` installs as the tabbrew-tabs skill — print it when you " +
-      "want to paste it somewhere by hand instead.",
-    flags: [VARIANT_FLAG],
   },
 
   {
@@ -329,13 +215,12 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "init",
     group: "setup",
-    summary: "Set up an AI agent to use tabbrew (+ the tab skills)",
+    summary: "Set up an AI agent to use tabbrew (+ the tabs skill)",
     details:
       "Writes a TABBREW-CLI.md awareness doc plus a managed block in the agent's " +
-      "CLAUDE.md that imports it, and installs two skills: tabbrew-tabs (turn one " +
-      "request into a script) and tabbrew-auto (watch your tabs and propose changes " +
-      "you accept or deny). Idempotent — a re-run reports `unchanged`. --uninstall " +
-      "removes all of it.",
+      "CLAUDE.md that imports it, and installs the tabbrew-tabs skill: read the " +
+      "tabs, propose a change, let you accept or deny it. Idempotent — a re-run " +
+      "reports `unchanged`. --uninstall removes all of it.",
     flags: [
       {
         name: "global",
@@ -353,8 +238,7 @@ export const COMMANDS: readonly CommandSpec[] = [
         summary: "Skip the confirmation prompt on an existing file",
       },
       { name: "agent", value: "<id>", summary: "Target agent (default claude)" },
-      VARIANT_FLAG,
-      { name: "no-skill", summary: "Don't install the two tabbrew skills" },
+      { name: "no-skill", summary: "Don't install the tabbrew-tabs skill" },
     ],
   },
   {
@@ -398,6 +282,7 @@ export const GETTING_STARTED: ReadonlyArray<[string, string]> = [
   ["tabbrew init", "teach your AI agent that this CLI exists"],
   ["tabbrew login", "sign in to your TabBrew account"],
   ["tabbrew tabs serve", "run in a 2nd shell; the extension sends your tabs over"],
+  ["tabbrew tabs list", "check they arrived, then ask your agent to tidy them"],
 ];
 
 /**
@@ -409,16 +294,12 @@ export const GETTING_STARTED: ReadonlyArray<[string, string]> = [
 export const FILES: ReadonlyArray<[string, string]> = [
   ["~/.config/tabbrew/credentials.json", "Stored login token (chmod 600)"],
   ["~/.config/tabbrew/tabs.json", "Tabs `tabs serve` received (mode 0600)"],
-  ["~/.config/tabbrew/tabs-history.jsonl", "What changed between them (mode 0600)"],
 ];
 
 /** Environment overrides a normal user might reach for. */
 export const COMMON_ENV: ReadonlyArray<[string, string]> = [
   ["TABBREW_TOKEN", "Use this token; wins over the stored file"],
-  ["TABBREW_SERVE_PORT", "Port for `tabs serve`/`tabs push` (default 49227)"],
   ["TABBREW_TABS_PATH", "Where `tabs serve` saves the tabs it receives"],
-  ["TABBREW_TABS_HISTORY", "Set to 0 to never log what changed"],
-  ["TABBREW_TABS_HISTORY_MAX", "Change-log entries to keep (default 500)"],
   ["TABBREW_NO_BROWSER", "Set to skip auto-opening the browser during login"],
   ["TABBREW_DEBUG", "Set to print stack traces on unexpected errors"],
   ["NO_COLOR", "Disable ANSI colors"],
@@ -440,7 +321,7 @@ export const DEV_ENV: ReadonlyArray<[string, string]> = [
   ["TABBREW_RELEASE_URL", "Override the releases/latest URL used by `update`"],
   ["TABBREW_DOWNLOAD_BASE_URL", "Override the release-asset download base URL"],
   ["TABBREW_DOWNLOAD_TIMEOUT_MS", "Binary-download timeout in ms (default 120000)"],
-  ["TABBREW_TABS_HISTORY_PATH", "Where `tabs serve` writes the change log"],
+  ["TABBREW_SERVE_PORT", "Bridge port; the extension hard-codes 49227"],
   ["CLAUDE_CONFIG_DIR", "Global agent dir used by `init --global`"],
 ];
 

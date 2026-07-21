@@ -77,8 +77,8 @@ test("every command lands in a group, and no group is left empty", () => {
 
 test("a two-word command beats a one-word match", () => {
   // `index.ts` resolves `--help` against this before dispatching, so a
-  // regression here would send `tabs push --help` to the wrong command.
-  expect(findCommand(["tabs", "push"])?.name).toBe("tabs push");
+  // regression here would send `tabs suggest --help` to the wrong command.
+  expect(findCommand(["tabs", "suggest"])?.name).toBe("tabs suggest");
   expect(findCommand(["docs", "open", "42"])?.name).toBe("docs open");
   expect(findCommand(["tabs"])).toBeUndefined();
   expect(findCommand(["bogus"])).toBeUndefined();

@@ -56,39 +56,22 @@ export interface CliConfig {
   /** `tabbrew tabs serve` — local HTTP bridge the Chrome extension POSTs tabs to. */
   serve: {
     /**
-     * Bind port, shared by `tabs serve` (listens) and `tabs push` (connects).
+     * Bind port, shared by `tabs serve` (listens) and `tabs suggest` (connects).
      * Host is always 127.0.0.1 (hardcoded in the command, not here).
+     *
+     * There is no `--port` flag: the extension hard-codes 49227 in both
+     * manifests' `optional_host_permissions`, so a bridge anywhere else is
+     * unreachable from the browser. This override exists for tests.
      */
     port: number;
     /** Where the posted tabs JSON is saved (latest state only, overwritten). */
     outPath: string;
-    /**
-     * Append-only log of per-version *deltas* (one JSON line each), so an agent
-     * can see what changed rather than re-reading the whole tab list. Separate
-     * from `outPath` on purpose: that file keeps its "latest state" contract,
-     * and this one is the part that accumulates browsing history at rest — hence
-     * `historyMax` and the ability to turn it off entirely.
-     */
-    historyPath: string;
-    /** Newest N delta lines to keep; older ones are dropped on rewrite. */
-    historyMax: number;
-    /** Set TABBREW_TABS_HISTORY=0 to never write the delta log at all. */
-    historyEnabled: boolean;
   };
 }
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
-}
-
-/** Env booleans: only an explicit off-switch counts, everything else is on. */
-function parseBool(value: string | undefined, fallback: boolean): boolean {
-  if (value === undefined) return fallback;
-  const v = value.trim().toLowerCase();
-  if (v === "0" || v === "false" || v === "no" || v === "off") return false;
-  if (v === "1" || v === "true" || v === "yes" || v === "on") return true;
-  return fallback;
 }
 
 export const config: CliConfig = {
@@ -131,10 +114,5 @@ export const config: CliConfig = {
     outPath:
       process.env.TABBREW_TABS_PATH ??
       join(homedir(), ".config", "tabbrew", "tabs.json"),
-    historyPath:
-      process.env.TABBREW_TABS_HISTORY_PATH ??
-      join(homedir(), ".config", "tabbrew", "tabs-history.jsonl"),
-    historyMax: parsePositiveInt(process.env.TABBREW_TABS_HISTORY_MAX, 500),
-    historyEnabled: parseBool(process.env.TABBREW_TABS_HISTORY, true),
   },
 };

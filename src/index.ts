@@ -5,18 +5,11 @@ import { logout } from "./commands/logout";
 import { whoami } from "./commands/whoami";
 import { repoInfo } from "./commands/tools";
 import { docsPush, docsList, docsOpen } from "./commands/docs";
-import {
-  tabsCheck,
-  tabsHistory,
-  tabsList,
-  tabsPrompt,
-  TabsInputError,
-} from "./commands/tabs";
+import { tabsList } from "./commands/tabs-list";
+import { TabsBridgeError, TabsInputError } from "./commands/tabs-errors";
 import { init } from "./commands/init";
 import { update } from "./commands/update";
 import { tabsServe, ServeError } from "./commands/tabs-serve";
-import { tabsPush, TabsPushError } from "./commands/tabs-push";
-import { tabsWatch } from "./commands/tabs-watch";
 import { tabsSuggest } from "./commands/tabs-suggest";
 import { AuthError } from "./auth";
 import { ApiError, NotAuthenticatedError, TokenExpiredError } from "./api";
@@ -43,20 +36,9 @@ async function route(): Promise<void> {
       cloud: { type: "boolean" },
       title: { type: "string" },
       json: { type: "boolean" },
-      variant: { type: "string" },
-      snapshot: { type: "string" },
       check: { type: "boolean" },
-      port: { type: "string" },
       out: { type: "string" },
-      "no-history": { type: "boolean" },
-      since: { type: "string" },
-      timeout: { type: "string" },
-      "changes-only": { type: "boolean" },
       note: { type: "string" },
-      wait: { type: "string" },
-      "no-wait": { type: "boolean" },
-      limit: { type: "string" },
-      clear: { type: "boolean" },
     },
     allowPositionals: true,
     strict: true,
@@ -102,7 +84,6 @@ async function route(): Promise<void> {
         uninstall: values.uninstall,
         yes: values.yes,
         agent: values.agent,
-        variant: values.variant,
         noSkill: values["no-skill"],
       });
     case "tools":
@@ -126,47 +107,15 @@ async function route(): Promise<void> {
       process.exitCode = 1;
       return;
     case "tabs":
-      if (sub === "check")
-        return tabsCheck(positionals[2], {
-          snapshot: values.snapshot,
-          json: values.json,
-        });
-      if (sub === "push")
-        return tabsPush(positionals[2], {
-          port: values.port === undefined ? undefined : Number(values.port),
-        });
+      if (sub === "serve") return tabsServe({ out: values.out });
+      if (sub === "list") return tabsList({ json: values.json });
       if (sub === "suggest")
         return tabsSuggest(positionals[2], {
-          port: values.port === undefined ? undefined : Number(values.port),
           note: values.note,
-          wait: values.wait === undefined ? undefined : Number(values.wait),
-          noWait: values["no-wait"],
           json: values.json,
         });
-      if (sub === "watch")
-        return tabsWatch({
-          port: values.port === undefined ? undefined : Number(values.port),
-          since: values.since === undefined ? undefined : Number(values.since),
-          timeout: values.timeout === undefined ? undefined : Number(values.timeout),
-          changesOnly: values["changes-only"],
-          json: values.json,
-        });
-      if (sub === "serve")
-        return tabsServe({
-          port: values.port === undefined ? undefined : Number(values.port),
-          out: values.out,
-          noHistory: values["no-history"],
-        });
-      if (sub === "list") return tabsList({ json: values.json });
-      if (sub === "history")
-        return tabsHistory({
-          limit: values.limit === undefined ? undefined : Number(values.limit),
-          json: values.json,
-          clear: values.clear,
-        });
-      if (sub === "prompt") return tabsPrompt({ variant: values.variant });
       console.error(
-        `Unknown tabs subcommand: ${sub ?? "(none)"}. Try: tabbrew tabs watch | tabs suggest <file> | tabs check <file> | tabs push <file> | tabs serve | tabs list | tabs history | tabs prompt`,
+        `Unknown tabs subcommand: ${sub ?? "(none)"}. Try: tabbrew tabs serve | tabs list | tabs suggest <file>`,
       );
       process.exitCode = 1;
       return;
@@ -189,7 +138,7 @@ route().catch((err: unknown) => {
     err instanceof UpdateError ||
     err instanceof TabsInputError ||
     err instanceof ServeError ||
-    err instanceof TabsPushError ||
+    err instanceof TabsBridgeError ||
     err instanceof UsageError;
 
   if (known) {
