@@ -5,6 +5,11 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Bun](https://img.shields.io/badge/Bun-%E2%89%A5%201.1-000?logo=bun&logoColor=white)](https://bun.sh)
 
+> **Status: proof of concept.** `v0.6.0` is the high-water mark of the exploration —
+> everything the CLI can currently do, kept together in one release. The next versions
+> deliberately **remove** commands to cut complexity, and some of them will come back
+> later in a simpler shape. Pin `v0.6.0` if you depend on a command that disappears.
+
 The command-line companion to **TabBrew** — it brings your TabBrew account to the
 terminal and to the AI coding agents working there.
 
