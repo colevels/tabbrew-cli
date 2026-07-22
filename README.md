@@ -6,13 +6,16 @@
 [![Bun](https://img.shields.io/badge/Bun-%E2%89%A5%201.1-000?logo=bun&logoColor=white)](https://bun.sh)
 
 > **Status: proof of concept.** `v0.6.0` was the high-water mark of the exploration;
-> `v0.7.0` is where the subtraction started. **`tabs check`, `tabs push`, `tabs watch`,
+> `v0.8.0` is where the subtraction lands. **`tabs check`, `tabs push`, `tabs watch`,
 > `tabs history` and `tabs prompt` are gone**, and the `--port`, `--out` and `--variant`
 > flags with them — the tab surface is three commands now (`serve` / `list` / `suggest`).
 > `init` follows: it installs one skill instead of two, and deletes the orphaned
 > `tabbrew-auto` it finds. `docs`, `login`/`whoami`/`logout` and `update` are untouched. Pin
 > [`v0.6.0`](https://github.com/colevels/tabbrew-cli/releases/tag/v0.6.0) if you depend
 > on a command that disappeared; some of them may come back in a simpler shape.
+>
+> (`0.7.0` exists in the git history but was never tagged, so it never reached anyone —
+> everything it changed ships here.)
 
 The command-line companion to **TabBrew** — it brings your TabBrew account to the
 terminal and to the AI coding agents working there.
