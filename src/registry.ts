@@ -317,7 +317,7 @@ export const DEV_ENV: ReadonlyArray<[string, string]> = [
   ["TABBREW_RELEASE_URL", "Override the releases/latest URL used by `update`"],
   ["TABBREW_DOWNLOAD_BASE_URL", "Override the release-asset download base URL"],
   ["TABBREW_DOWNLOAD_TIMEOUT_MS", "Binary-download timeout in ms (default 120000)"],
-  ["TABBREW_SERVE_PORT", "Bridge port; the extension hard-codes 49227"],
+  ["TABBREW_SERVE_PORT", "Pin one bridge port (Chrome reaches 49227/49228)"],
   ["CLAUDE_CONFIG_DIR", "Global agent dir used by `init --global`"],
 ];
 

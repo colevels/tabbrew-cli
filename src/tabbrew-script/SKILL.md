@@ -1,6 +1,6 @@
 ---
 name: tabbrew-tabs
-description: Read someone's open Chrome tabs through the tabbrew CLI and propose a TabBrew Script they accept or deny in the TabBrew sidepanel — `tabbrew tabs list` → decide → `tabbrew tabs suggest --note`. Use for a one-off request ("tidy my tabs", "close the duplicates", "จัดแท็บให้หน่อย") and for a standing watch (`/loop`, "auto mode", "เฝ้าแท็บให้หน่อย"), which is the same three steps repeated.
+description: Read someone's open Chrome tabs through the tabbrew CLI and propose a TabBrew Script they accept or deny in the TabBrew sidepanel — `tabbrew tabs list` → decide → `tabbrew tabs suggest --note`. Use for a one-off request ("tidy my tabs", "close the duplicates", "จัดแท็บให้หน่อย") and for a standing watch (`/loop`, "keep an eye on my tabs", "เฝ้าแท็บให้หน่อย"), which is the same three steps repeated.
 ---
 
 # TabBrew — read the tabs, propose a change
@@ -33,12 +33,14 @@ Two things have to be true, and `tabs list` tells you which one is missing:
    it needs its own shell — start it in the background, never in the foreground of
    a turn you still have work to finish.
 2. **The extension is sending.** The user opens the TabBrew sidepanel, clicks
-   **Send to Claude Code**, and switches **Auto mode** on. That is what keeps the
-   tab state fresh.
+   **Connect to TabBrew CLI**, and leaves that screen up. There is no toggle: the
+   screen itself is the switch, streaming while it shows and stopping when they
+   navigate away.
 
 `tabs list` saying *"No tabs exported yet"* is (1), or a panel that was never
 opened. A **stale** warning means the extension has stopped sending — the panel is
-probably closed. Say which one it is; don't guess in silence.
+probably closed, or they moved off that screen. Say which one it is; don't guess
+in silence.
 
 ## 1. Read the tabs
 

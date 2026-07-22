@@ -4,6 +4,7 @@ import { mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { atomicWrite, readFileOrNull, removeFileIfExists } from "../fsops";
 import { config } from "../config";
+import { BRIDGE_SERVICE, probeBridge } from "../bridge";
 import { BIN, c } from "../ui";
 
 /** The port is already in use, or the server died on start. */
@@ -134,7 +135,6 @@ const isDecision = (v: unknown): v is DecisionKind =>
  * only override.
  */
 export async function tabsServe(): Promise<void> {
-  const port = config.serve.port;
   const outPath = config.serve.outPath;
 
   await mkdir(dirname(outPath), { recursive: true, mode: 0o700 });
@@ -366,9 +366,15 @@ export async function tabsServe(): Promise<void> {
       // Cheap, non-destructive reachability check — the extension pings this to
       // show a connected/disconnected status, separate from claiming a pending
       // script. `ok` must stay, older extensions test it.
+      //
+      // `service` is what makes this route an *identity* check and not just a
+      // reachability one: now that both ends scan more than one port, whoever
+      // answers has to prove it's the bridge before it gets handed a script or
+      // a window's worth of tab URLs. Never rename or drop it.
       if (req.method === "GET" && url.pathname === "/health") {
         return json({
           ok: true,
+          service: BRIDGE_SERVICE,
           protocol: PROTOCOL,
           tabsVersion: tabState?.version ?? 0,
           hasPending: pending !== null,
@@ -380,12 +386,47 @@ export async function tabsServe(): Promise<void> {
     }
   }
 
-  let server: ReturnType<typeof Bun.serve>;
-  try {
-    server = Bun.serve({ hostname: "127.0.0.1", port, fetch: handleRequest });
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    throw new ServeError(`Couldn't start the server on port ${port}: ${detail}`);
+  /**
+   * Bind the first free port, but ask *who* holds a busy one before moving on.
+   *
+   * A stranger on 49227 is exactly what the fallback exists for — step to the
+   * next port and carry on. Another TabBrew bridge is the opposite: starting a
+   * second one would be a silent dead end, because Chrome scans the same list
+   * in the same order and would keep talking to the first bridge while this one
+   * sat there receiving nothing. Say so and stop instead.
+   */
+  let server: ReturnType<typeof Bun.serve> | null = null;
+  let port = 0;
+  const taken: string[] = [];
+
+  for (const candidate of config.serve.ports) {
+    try {
+      server = Bun.serve({
+        hostname: "127.0.0.1",
+        port: candidate,
+        fetch: handleRequest,
+      });
+      port = candidate;
+      break;
+    } catch (err) {
+      const peer = await probeBridge(candidate);
+      if (peer) {
+        throw new ServeError(
+          `A TabBrew bridge is already running on 127.0.0.1:${candidate} — use that one, or stop it first. ` +
+            `Starting a second bridge wouldn't help: Chrome always takes the lowest port that answers.`,
+        );
+      }
+      const detail = err instanceof Error ? err.message : String(err);
+      taken.push(`${candidate} (${detail})`);
+    }
+  }
+
+  if (!server) {
+    throw new ServeError(
+      `Couldn't bind any bridge port — ${taken.join(", ")}. ` +
+        `Free one of 127.0.0.1:${config.serve.ports.join(" or :")} and try again; ` +
+        `Chrome can only reach those.`,
+    );
   }
 
   // What the user needs is "am I up, and what do I do next in the browser" —
@@ -400,12 +441,17 @@ export async function tabsServe(): Promise<void> {
       c.dim("    left by an older version — it recorded tabs you had closed."),
     );
   }
+  if (port !== config.serve.ports[0]) {
+    console.log(
+      `  ${c.dim("Port")} ${config.serve.ports[0]} ${c.dim("was busy — Chrome knows to look here too.")}`,
+    );
+  }
   console.log("");
   console.log(
-    `  ${c.bold("Next, in Chrome:")} open the TabBrew sidepanel, click ${c.bold("Send to Claude Code")},`,
+    `  ${c.bold("Next, in Chrome:")} open the TabBrew sidepanel and click ${c.bold("Connect to TabBrew CLI")}.`,
   );
   console.log(
-    `  ${c.dim("and switch")} ${c.bold("Auto mode")} ${c.dim("on. Then read the tabs with")} \`${BIN} tabs list\`.`,
+    `  ${c.dim("Leave that screen open — it stops sending when you leave. Then read the tabs with")} \`${BIN} tabs list\`.`,
   );
   console.log("");
   console.log(c.dim("Press Ctrl+C to stop."));
