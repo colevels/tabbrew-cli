@@ -56,14 +56,21 @@ export interface CliConfig {
   /** `tabbrew tabs serve` — local HTTP bridge the Chrome extension POSTs tabs to. */
   serve: {
     /**
-     * Bind port, shared by `tabs serve` (listens) and `tabs suggest` (connects).
+     * Bind ports in preference order, shared by `tabs serve` (listens on the
+     * first one free) and `tabs suggest` (connects to the first one answering).
      * Host is always 127.0.0.1 (hardcoded in the command, not here).
      *
-     * There is no `--port` flag: the extension hard-codes 49227 in both
-     * manifests' `optional_host_permissions`, so a bridge anywhere else is
-     * unreachable from the browser. This override exists for tests.
+     * There is still no `--port` flag: the extension lists these exact ports in
+     * both manifests' `optional_host_permissions`, so a bridge anywhere else is
+     * unreachable from the browser no matter what is listening on it. The list
+     * is a cross-repo contract — extending it means changing this array, both
+     * manifests, and the extension's `BRIDGE_PORTS` together.
+     *
+     * `TABBREW_SERVE_PORT` pins a single port and exists for tests; a value
+     * outside the manifest list works between CLI commands but is invisible to
+     * Chrome.
      */
-    port: number;
+    ports: readonly number[];
     /** Where the posted tabs JSON is saved (latest state only, overwritten). */
     outPath: string;
   };
@@ -110,7 +117,9 @@ export const config: CliConfig = {
   tokenEnvVar: "TABBREW_TOKEN",
   timeoutMs: parsePositiveInt(process.env.TABBREW_TIMEOUT_MS, 15000),
   serve: {
-    port: parsePositiveInt(process.env.TABBREW_SERVE_PORT, 49227),
+    ports: process.env.TABBREW_SERVE_PORT
+      ? [parsePositiveInt(process.env.TABBREW_SERVE_PORT, 49227)]
+      : [49227, 49228],
     outPath:
       process.env.TABBREW_TABS_PATH ??
       join(homedir(), ".config", "tabbrew", "tabs.json"),

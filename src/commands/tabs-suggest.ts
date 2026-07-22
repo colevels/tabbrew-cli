@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { config } from "../config";
+import { discoverBridge } from "../bridge";
 import { readFileOrNull } from "../fsops";
 import { parseTabbrewScript } from "../tabbrew-script/parser";
 import {
@@ -70,7 +71,16 @@ export async function tabsSuggest(
     );
   }
 
-  const port = config.serve.port;
+  // Find the bridge rather than assume its port, and confirm it *is* the bridge
+  // before posting: this request carries a script describing the user's tabs,
+  // which is not something to hand to whatever happens to hold the socket.
+  const bridge = await discoverBridge(config.serve.ports);
+  if (!bridge) {
+    throw new TabsBridgeError(
+      `No TabBrew bridge is listening on 127.0.0.1:${config.serve.ports.join(" or :")} — start one with \`${BIN} tabs serve\` first.`,
+    );
+  }
+  const port = bridge.port;
   const basedOn = await lastSeenVersion();
 
   let res: Response;
@@ -81,8 +91,10 @@ export async function tabsSuggest(
       body: JSON.stringify({ script, note, basedOn, opCount: ops.length }),
     });
   } catch {
+    // It answered /health a moment ago, so this is a bridge that went down
+    // mid-command rather than one that was never there.
     throw new TabsBridgeError(
-      `Nothing is listening on 127.0.0.1:${port} — start the bridge with \`${BIN} tabs serve\` first.`,
+      `The bridge on 127.0.0.1:${port} stopped responding — restart it with \`${BIN} tabs serve\` and send this again.`,
     );
   }
 

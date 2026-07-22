@@ -72,7 +72,7 @@ export async function tabsList(opts: TabsListOptions): Promise<void> {
     }
     console.log(
       c.dim("No tabs exported yet.") +
-        ` Start the bridge with ${c.bold(`${BIN} tabs serve`)}, then click ${c.bold("Send to Claude Code")} in the TabBrew sidepanel.`,
+        ` Start the bridge with ${c.bold(`${BIN} tabs serve`)}, then click ${c.bold("Connect to TabBrew CLI")} in the TabBrew sidepanel.`,
     );
     return;
   }
@@ -110,7 +110,7 @@ export async function tabsList(opts: TabsListOptions): Promise<void> {
     console.error(
       c.yellow("! This snapshot is stale.") +
         c.dim(
-          " The extension stopped sending — check that the TabBrew sidepanel is open and Auto mode is on.",
+          " The extension stopped sending — check the TabBrew sidepanel is still on the Connect to TabBrew CLI screen.",
         ),
     );
   }
@@ -137,7 +137,7 @@ export async function tabsList(opts: TabsListOptions): Promise<void> {
   );
   console.log(
     c.dim(
-      `  Open the TabBrew sidepanel and click ${c.bold("Send to Claude Code")} to get one, ` +
+      `  Open the TabBrew sidepanel and click ${c.bold("Connect to TabBrew CLI")} to get one, ` +
         `or read the raw payload with ${c.bold(`${BIN} tabs list --json`)}.`,
     ),
   );

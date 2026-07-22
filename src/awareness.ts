@@ -19,7 +19,7 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
   opens from the sidepanel Docs view ("send this to tabbrew", "ส่งเข้า tabbrew").
 - The user wants their open Chrome tabs organized/closed/grouped, either as a
   one-off ("จัดแท็บให้หน่อย", "close the duplicates") or as a standing watch
-  ("auto mode", "เฝ้าแท็บให้หน่อย", a \`/loop\`). Both are the same three steps —
+  ("เฝ้าแท็บให้หน่อย", "keep an eye on my tabs", a \`/loop\`). Both are the same three steps —
   follow the installed \`tabbrew-tabs\` skill and see **Managing tabs** below.
 
 ## Commands
@@ -43,8 +43,8 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
   suggestions. Prints the extension's own snapshot format (\`# Cross-window /
   # Windows / # Groups / # Tabs\` JSONL) — that's the format to write ops against.
   Check the age it reports before trusting the tab ids; it's a file on disk, and it
-  only refreshes while the sidepanel is open with Auto mode on. \`--json\` for the raw
-  payload.
+  only refreshes while the sidepanel sits on the **Connect to TabBrew CLI** screen.
+  \`--json\` for the raw payload.
 - \`tabbrew tabs suggest <file|-> --note "…"\` — validate a TabBrew Script and put it in
   front of the user. \`--note\` is **required**: one plain sentence, in the user's own
   language, leading with anything destructive ("ปิดแท็บ YouTube 6 อัน แล้วรวม github เป็น
@@ -54,8 +54,9 @@ TabBrew (OAuth 2.0 device flow) and running agent-facing tools. Use it from the 
 ## Managing tabs (generate a TabBrew Script)
 The DSL has six verbs, one per line: \`DEL\` \`PIN\` \`UNPIN\` \`GROUP\` \`UNGROUP\` \`MOVE\`.
 The tabs come from the bridge: \`tabbrew tabs serve\` is running, and the user has
-clicked **Send to Claude Code** in the TabBrew sidepanel (with **Auto mode** on if
-they want it to keep streaming).
+clicked **Connect to TabBrew CLI** in the TabBrew sidepanel and left that screen
+open — it streams tab changes for as long as it's showing, and stops when they
+navigate away.
 
 Then, per the installed \`tabbrew-tabs\` skill:
 1. \`tabbrew tabs list\` — read the snapshot and the recent suggestions. If the newest

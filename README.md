@@ -251,7 +251,7 @@ the next read. The CLI is on one side of that loop only — **it cannot change a
 ### 1. Start the bridge
 
 ```bash
-tabbrew tabs serve                            # 127.0.0.1:49227 — blocks until Ctrl+C
+tabbrew tabs serve                            # 127.0.0.1:49227 (or :49228) — blocks until Ctrl+C
 TABBREW_TABS_PATH=./tabs.json tabbrew tabs serve   # put the state file elsewhere
 ```
 
@@ -261,9 +261,15 @@ just the writer, which left the other two silently reading a stale default; it's
 the same reason `--port` is.
 
 It blocks, so give it its own shell (or the background). Then, in Chrome, open the
-TabBrew sidepanel, click **Send to Claude Code**, and switch **Auto mode** on — that is
-what keeps sending tabs as they change. (Developer mode → Tab List → **Send to CLI**
-exports too, but without the rendered snapshot — see below.)
+TabBrew sidepanel and click **Connect to TabBrew CLI** — leave that screen open and it
+keeps sending tabs as they change; navigate away and it stops. There is no toggle to
+find. (Developer mode → Tab List → **Send to CLI** exports too, but without the rendered
+snapshot — see below.)
+
+If `49227` is already taken by something else, the bridge falls back to `49228` and says
+so; Chrome checks both. If it's taken by *another TabBrew bridge*, it refuses to start a
+second one instead — Chrome always uses the lowest port that answers, so the second would
+never receive anything.
 
 ### 2. Read the tabs
 
@@ -413,10 +419,17 @@ routes a protocol-2 extension actually calls (`POST /tabs`, `GET /suggestion`,
 `POST /decision`, `GET /health`) are unchanged; what protocol 3 dropped is the three long
 polls only the CLI ever issued, and the legacy `/script` pair.
 
-**There is no `--port` flag.** The extension hard-codes `49227` in both manifests'
-`optional_host_permissions`, so a bridge listening anywhere else is unreachable from the
-browser — a flag that could only ever produce a broken setup isn't worth having.
-`TABBREW_SERVE_PORT` still moves it, for tests.
+**There is no `--port` flag.** The extension lists exactly `49227` and `49228` in both
+manifests' `optional_host_permissions`, so a bridge listening anywhere else is unreachable
+from the browser — a flag that could only ever produce a broken setup isn't worth having.
+`tabs serve` picks the first of the two that's free and `tabs suggest` finds whichever is
+answering, so neither end has to be told. `TABBREW_SERVE_PORT` pins a single port, for
+tests.
+
+Both ends verify **identity**, not just reachability: `GET /health` returns
+`service: "tabbrew-bridge"`, and a port that answers without proving it's a bridge is
+skipped rather than adopted. That check is what makes a second port safe — otherwise any
+JSON service squatting on `49228` would be handed a script describing your tabs.
 
 ### Security model
 

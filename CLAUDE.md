@@ -271,11 +271,25 @@ only because Bun kills a 10s-idle request.
   the real problem is that nothing was passed in. It sends `basedOn` (the tab-state version
   it reasoned about) so the extension can warn before the user accepts a plan written
   against tabs that have since moved.
-- There is **no `--port` flag** on anything. The extension hard-codes 49227 in both
-  manifests' `optional_host_permissions`, so a bridge on any other port is unreachable from
-  the browser — an option that could only ever be wrong. `TABBREW_SERVE_PORT` survives for
-  tests, and `config.serve.port` is the single place it's resolved, so the listener and the
-  client cannot disagree.
+- There is **no `--port` flag** on anything. The extension lists exactly 49227 and 49228 in
+  both manifests' `optional_host_permissions`, so a bridge on any other port is unreachable
+  from the browser — an option that could only ever be wrong. `config.serve.ports` is the
+  single place the list is resolved, so the listener (`tabs serve`) and the client
+  (`tabs suggest`) cannot disagree; `TABBREW_SERVE_PORT` pins one port, for tests.
+- **Two ports means proving identity, not just reachability** (`src/bridge.ts`). `tabs
+  serve` takes the first free port; `tabs suggest` takes the first that *answers as a
+  bridge*. `GET /health` carries `service: "tabbrew-bridge"` for exactly this — never
+  rename or drop that field. Older bridges predate it, so `looksLikeBridge` also accepts
+  `ok: true` plus a numeric `protocol`/`tabsVersion`; the extension's `localServer.ts`
+  implements the identical predicate and the two must not drift, or one end will adopt a
+  service the other rejects. Probing is sequential in preference order at both ends — with
+  two bridges up, "the lowest port" is stable where "first to reply" is a race that could
+  point the CLI at one bridge while Chrome talks to the other.
+- **A busy port is diagnosed, not just skipped.** On `EADDRINUSE`, `tabs serve` probes who
+  holds it: a stranger means step to the fallback, but *another TabBrew bridge* means
+  refuse to start. A second bridge would be a silent dead end — Chrome takes the lowest
+  port that answers, so the new one would sit there receiving nothing while the user
+  waited. This is also what keeps the single `outPath` state file to one writer.
 - `tabs serve` is a **tolerant reader** of the tab payload — two extension surfaces POST
   different shapes (raw `chrome.Tab` from the developer-mode panel, leaner `TabSnapshot`
   from the side panel), so `StoredTab` types only the fields common to both and everything
@@ -424,7 +438,7 @@ hosted TabBrew server at `https://www.tabbrew.com`:
 | `TABBREW_RELEASE_URL` | `github.com/$REPO/releases/latest` | Override the `update` latest-release redirect URL |
 | `TABBREW_DOWNLOAD_BASE_URL` | `github.com/$REPO/releases/latest/download` | Override the `update` release-asset download base |
 | `TABBREW_DOWNLOAD_TIMEOUT_MS` | `120000` | `update` binary-download timeout (separate from `TABBREW_TIMEOUT_MS`) |
-| `TABBREW_SERVE_PORT` | `49227` | Loopback port for `tabs serve` (listens) and `tabs suggest` (connects). **A test override** — there is no `--port`, and the extension hard-codes 49227 |
+| `TABBREW_SERVE_PORT` | `49227,49228` | Pins a single loopback port for `tabs serve` (listens) and `tabs suggest` (connects), instead of scanning both. **A test override** — there is no `--port`, and Chrome only reaches those two |
 | `TABBREW_TABS_PATH` | `~/.config/tabbrew/tabs.json` | Where `tabs serve` saves the exported tabs + suggestion ring (read by `tabs list`) |
 | `TABBREW_TOKEN` | *(unset)* | Use this token directly; **wins over the stored file** (for CI/CD) |
 | `TABBREW_NO_BROWSER` | *(unset)* | Print URLs instead of launching a browser (`login`, `docs open`) |
