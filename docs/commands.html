@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>tabbrew CLI v0.7.0 — visual command map</title>
+<title>tabbrew CLI v0.8.0 — visual command map</title>
 </head>
 <body>
 <style>
@@ -182,7 +182,7 @@ code, kbd, pre { font-family: var(--mono); }
 .section__head h2 { font-family: var(--mono); font-size: var(--fs-h2); font-weight: 700; letter-spacing: -0.02em; }
 .section__head p { max-width: 68ch; color: var(--ink-2); font-size: var(--fs-sm); }
 
-/* ---------- what changed in v0.7.0 ---------- */
+/* ---------- what changed in v0.8.0 ---------- */
 .gone { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 0.6rem; }
 .gone__row {
   display: flex; flex-direction: column; gap: 0.2rem;
@@ -312,7 +312,7 @@ code, kbd, pre { font-family: var(--mono); }
 }
 .loopback-note b { color: var(--local); font-family: var(--mono); }
 
-/* ---------- turning auto mode on ---------- */
+/* ---------- turning watching on ---------- */
 .stack { display: flex; flex-direction: column; gap: clamp(1.7rem, 1.1rem + 1.6vw, 2.7rem); }
 .blockhead { font-family: var(--mono); font-size: var(--fs-h3); font-weight: 700; letter-spacing: -0.01em; margin-bottom: 0.85rem; }
 .blockhead + p { margin-top: -0.5rem; margin-bottom: 0.9rem; color: var(--ink-2); font-size: var(--fs-sm); max-width: 68ch; }
@@ -469,10 +469,10 @@ footer code { color: var(--ink-2); }
   <div class="wrap nav__inner">
     <div class="nav__brand">tabbrew<span>-cli</span></div>
     <div class="nav__links">
-      <a href="#changed">v0.7.0</a>
+      <a href="#changed">v0.8.0</a>
       <a href="#map">Commands</a>
       <a href="#flows">The loop</a>
-      <a href="#auto">Auto mode</a>
+      <a href="#auto">Watching</a>
       <a href="#bridge">Bridge</a>
       <a href="#script">Script</a>
       <a href="#verdicts">Verdicts</a>
@@ -483,7 +483,7 @@ footer code { color: var(--ink-2); }
 
 <header class="wrap hero" id="top">
   <div class="hero__kicker">
-    <span class="eyebrow">tabbrew-cli · v0.7.0</span>
+    <span class="eyebrow">tabbrew-cli · v0.8.0</span>
     <span class="eyebrow">13 commands · 4 groups</span>
   </div>
   <h1>The terminal half of <em>TabBrew</em></h1>
@@ -507,7 +507,7 @@ footer code { color: var(--ink-2); }
     </figure>
 
     <div class="wire wire--local">
-      <span class="wire__label">127.0.0.1:49227<br>loopback only</span>
+      <span class="wire__label">127.0.0.1:49227 / :49228<br>loopback only</span>
       <span class="wire__track"></span>
     </div>
 
@@ -537,7 +537,7 @@ footer code { color: var(--ink-2); }
 <!-- ============================ WHAT CHANGED ============================ -->
 <section class="section" id="changed" style="border-top: 0;">
   <div class="section__head">
-    <span class="eyebrow">00 · What changed in v0.7.0</span>
+    <span class="eyebrow">00 · What changed in v0.8.0</span>
     <h2>Eight tab commands became three</h2>
     <p>
       <code>v0.6.0</code> was the widest this ever got — a command for every step of the loop, and
@@ -584,7 +584,7 @@ footer code { color: var(--ink-2); }
     </div>
     <div class="gone__row">
       <span class="gone__cmd">--port · --wait · --no-wait</span>
-      <span class="gone__to">The extension hard-codes <code>49227</code>, so another port was never reachable from Chrome. And <b>suggest</b> no longer waits at all.</span>
+      <span class="gone__to">Chrome only ever reaches <code>49227</code> and <code>49228</code>, so any other port was unreachable anyway — <b>serve</b> takes whichever of the two is free and <b>suggest</b> finds it. And <b>suggest</b> no longer waits at all.</span>
     </div>
   </div>
 
@@ -780,8 +780,8 @@ footer code { color: var(--ink-2); }
         <li class="step step--you">
           <span class="step__who">Setup</span>
           <span class="step__body">
-            <span class="step__cmd">tabbrew tabs serve &amp; + Auto mode on</span>
-            <span class="step__say">The bridge in a second shell, and the Auto switch in the sidepanel's <em>Send to Claude Code</em> card. That switch is what keeps the tabs arriving.</span>
+            <span class="step__cmd">tabbrew tabs serve &amp; + Connect in Chrome</span>
+            <span class="step__say">The bridge in a second shell, and the sidepanel's <em>Connect to TabBrew CLI</em> card left open. That screen is what keeps the tabs arriving.</span>
           </span>
         </li>
         <li class="step">
@@ -877,7 +877,7 @@ tabbrew tabs serve
 <section class="section" id="auto">
   <div class="section__head">
     <span class="eyebrow">03 · Turning it on</span>
-    <h2>Auto mode, from the human's side</h2>
+    <h2>Watching, from the human's side</h2>
     <p>
       The loop above is what the agent does. This is the other half — three things you set up
       once, and one decision you make each time a card appears.
@@ -901,9 +901,9 @@ tabbrew tabs serve
         <div class="setupcard">
           <span class="setupcard__n">2</span>
           <span class="setupcard__where">Chrome</span>
-          <span class="setupcard__do">Switch Auto mode on</span>
-          <span class="setupcard__cmd">sidepanel → Manage Tabs → Send to Claude Code</span>
-          <span class="setupcard__say">Flip the <b>Auto mode</b> switch on that card. <b>Keep the sidepanel open</b> — closing it pauses the whole stream.</span>
+          <span class="setupcard__do">Connect the sidepanel</span>
+          <span class="setupcard__cmd">sidepanel → Manage Tabs → Connect to TabBrew CLI</span>
+          <span class="setupcard__say">There is no switch — the card <i>is</i> the switch. <b>Stay on that screen</b>; leaving it stops the stream.</span>
           <span class="setupcard__ok">✓ tabs list starts showing fresh exports</span>
         </div>
 
@@ -977,16 +977,16 @@ tabbrew tabs serve
             <thead><tr><th>What you see</th><th>What's actually wrong</th></tr></thead>
             <tbody>
               <tr>
-                <td><code>nothing is listening on 127.0.0.1:49227</code></td>
+                <td><code>no bridge on 127.0.0.1:49227 or :49228</code></td>
                 <td>Step 1. The bridge isn't running, or that shell was closed.</td>
               </tr>
               <tr>
                 <td><code>tabs list</code> warns that the snapshot is stale</td>
-                <td>Step 2. Auto mode is off — or the sidepanel is closed, which pauses everything.</td>
+                <td>Step 2. The sidepanel is closed, or moved off the Connect screen — either stops the stream.</td>
               </tr>
               <tr>
                 <td><code>No rendered snapshot in this export</code></td>
-                <td>It arrived from the developer-mode panel, or an extension build predating auto mode. Send it from the sidepanel instead.</td>
+                <td>It arrived from the developer-mode panel, or an extension build predating the rendered snapshot. Send it from the sidepanel instead.</td>
               </tr>
             </tbody>
           </table>
@@ -1019,7 +1019,7 @@ tabbrew tabs serve
 <section class="section" id="bridge">
   <div class="section__head">
     <span class="eyebrow">04 · The bridge</span>
-    <h2>What actually crosses <code>127.0.0.1:49227</code></h2>
+    <h2>What actually crosses <code>127.0.0.1</code></h2>
     <p>
       <code>tabs serve</code> is a small HTTP server with five routes and no auth token — the
       loopback bind is the entire boundary. Protocol&nbsp;3 dropped every long poll: the extension
@@ -1348,7 +1348,7 @@ BOGUS 9</pre>
       </thead>
       <tbody>
         <tr><td><code>TABBREW_TOKEN</code></td><td>—</td><td>Authenticate in CI without an interactive login. Wins over the stored file.</td></tr>
-        <tr><td><code>TABBREW_SERVE_PORT</code></td><td><code>49227</code></td><td>Move the bridge, for tests. See the warning below — there is no <code>--port</code> flag.</td></tr>
+        <tr><td><code>TABBREW_SERVE_PORT</code></td><td><code>49227,49228</code></td><td>Pin one bridge port instead of scanning both, for tests. See the warning below — there is no <code>--port</code> flag.</td></tr>
         <tr><td><code>TABBREW_TABS_PATH</code></td><td><code>~/.config/tabbrew/tabs.json</code></td><td>Where <code>tabs serve</code> writes and <code>tabs list</code> reads.</td></tr>
         <tr><td><code>TABBREW_BASE_URL</code></td><td><code>www.tabbrew.com</code></td><td>Point the same binary at staging or a local server.</td></tr>
         <tr><td><code>TABBREW_NO_BROWSER</code></td><td>—</td><td>Print URLs instead of launching a browser (<code>login</code>, <code>docs open</code>).</td></tr>
@@ -1358,10 +1358,14 @@ BOGUS 9</pre>
   </div>
 
   <p class="callout">
-    <b>About that port.</b> The extension only ever talks to <b>49227</b> — it's baked into both
-    manifests' host permissions. That's why <code>--port</code> was removed rather than kept: a
-    bridge anywhere else is unreachable from Chrome, so the flag could only ever produce a bridge
-    that looked fine from the terminal and dead from the browser.
+    <b>About those ports.</b> The extension only ever talks to <b>49227</b> and <b>49228</b> —
+    both are baked into the manifests' host permissions. That's why <code>--port</code> was
+    removed rather than kept: a bridge anywhere else is unreachable from Chrome, so the flag
+    could only ever produce a bridge that looked fine from the terminal and dead from the
+    browser. <code>serve</code> takes whichever of the two is free and <code>suggest</code> finds
+    whichever is answering, so neither has to be told. A port that answers but can't prove it's a
+    bridge — <code>/health</code> returns <code>service: "tabbrew-bridge"</code> — is skipped
+    rather than adopted, which is what makes the second port safe to have.
   </p>
 </section>
 
@@ -1387,7 +1391,7 @@ BOGUS 9</pre>
 
 <footer>
   <div class="wrap row">
-    <span>Written by hand against <code>src/registry.ts</code> · tabbrew-cli <code>v0.7.0</code></span>
+    <span>Written by hand against <code>src/registry.ts</code> · tabbrew-cli <code>v0.8.0</code></span>
     <span>Command surface read from <code>src/registry.ts</code></span>
     <span><a href="https://github.com/colevels/tabbrew-cli">github.com/colevels/tabbrew-cli</a></span>
   </div>

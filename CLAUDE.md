@@ -5,10 +5,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Status: past the POC, deliberately small
 
 `v0.6.0` was the POC snapshot — the widest the command surface ever got, with eight
-`tabs` subcommands around a long-polling bridge. **v0.7.0 is the subtraction** (breaking):
+`tabs` subcommands around a long-polling bridge. **v0.8.0 is the subtraction** (breaking):
 `tabs watch`, `tabs push`, `tabs check`, `tabs history` and `tabs prompt` are gone, and so
 are the vendored simulator, the delta-log subsystem, the three skill variants, and every
 long poll.
+
+`0.7.0` is a version that only exists in the git history: the bump landed on `main` but
+was never tagged, so no user ever received it. Everything it did ships as part of 0.8.0 —
+which is why the jump users see is 0.6.0 → 0.8.0. Don't "restore" a v0.7.0 release; there
+is nothing it would contain that 0.8.0 doesn't.
 
 What's left is the loop those commands existed to serve, in three steps: the extension
 pushes tabs to the bridge (`tabs serve`), the agent reads them (`tabs list`), the agent
