@@ -2,27 +2,28 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Status: past the POC, deliberately small
+## The shape of this repo
 
-`v0.6.0` was the POC snapshot — the widest the command surface ever got, with eight
-`tabs` subcommands around a long-polling bridge. **v0.8.0 is the subtraction** (breaking):
-`tabs watch`, `tabs push`, `tabs check`, `tabs history` and `tabs prompt` are gone, and so
-are the vendored simulator, the delta-log subsystem, the three skill variants, and every
-long poll.
+The command surface is small on purpose, and it has shrunk more often than it has grown.
+The `tabs` half is one loop in three steps: the extension pushes tabs to the bridge
+(`tabs serve`), the agent reads them (`tabs list`), the agent proposes a script the user
+accepts or denies (`tabs suggest`).
 
-`0.7.0` is a version that only exists in the git history: the bump landed on `main` but
-was never tagged, so no user ever received it. Everything it did ships as part of 0.8.0 —
-which is why the jump users see is 0.6.0 → 0.8.0. Don't "restore" a v0.7.0 release; there
-is nothing it would contain that 0.8.0 doesn't.
-
-What's left is the loop those commands existed to serve, in three steps: the extension
-pushes tabs to the bridge (`tabs serve`), the agent reads them (`tabs list`), the agent
-proposes a script the user accepts or denies (`tabs suggest`). Claude Code's `/loop`
-already owns the pacing `tabs watch` was built for, so the CLI doesn't.
-
-The bias stays subtractive: prefer deleting a subsystem's docs along with its code over
+**The bias is subtractive.** Prefer deleting a subsystem's docs along with its code over
 leaving prose describing something that's gone, and treat `registry.ts` (plus `git log`)
 as the authority on what exists — not this file.
+
+**Don't reintroduce these.** Each was removed deliberately, and the reason is recorded
+where the replacement lives: `tabs watch` (Claude Code's `/loop` owns that pacing),
+`tabs push` and `tabs check` (folded into `tabs suggest`, which validates before it
+queues), `tabs history`, `tabs prompt`, the vendored simulator, the delta log, the three
+skill variants, and every long poll. Adding one back needs a reason that didn't exist in
+v0.8.0, not just a use for it.
+
+One release-history trap: **`0.7.0` was never tagged.** The bump landed on `main` but no
+user ever received it, and everything it did shipped as part of 0.8.0 — which is why the
+jump users see is 0.6.0 → 0.8.0. Don't "restore" a v0.7.0 release; there is nothing it
+would contain that 0.8.0 doesn't.
 
 ## What this is
 
@@ -348,7 +349,7 @@ is a **hand-written mirror** of this table — a card per command, coloured by h
 command reaches (offline / loopback / account / GitHub Releases). Nothing generates it and
 nothing tests it, so a new command, a *deleted* command, a renamed flag, or a reworded
 summary has to be carried over by hand or the page quietly goes stale. It was rewritten
-for v0.7.0 (the removed commands survive there only as a struck-through "what changed"
+for v0.8.0 (the removed commands survive there only as a struck-through "what changed"
 strip, which is the one thing a returning reader most needs). It is the only file in the
 repo that duplicates `registry.ts`; keep the duplication small enough to be worth it.
 
@@ -395,6 +396,7 @@ src/
   credentials.ts      # token storage (~/.config, chmod 600) + env-var override
   api.ts              # authed fetch wrapper + 401 handling + userinfo + html_files client
   update.ts           # self-update: release lookup, download+checksum, atomic binary swap
+  bridge.ts           # tabs: find the loopback bridge and prove it's ours (/health)
   util.ts             # sleep, which(), safeText, open-browser
   registry.ts         # command surface as data: groups, summaries, per-command flags, env tables
   registry.test.ts    # bun test — help fits 80 cols, groups intact, findCommand precedence

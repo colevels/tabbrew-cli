@@ -5,18 +5,6 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Bun](https://img.shields.io/badge/Bun-%E2%89%A5%201.1-000?logo=bun&logoColor=white)](https://bun.sh)
 
-> **Status: proof of concept.** `v0.6.0` was the high-water mark of the exploration;
-> `v0.8.0` is where the subtraction lands. **`tabs check`, `tabs push`, `tabs watch`,
-> `tabs history` and `tabs prompt` are gone**, and the `--port`, `--out` and `--variant`
-> flags with them — the tab surface is three commands now (`serve` / `list` / `suggest`).
-> `init` follows: it installs one skill instead of two, and deletes the orphaned
-> `tabbrew-auto` it finds. `docs`, `login`/`whoami`/`logout` and `update` are untouched. Pin
-> [`v0.6.0`](https://github.com/colevels/tabbrew-cli/releases/tag/v0.6.0) if you depend
-> on a command that disappeared; some of them may come back in a simpler shape.
->
-> (`0.7.0` exists in the git history but was never tagged, so it never reached anyone —
-> everything it changed ships here.)
-
 The command-line companion to **TabBrew** — it brings your TabBrew account to the
 terminal and to the AI coding agents working there.
 
@@ -37,6 +25,9 @@ This CLI does a few things:
 The payoff: an AI agent working in your repo generates a report as HTML and pushes it
 straight into your browser's Docs view — or reads your open tabs, writes a validated
 TabBrew Script, and puts it in the sidepanel for you to accept.
+
+The surface is small on purpose — four groups, and it has shrunk more often than it has
+grown ([what changed in v0.8.0](#what-changed-in-v080)).
 
 ## Commands
 
@@ -460,8 +451,8 @@ and send no `Origin`.
 The saved `tabs.json` is written **`chmod 600`**, like `credentials.json` — it holds the
 URL and title of every open tab, which is browsing history and doesn't become un-leaked
 the way a revoked token does. It is also the *only* thing the CLI keeps: it's overwritten
-on every export and holds just the currently-open tabs. (v0.6.0's `tabs-history.jsonl`
-delta log, which remembered tabs you had since closed, is gone along with `tabs history`.)
+on every export and holds just the currently-open tabs. (An earlier `tabs-history.jsonl`
+delta log, which remembered tabs you had since closed, is gone.)
 
 ## Docs view (`docs push` / `docs list`)
 
@@ -564,6 +555,32 @@ that resolves there), and `GET /suggestion` **pops** — the second call returns
 `tabbrew update --check` works from a source checkout, but the swap refuses to run there
 (it would overwrite `bun` itself) — test that against a compiled `dist/tabbrew`, with
 `TABBREW_REPO` / `TABBREW_RELEASE_URL` pointed at a fork.
+
+## What changed in v0.8.0
+
+`v0.8.0` is a **breaking** release, and the only one so far that removed more than it
+added. If you're coming from `v0.6.0`, this is the list:
+
+- **Five `tabs` commands are gone** — `tabs check`, `tabs push`, `tabs watch`,
+  `tabs history` and `tabs prompt` — leaving the three that are the loop:
+  `serve` / `list` / `suggest`.
+- **Three flags went with them:** `--port` (Chrome only reaches 49227/49228, so any
+  other value could only ever be wrong), `--out` (it moved the writer but not the two
+  readers; `TABBREW_TABS_PATH` moves all three), and `--variant` (there is one skill now).
+- **`init` installs one skill instead of two**, and **deletes an orphaned `tabbrew-auto`
+  directory** if it finds one — on install as well as `--uninstall` — because that skill
+  tells your agent to run `tabs watch`, which no longer exists. If you set this CLI up
+  before v0.8.0, re-run `tabbrew init` (add `--global` if that's how you installed it) so
+  the awareness doc and skill match the commands that actually exist.
+- Behind those: the vendored simulator, the `tabs-history.jsonl` delta log, and every long
+  poll in the bridge. `tabs suggest` returns as soon as the script is queued, and the
+  bridge speaks protocol 3 over five plain request/response routes.
+- **Untouched:** `docs push` / `list` / `open`, `login` / `whoami` / `logout`, and `update`.
+
+Pin [`v0.6.0`](https://github.com/colevels/tabbrew-cli/releases/tag/v0.6.0) if you depend on
+a command that disappeared; some of them may come back in a simpler shape. (`0.7.0` exists
+in the git history but was never tagged, so it never reached anyone — everything it changed
+shipped in `0.8.0`.)
 
 ## Credentials
 
