@@ -1,7 +1,7 @@
 {
   "name": "tabbrew-cli",
   "version": "0.8.0",
-  "description": "Push HTML docs into TabBrew from your terminal — a Bun + TypeScript CLI.",
+  "description": "The terminal half of TabBrew: read your Chrome tabs, propose a script, push HTML docs into the sidepanel — a Bun + TypeScript CLI.",
   "type": "module",
   "license": "MIT",
   "author": "Jiho",
