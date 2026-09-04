@@ -1,5 +1,7 @@
 # tabbrew-cli
 
+[![CI](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml)
+
 TabBrew CLI, built on Bun and commander.
 
 ## Run
