@@ -18,6 +18,15 @@ bun run build
 ./dist/tabbrew --version
 ```
 
+## Format & lint
+
+Biome handles formatting, linting, and import order (`biome.json`).
+
+```bash
+bun run check       # verify (what CI runs)
+bun run check:fix   # apply safe fixes
+```
+
 ## Session
 
 The session is a small HTTP server on `127.0.0.1` that will link this terminal
