@@ -26,7 +26,7 @@ export const LOG_PATH = join(STATE_DIR, "session.log")
 // baked into it.
 const compiled = Bun.main.includes("$bunfs") || Bun.main.includes("~BUN")
 
-export function selfArgv(...args: string[]): string[] {
+export function selfArgv(...args: string[]): [string, ...string[]] {
   return compiled ? [process.execPath, ...args] : [process.execPath, Bun.main, ...args]
 }
 

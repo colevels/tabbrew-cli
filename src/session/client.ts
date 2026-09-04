@@ -51,7 +51,7 @@ export function spawnDetached(): void {
   mkdirSync(STATE_DIR, { recursive: true })
   const log = openSync(LOG_PATH, "a")
   const [cmd, ...args] = selfArgv("session", "run")
-  const child = spawn(cmd!, args, {
+  const child = spawn(cmd, args, {
     detached: true,
     stdio: ["ignore", log, log],
   })

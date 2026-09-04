@@ -48,13 +48,11 @@ describe("session server", () => {
 
   test("POST /stop from a local process stops the server", async () => {
     let reason = ""
-    const stopped = new Promise<void>((resolve) => {
-      up(undefined, (why) => {
-        reason = why
-        resolve()
-      })
+    const { promise: stopped, resolve } = Promise.withResolvers<void>()
+    const server = up(undefined, (why) => {
+      reason = why
+      resolve()
     })
-    const server = servers[0]!
     const res = await fetch(url(server, "/stop"), { method: "POST" })
     expect(res.status).toBe(200)
     await stopped
