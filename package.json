@@ -1,0 +1,31 @@
+{
+  "name": "tabbrew-cli",
+  "version": "0.1.0",
+  "description": "TabBrew CLI",
+  "type": "module",
+  "license": "MIT",
+  "author": "Jiho",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/colevels/tabbrew-cli.git"
+  },
+  "bin": {
+    "tabbrew": "src/index.ts"
+  },
+  "engines": {
+    "bun": ">=1.1"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --compile --outfile dist/tabbrew",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "commander": "^15.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.1",
+    "typescript": "^7.0.2"
+  }
+}
