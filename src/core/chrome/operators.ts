@@ -50,7 +50,7 @@ export interface TabSnapshot {
   lastAccessed?: number
 }
 
-export interface BrowserSnapshot {
+export interface Snapshot {
   takenAt: number
   windows: WindowSnapshot[]
   groups: GroupSnapshot[]
@@ -79,7 +79,7 @@ export type GroupTarget =
   | { windowId: number; groupId?: never }
 
 export interface OperatorMap {
-  readSnapshot: { input: Record<string, never>; output: BrowserSnapshot }
+  readSnapshot: { input: Record<string, never>; output: Snapshot }
   closeTabs: { input: { tabIds: TabIds }; output: { tabIds: number[] } }
   updateTab: {
     input: { tabId: number; changes: TabChanges }
