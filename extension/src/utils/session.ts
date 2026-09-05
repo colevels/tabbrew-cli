@@ -1,12 +1,13 @@
+import { browser } from 'wxt/browser'
 import {
   DEFAULT_PORTS,
   discover as discoverOn,
   HOST,
   probe as probeOn,
   type SessionInfo,
-} from '../../src/core/session/protocol'
+} from '../../../src/core/session/protocol'
 
-export { DEFAULT_PORTS as PORTS, formatUptime, HOST } from '../../src/core/session/protocol'
+export { DEFAULT_PORTS as PORTS, formatUptime, HOST } from '../../../src/core/session/protocol'
 export type { SessionInfo }
 
 // Looser than the CLI's 400ms: Chrome adds its own latency, but a foreign
@@ -22,7 +23,7 @@ export const discover = (ports: readonly number[] = DEFAULT_PORTS): Promise<Sess
 
 export async function hasPermission(): Promise<boolean> {
   for (const origin of ORIGINS) {
-    if (await chrome.permissions.contains({ origins: [origin] })) return true
+    if (await browser.permissions.contains({ origins: [origin] })) return true
   }
   return false
 }
@@ -34,10 +35,10 @@ export async function ensurePermission(): Promise<boolean> {
   const granted: string[] = []
   const missing: string[] = []
   for (const origin of ORIGINS) {
-    if (await chrome.permissions.contains({ origins: [origin] })) granted.push(origin)
+    if (await browser.permissions.contains({ origins: [origin] })) granted.push(origin)
     else missing.push(origin)
   }
   if (missing.length === 0) return true
-  if (await chrome.permissions.request({ origins: missing })) return true
+  if (await browser.permissions.request({ origins: missing })) return true
   return granted.length > 0
 }

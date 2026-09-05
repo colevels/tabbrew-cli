@@ -4,8 +4,8 @@
 export const SERVICE = 'tabbrew-session'
 export const HOST = '127.0.0.1'
 
-// Mirrors optional_host_permissions in extension/manifest.json. Chrome cannot
-// reach a session on any other port, so change both or neither.
+// extension/wxt.config.ts turns these into the manifest's
+// optional_host_permissions, so Chrome cannot reach a session anywhere else.
 export const DEFAULT_PORTS: readonly number[] = [49227, 49228]
 
 export interface SessionInfo {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { VERSION } from '../../src/core/session/config'
-import { createServer, type SessionServer } from '../../src/core/session/server'
+import { VERSION } from '../../../src/core/session/config'
+import { createServer, type SessionServer } from '../../../src/core/session/server'
 import { discover, probe } from './session'
 
 const sessions: SessionServer[] = []

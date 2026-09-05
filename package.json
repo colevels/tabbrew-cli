@@ -18,12 +18,15 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --compile --outfile dist/tabbrew",
-    "build:ext": "bun run extension/build.ts",
+    "build:ext": "wxt build extension",
+    "dev:ext": "wxt extension",
+    "zip:ext": "wxt zip extension",
     "typecheck": "tsc --noEmit && tsc --noEmit -p extension",
     "test": "bun test",
     "format": "biome format --write .",
     "check": "biome check .",
-    "check:fix": "biome check --write ."
+    "check:fix": "biome check --write .",
+    "postinstall": "wxt prepare extension"
   },
   "dependencies": {
     "commander": "^15.0.0"
@@ -31,7 +34,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
     "@types/bun": "^1.4.1",
-    "@types/chrome": "^0.2.9",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "wxt": "0.21.4"
   }
 }

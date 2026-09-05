@@ -1,3 +1,4 @@
+import { browser } from 'wxt/browser'
 import {
   discover,
   ensurePermission,
@@ -6,7 +7,7 @@ import {
   hasPermission,
   PORTS,
   type SessionInfo,
-} from './session'
+} from '../../utils/session'
 
 // Well inside the session's idle window, so an open panel keeps it alive.
 const POLL_MS = 3_000
@@ -44,7 +45,7 @@ function render(session: SessionInfo | null): void {
   el('version').textContent = `v${session.version}`
   el('uptime').textContent = formatUptime(session.uptimeMs)
 
-  const mine = chrome.runtime.getManifest().version
+  const mine = browser.runtime.getManifest().version
   const mismatch = el('mismatch')
   mismatch.hidden = session.version === mine
   mismatch.textContent = `This panel is v${mine}; the session was started by tabbrew v${session.version}.`

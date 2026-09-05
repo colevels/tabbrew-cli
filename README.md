@@ -58,17 +58,22 @@ Environment overrides, mainly for tests:
 
 ## Extension
 
-`extension/` is a minimal Manifest V3 side panel that connects Chrome to the
-session. The open panel *is* the connection: while it is open it polls
-`GET /health` every 3 seconds and shows what it finds; close it and nothing
-runs. There is deliberately no background polling.
+`extension/` is a minimal Manifest V3 side panel, built with
+[WXT](https://wxt.dev), that connects Chrome to the session. The open panel
+*is* the connection: while it is open it polls `GET /health` every 3 seconds
+and shows what it finds; close it and nothing runs. There is deliberately no
+background polling.
 
 ```bash
-bun run build:ext              # bundle to extension/dist
+bun run build:ext              # production build to extension/dist/chrome-mv3
+bun run dev:ext                # dev build with live reload
+bun run zip:ext                # build and zip for the store
 ```
 
 Load it once: `chrome://extensions` → Developer mode → Load unpacked →
-`extension/dist`. Click the toolbar icon to open the panel.
+`extension/dist/chrome-mv3`. Click the toolbar icon to open the panel.
+`bun install` runs `wxt prepare`, which generates the TypeScript config in
+`extension/.wxt/`; both that and `dist/` are ignored by git.
 
 | Panel shows | Meaning |
 | --- | --- |
@@ -78,7 +83,8 @@ Load it once: `chrome://extensions` → Developer mode → Load unpacked →
 
 The ports and the `service: "tabbrew-session"` marker the panel checks live in
 `src/core/session/protocol.ts`, which both the CLI and the extension import, so
-the two sides cannot drift apart.
+the two sides cannot drift apart. `extension/wxt.config.ts` also derives the
+manifest's `optional_host_permissions` from that list.
 
 ## Init
 
@@ -105,23 +111,22 @@ one top-level verb. `src/core/` holds the logic behind them and never imports
 from `src/commands/`, so it can be tested without going through the CLI.
 
 ```
-src/index.ts                        root program, registers nouns
-src/commands/<noun>/index.ts        new Command("<noun>") + addCommand(each verb)
-src/commands/<noun>/<verb>.ts       one verb = one exported Command
-src/commands/init/index.ts          the init verb, writes the agent cheat sheet
-src/core/<module>/index.ts          public surface of a core module
-src/core/session/protocol.ts        wire contract shared with the extension: ports, marker, probe
-src/core/session/config.ts          timeouts, paths, env overrides, how the CLI re-runs itself
-src/core/session/server.ts          the loopback server (/health, /stop, idle exit)
-src/core/session/client.ts          find, spawn, wait for, and stop a session
-src/core/session/format.ts          one-line description of a session
-src/core/agent-docs/block.ts        find, replace and remove the marker-fenced block
-src/core/agent-docs/targets.ts      which agent doc files exist and which to create
-src/core/agent-docs/cheatsheet.ts   render the block from config + commander metadata
-src/core/agent-docs/install.ts      write and remove the block on disk
-extension/manifest.json             MV3 side panel; optional host permissions for the two ports
-extension/src/sidepanel.ts          the connection: polls the session while the panel is open
-extension/src/session.ts            permission helpers around the shared probe
-extension/src/background.ts         only makes the toolbar icon open the panel
-extension/build.ts                  Bun.build to extension/dist, stamps the CLI version
+src/index.ts                                 root program, registers nouns
+src/commands/<noun>/index.ts                 new Command("<noun>") + addCommand(each verb)
+src/commands/<noun>/<verb>.ts                one verb = one exported Command
+src/commands/init/index.ts                   the init verb, writes the agent cheat sheet
+src/core/<module>/index.ts                   public surface of a core module
+src/core/session/protocol.ts                 wire contract shared with the extension: ports, marker, probe
+src/core/session/config.ts                   timeouts, paths, env overrides, how the CLI re-runs itself
+src/core/session/server.ts                   the loopback server (/health, /stop, idle exit)
+src/core/session/client.ts                   find, spawn, wait for, and stop a session
+src/core/session/format.ts                   one-line description of a session
+src/core/agent-docs/block.ts                 find, replace and remove the marker-fenced block
+src/core/agent-docs/targets.ts               which agent doc files exist and which to create
+src/core/agent-docs/cheatsheet.ts            render the block from config + commander metadata
+src/core/agent-docs/install.ts               write and remove the block on disk
+extension/wxt.config.ts                      WXT config; manifest with the CLI version and the two ports' host permissions
+extension/src/entrypoints/sidepanel/main.ts  the connection: polls the session while the panel is open
+extension/src/entrypoints/background.ts      only makes the toolbar icon open the panel
+extension/src/utils/session.ts               permission helpers around the shared probe
 ```
