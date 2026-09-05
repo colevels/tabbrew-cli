@@ -5,47 +5,21 @@ import {
   LOG_PATH,
   PORTS,
   PROBE_TIMEOUT_MS,
-  SERVICE,
   SPAWN_WAIT_MS,
   STATE_DIR,
   STOP_WAIT_MS,
   selfArgv,
 } from './config'
+import type { SessionInfo } from './protocol'
+import * as protocol from './protocol'
 
-export interface SessionInfo {
-  port: number
-  pid: number
-  version: string
-  uptimeMs: number
-}
+export type { SessionInfo } from './protocol'
 
-export async function probe(port: number): Promise<SessionInfo | null> {
-  try {
-    const res = await fetch(`http://${HOST}:${port}/health`, {
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
-    })
-    if (!res.ok) return null
-    const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
-    // Something else answering on our port is not our session.
-    if (body?.service !== SERVICE) return null
-    return {
-      port,
-      pid: Number(body.pid),
-      version: String(body.version ?? ''),
-      uptimeMs: Number(body.uptimeMs ?? 0),
-    }
-  } catch {
-    return null
-  }
-}
+export const probe = (port: number): Promise<SessionInfo | null> =>
+  protocol.probe(port, PROBE_TIMEOUT_MS)
 
-export async function discover(): Promise<SessionInfo | null> {
-  for (const port of PORTS) {
-    const found = await probe(port)
-    if (found) return found
-  }
-  return null
-}
+export const discover = (): Promise<SessionInfo | null> =>
+  protocol.discover(PORTS, PROBE_TIMEOUT_MS)
 
 export function spawnDetached(): void {
   mkdirSync(STATE_DIR, { recursive: true })

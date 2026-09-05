@@ -33,6 +33,9 @@ export function createServer(
       const { pathname } = new URL(req.url)
 
       if (req.method === 'GET' && pathname === '/health') {
+        // A shell `status` poll must not keep a session nobody needs alive;
+        // an open extension panel polling from the browser is someone using it.
+        if (!fromShell(req)) lastUsed = Date.now()
         return json({
           service: SERVICE,
           version: VERSION,
@@ -48,8 +51,6 @@ export function createServer(
         return json({ ok: true })
       }
 
-      // Health polls do not count as use, or `status` alone would keep a
-      // session nobody needs alive forever.
       lastUsed = Date.now()
       return json({ error: 'not_found' }, 404)
     },

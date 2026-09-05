@@ -1,14 +1,11 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import pkg from '../../../package.json'
+import { DEFAULT_PORTS } from './protocol'
+
+export { HOST, SERVICE } from './protocol'
 
 export const VERSION: string = pkg.version
-export const SERVICE = 'tabbrew-session'
-export const HOST = '127.0.0.1'
-
-// The only two loopback ports the TabBrew extension's manifest lets Chrome
-// reach. A session anywhere else is invisible to the browser.
-const DEFAULT_PORTS: readonly number[] = [49227, 49228]
 
 export const PORTS: readonly number[] =
   parsePorts(process.env.TABBREW_SESSION_PORTS) ?? DEFAULT_PORTS
