@@ -10,7 +10,7 @@ command, so the protocol between the two can be exercised end to end in a real
 Chrome before it is considered done. Today that is the session handshake: the
 panel finds a `tabbrew session` on `127.0.0.1:49227` or `:49228`, polls
 `GET /health`, and shows what it finds. Next come command channels such as
-`tabbrew chrome tabs list`, which will land here together with the CLI verb.
+`tabbrew tabs list`, which will land here together with the CLI verb.
 
 The shared wire contract lives in `src/core/session/protocol.ts` and is imported
 by both the CLI and this extension, so the two sides cannot drift apart.

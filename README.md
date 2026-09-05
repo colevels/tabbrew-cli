@@ -62,7 +62,7 @@ Environment overrides, mainly for tests:
 
 `extension/` is the development harness for the CLI's browser side, not the
 TabBrew product extension. Browser-facing features land here paired with their
-CLI command (the session handshake today; `tabbrew chrome tabs list` and the
+CLI command (the session handshake today; `tabbrew tabs list` and the
 like next) so the protocol can be exercised end to end in a real Chrome. The
 product extension moves to its own repository once that protocol is stable; see
 `extension/README.md`.
