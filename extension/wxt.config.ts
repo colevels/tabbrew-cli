@@ -21,6 +21,7 @@ export default defineConfig({
     version_name: `${pkg.version} (harness)`,
     homepage_url: repoUrl,
     minimum_chrome_version: '114',
+    permissions: ['tabs', 'tabGroups'],
     optional_host_permissions: DEFAULT_PORTS.map((port) => `http://${HOST}:${port}/*`),
     action: { default_title: 'TabBrew CLI Harness' },
   },
