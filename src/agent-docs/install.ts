@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs"
-import { dirname, isAbsolute, join, relative, resolve } from "node:path"
-import { inject, remove } from "./block"
-import { type Agent, discover, header, resolveTargets, type Targets } from "./targets"
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { inject, remove } from './block'
+import { type Agent, discover, header, resolveTargets, type Targets } from './targets'
 
 export type InstallOptions = { agent?: Agent; paths?: string[] }
 
@@ -22,7 +22,7 @@ export function uninstall(cwd: string): Removal {
     const rest = remove(read(cwd, rel))
     if (rest === null) continue
     // A file that only ever held our header and block was ours to begin with.
-    if (rest.trim() === "" || rest.trim() === header(rel)) {
+    if (rest.trim() === '' || rest.trim() === header(rel)) {
       unlinkSync(join(cwd, rel))
       result.deleted.push(rel)
     } else {
@@ -40,7 +40,7 @@ function explicit(cwd: string, paths: string[]): Targets {
   const targets: Targets = { inject: [], create: [] }
   for (const p of paths) {
     const rel = relative(cwd, resolve(cwd, p))
-    if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
+    if (!rel || rel.startsWith('..') || isAbsolute(rel)) {
       throw new Error(`agent docs path must stay inside ${cwd}: ${p}`)
     }
     const list = existsSync(join(cwd, rel)) ? targets.inject : targets.create
@@ -50,7 +50,7 @@ function explicit(cwd: string, paths: string[]): Targets {
 }
 
 function read(cwd: string, rel: string): string {
-  return readFileSync(join(cwd, rel), "utf8")
+  return readFileSync(join(cwd, rel), 'utf8')
 }
 
 function write(cwd: string, rel: string, content: string): void {

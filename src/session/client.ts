@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process"
-import { mkdirSync, openSync } from "node:fs"
+import { spawn } from 'node:child_process'
+import { mkdirSync, openSync } from 'node:fs'
 import {
   HOST,
   LOG_PATH,
@@ -10,7 +10,7 @@ import {
   STATE_DIR,
   STOP_WAIT_MS,
   selfArgv,
-} from "./config"
+} from './config'
 
 export interface SessionInfo {
   port: number
@@ -31,7 +31,7 @@ export async function probe(port: number): Promise<SessionInfo | null> {
     return {
       port,
       pid: Number(body.pid),
-      version: String(body.version ?? ""),
+      version: String(body.version ?? ''),
       uptimeMs: Number(body.uptimeMs ?? 0),
     }
   } catch {
@@ -49,11 +49,11 @@ export async function discover(): Promise<SessionInfo | null> {
 
 export function spawnDetached(): void {
   mkdirSync(STATE_DIR, { recursive: true })
-  const log = openSync(LOG_PATH, "a")
-  const [cmd, ...args] = selfArgv("session", "run")
+  const log = openSync(LOG_PATH, 'a')
+  const [cmd, ...args] = selfArgv('session', 'run')
   const child = spawn(cmd, args, {
     detached: true,
-    stdio: ["ignore", log, log],
+    stdio: ['ignore', log, log],
   })
   child.unref()
 }
@@ -71,7 +71,7 @@ export async function waitForSession(ms = SPAWN_WAIT_MS): Promise<SessionInfo | 
 export async function stopSession(session: SessionInfo): Promise<boolean> {
   try {
     await fetch(`http://${HOST}:${session.port}/stop`, {
-      method: "POST",
+      method: 'POST',
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     })
   } catch {

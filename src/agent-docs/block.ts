@@ -1,5 +1,5 @@
-export const MARKER_START = "<!-- TABBREW:START -->"
-export const MARKER_END = "<!-- TABBREW:END -->"
+export const MARKER_START = '<!-- TABBREW:START -->'
+export const MARKER_END = '<!-- TABBREW:END -->'
 
 type Span = { start: number; end: number }
 
@@ -37,5 +37,5 @@ export function remove(content: string): string | null {
   const before = content.slice(0, span.start).trimEnd()
   const after = content.slice(span.end).trim()
   const parts = [before, after].filter(Boolean)
-  return parts.length ? `${parts.join("\n\n")}\n` : ""
+  return parts.length ? `${parts.join('\n\n')}\n` : ''
 }

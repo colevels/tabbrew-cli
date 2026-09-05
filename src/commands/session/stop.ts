@@ -1,11 +1,11 @@
-import { Command } from "commander"
-import { discover, stopSession } from "../../session/client"
-import { HOST } from "../../session/config"
+import { Command } from 'commander'
+import { discover, stopSession } from '../../session/client'
+import { HOST } from '../../session/config'
 
-export const stop = new Command("stop").description("Stop the running session").action(async () => {
+export const stop = new Command('stop').description('Stop the running session').action(async () => {
   const session = await discover()
   if (!session) {
-    console.log("no session running")
+    console.log('no session running')
     return
   }
   const where = `${HOST}:${session.port} · pid ${session.pid}`

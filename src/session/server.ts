@@ -1,4 +1,4 @@
-import { HOST, IDLE_EXIT_MS, SERVICE, VERSION } from "./config"
+import { HOST, IDLE_EXIT_MS, SERVICE, VERSION } from './config'
 
 export interface SessionServer {
   port: number
@@ -13,10 +13,10 @@ export interface ServerOptions {
 // A browser stamps Sec-Fetch-* on every request and page script cannot strip
 // them, so their absence means a local process. Only those may stop us.
 const fromShell = (req: Request): boolean =>
-  !req.headers.has("sec-fetch-site") && req.headers.get("origin") === null
+  !req.headers.has('sec-fetch-site') && req.headers.get('origin') === null
 
 const json = (body: unknown, status = 200): Response =>
-  Response.json(body, { status, headers: { "x-tabbrew-version": VERSION } })
+  Response.json(body, { status, headers: { 'x-tabbrew-version': VERSION } })
 
 export function createServer(
   port: number,
@@ -32,7 +32,7 @@ export function createServer(
     fetch(req, self): Response {
       const { pathname } = new URL(req.url)
 
-      if (req.method === "GET" && pathname === "/health") {
+      if (req.method === 'GET' && pathname === '/health') {
         return json({
           service: SERVICE,
           version: VERSION,
@@ -42,16 +42,16 @@ export function createServer(
         })
       }
 
-      if (req.method === "POST" && pathname === "/stop") {
-        if (!fromShell(req)) return json({ error: "forbidden" }, 403)
-        setTimeout(() => void stop("stop requested"), 0)
+      if (req.method === 'POST' && pathname === '/stop') {
+        if (!fromShell(req)) return json({ error: 'forbidden' }, 403)
+        setTimeout(() => void stop('stop requested'), 0)
         return json({ ok: true })
       }
 
       // Health polls do not count as use, or `status` alone would keep a
       // session nobody needs alive forever.
       lastUsed = Date.now()
-      return json({ error: "not_found" }, 404)
+      return json({ error: 'not_found' }, 404)
     },
   })
 
@@ -73,7 +73,7 @@ export function createServer(
 }
 
 const isAddrInUse = (e: unknown): boolean =>
-  typeof e === "object" && e !== null && (e as { code?: string }).code === "EADDRINUSE"
+  typeof e === 'object' && e !== null && (e as { code?: string }).code === 'EADDRINUSE'
 
 export function listen(ports: readonly number[], options: ServerOptions = {}): SessionServer {
   for (const port of ports) {
@@ -83,5 +83,5 @@ export function listen(ports: readonly number[], options: ServerOptions = {}): S
       if (!isAddrInUse(e)) throw e
     }
   }
-  throw new Error(`every port is taken: ${ports.map((p) => `${HOST}:${p}`).join(", ")}`)
+  throw new Error(`every port is taken: ${ports.map((p) => `${HOST}:${p}`).join(', ')}`)
 }

@@ -1,5 +1,5 @@
-import type { SessionInfo } from "./client"
-import { HOST, VERSION } from "./config"
+import type { SessionInfo } from './client'
+import { HOST, VERSION } from './config'
 
 export function describe(session: SessionInfo, state: string): string {
   const line = `session ${state} on ${HOST}:${session.port} · pid ${session.pid} · v${session.version} · up ${uptime(session.uptimeMs)}`
