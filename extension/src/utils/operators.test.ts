@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { type Browser, browser } from 'wxt/browser'
-import type { OperatorInput } from '../../../src/core/chrome/operators'
+import type { OperatorInput } from '../../../src/core/operators/contract'
 import { type ChromeApi, createOperators } from './operators'
 
 // The panel hands `browser` in; keep it assignable.
