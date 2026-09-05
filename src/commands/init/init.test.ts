@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pkg from '../../../package.json'
-import { MARKER_END, MARKER_START } from '../../agent-docs/block'
+import { MARKER_END, MARKER_START } from '../../core/agent-docs'
 
 const entry = join(import.meta.dir, '../../index.ts')
 let dir = ''

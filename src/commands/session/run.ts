@@ -1,8 +1,5 @@
 import { Command } from 'commander'
-import { discover } from '../../session/client'
-import { HOST, PORTS, VERSION } from '../../session/config'
-import { describe } from '../../session/format'
-import { listen } from '../../session/server'
+import { describe, discover, HOST, listen, PORTS, VERSION } from '../../core/session'
 
 export const run = new Command('run')
   .description('Run the session in the foreground (what `start` launches)')

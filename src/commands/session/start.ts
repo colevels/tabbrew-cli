@@ -1,7 +1,14 @@
 import { Command } from 'commander'
-import { discover, spawnDetached, waitForSession } from '../../session/client'
-import { HOST, LOG_PATH, PORTS, SPAWN_WAIT_MS } from '../../session/config'
-import { describe } from '../../session/format'
+import {
+  describe,
+  discover,
+  HOST,
+  LOG_PATH,
+  PORTS,
+  SPAWN_WAIT_MS,
+  spawnDetached,
+  waitForSession,
+} from '../../core/session'
 
 export const start = new Command('start')
   .description('Start the session in the background (no-op if one is running)')

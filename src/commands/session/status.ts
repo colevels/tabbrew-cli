@@ -1,7 +1,5 @@
 import { Command } from 'commander'
-import { discover } from '../../session/client'
-import { HOST, PORTS, VERSION } from '../../session/config'
-import { describe } from '../../session/format'
+import { describe, discover, HOST, PORTS, VERSION } from '../../core/session'
 
 export const status = new Command('status')
   .description('Show whether a session is running (exit 1 if not)')

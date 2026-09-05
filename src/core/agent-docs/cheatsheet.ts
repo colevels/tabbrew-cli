@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import type { Command } from 'commander'
-import pkg from '../../package.json'
-import { HOST, IDLE_EXIT_MS, LOG_PATH, PORTS } from '../session/config'
+import pkg from '../../../package.json'
+import { HOST, IDLE_EXIT_MS, LOG_PATH, PORTS } from '../session'
 import { MARKER_END, MARKER_START } from './block'
 
 export function render(program: Command): string {

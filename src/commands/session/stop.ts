@@ -1,6 +1,5 @@
 import { Command } from 'commander'
-import { discover, stopSession } from '../../session/client'
-import { HOST } from '../../session/config'
+import { discover, HOST, stopSession } from '../../core/session'
 
 export const stop = new Command('stop').description('Stop the running session').action(async () => {
   const session = await discover()

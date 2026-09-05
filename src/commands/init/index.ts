@@ -1,7 +1,5 @@
 import { Command, Option } from 'commander'
-import { render } from '../../agent-docs/cheatsheet'
-import { install, uninstall } from '../../agent-docs/install'
-import { AGENTS, type Agent } from '../../agent-docs/targets'
+import { AGENTS, type Agent, install, render, uninstall } from '../../core/agent-docs'
 
 type Opts = { agent?: Agent; path?: string[]; remove?: boolean; print?: boolean }
 

@@ -75,19 +75,21 @@ commands, so it cannot drift; re-run `init` after upgrading the CLI.
 ## Layout
 
 Commands are organised as noun folders with one verb per file; `init` is the
-one top-level verb.
+one top-level verb. `src/core/` holds the logic behind them and never imports
+from `src/commands/`, so it can be tested without going through the CLI.
 
 ```
-src/index.ts                   root program, registers nouns
-src/commands/<noun>/index.ts   new Command("<noun>") + addCommand(each verb)
-src/commands/<noun>/<verb>.ts  one verb = one exported Command
-src/commands/init/index.ts     the init verb, writes the agent cheat sheet
-src/session/config.ts          ports, timeouts, paths, how the CLI re-runs itself
-src/session/server.ts          the loopback server (/health, /stop, idle exit)
-src/session/client.ts          find, spawn, wait for, and stop a session
-src/session/format.ts          one-line description of a session
-src/agent-docs/block.ts        find, replace and remove the marker-fenced block
-src/agent-docs/targets.ts      which agent doc files exist and which to create
-src/agent-docs/cheatsheet.ts   render the block from config + commander metadata
-src/agent-docs/install.ts      write and remove the block on disk
+src/index.ts                        root program, registers nouns
+src/commands/<noun>/index.ts        new Command("<noun>") + addCommand(each verb)
+src/commands/<noun>/<verb>.ts       one verb = one exported Command
+src/commands/init/index.ts          the init verb, writes the agent cheat sheet
+src/core/<module>/index.ts          public surface of a core module
+src/core/session/config.ts          ports, timeouts, paths, how the CLI re-runs itself
+src/core/session/server.ts          the loopback server (/health, /stop, idle exit)
+src/core/session/client.ts          find, spawn, wait for, and stop a session
+src/core/session/format.ts          one-line description of a session
+src/core/agent-docs/block.ts        find, replace and remove the marker-fenced block
+src/core/agent-docs/targets.ts      which agent doc files exist and which to create
+src/core/agent-docs/cheatsheet.ts   render the block from config + commander metadata
+src/core/agent-docs/install.ts      write and remove the block on disk
 ```
