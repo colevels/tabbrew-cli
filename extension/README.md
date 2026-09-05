@@ -17,6 +17,10 @@ by both the CLI and this extension, so the two sides cannot drift apart.
 `wxt.config.ts` derives the manifest's `optional_host_permissions` from the same
 port list.
 
+The panel is a React app (`@wxt-dev/module-react`) with explicit imports; WXT
+auto-imports are off. Each panel state is a component in
+`src/entrypoints/sidepanel/App.tsx`.
+
 ## What it is not
 
 - Not the product. The real TabBrew extension will live in its own repository

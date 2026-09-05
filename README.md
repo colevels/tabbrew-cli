@@ -67,8 +67,8 @@ like next) so the protocol can be exercised end to end in a real Chrome. The
 product extension moves to its own repository once that protocol is stable; see
 `extension/README.md`.
 
-It is a minimal Manifest V3 side panel, built with [WXT](https://wxt.dev), that
-connects Chrome to the session. The open panel *is* the connection: while it is
+It is a minimal Manifest V3 side panel, built with [WXT](https://wxt.dev) and
+React, that connects Chrome to the session. The open panel *is* the connection: while it is
 open it polls `GET /health` every 3 seconds and shows what it finds; close it
 and nothing runs. There is deliberately no background polling.
 
@@ -135,7 +135,8 @@ src/core/agent-docs/cheatsheet.ts            render the block from config + comm
 src/core/agent-docs/install.ts               write and remove the block on disk
 extension/README.md                          why the extension exists: CLI harness, not the product
 extension/wxt.config.ts                      WXT config; harness manifest with the CLI version and the two ports' host permissions
-extension/src/entrypoints/sidepanel/main.ts  the connection: polls the session while the panel is open
+extension/src/entrypoints/sidepanel/App.tsx  the connection: polls the session while the panel is open
+extension/src/entrypoints/sidepanel/main.tsx mounts App into sidepanel.html
 extension/src/entrypoints/background.ts      only makes the toolbar icon open the panel
 extension/src/utils/session.ts               permission helpers around the shared probe
 ```

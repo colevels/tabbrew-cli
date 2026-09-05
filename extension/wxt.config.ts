@@ -6,6 +6,7 @@ const repoUrl = pkg.repository.url.replace(/^git\+/, '').replace(/\.git$/, '')
 
 export default defineConfig({
   srcDir: 'src',
+  modules: ['@wxt-dev/module-react'],
   // Finder cannot pick a dot-directory in "Load unpacked", so not `.output`.
   outDir: 'dist',
   imports: false,

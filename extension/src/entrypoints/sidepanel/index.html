@@ -3,39 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <title>TabBrew CLI Harness</title>
-    <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <h1><span id="dot" class="dot"></span>TabBrew CLI Harness</h1>
-    <p class="muted">Development harness for the tabbrew CLI. Not the product extension.</p>
-
-    <section id="permission" hidden>
-      <p>Allow this panel to reach the tabbrew CLI on <code>127.0.0.1</code>.</p>
-      <button id="connect" type="button">Connect to TabBrew CLI</button>
-    </section>
-
-    <section id="missing" hidden>
-      <p>No session on <span id="ports"></span>. Start one from a terminal:</p>
-      <pre>tabbrew session start</pre>
-      <p class="muted">This panel checks again every few seconds.</p>
-    </section>
-
-    <section id="connected" hidden>
-      <dl>
-        <dt>Address</dt>
-        <dd id="address"></dd>
-        <dt>PID</dt>
-        <dd id="pid"></dd>
-        <dt>CLI</dt>
-        <dd id="version"></dd>
-        <dt>Uptime</dt>
-        <dd id="uptime"></dd>
-      </dl>
-      <p id="mismatch" class="muted" hidden></p>
-      <p class="muted">The session stays alive while this panel is open.</p>
-    </section>
-
-    <p id="checked" class="muted" hidden></p>
-    <script type="module" src="./main.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
   </body>
 </html>
