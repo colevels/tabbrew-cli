@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml)
 
-TabBrew CLI, built on Bun and commander.
+TabBrew CLI, built on Bun and commander. The repo also holds `extension/`, a
+Chrome side-panel **harness** used to develop and test the CLI's browser
+protocol; the TabBrew product extension lives in its own repository.
 
 ## Run
 
@@ -56,18 +58,24 @@ Environment overrides, mainly for tests:
 | `TABBREW_SESSION_IDLE_MS` | idle time before the session exits |
 | `TABBREW_SESSION_DIR` | where `session.log` is written |
 
-## Extension
+## Harness extension
 
-`extension/` is a minimal Manifest V3 side panel, built with
-[WXT](https://wxt.dev), that connects Chrome to the session. The open panel
-*is* the connection: while it is open it polls `GET /health` every 3 seconds
-and shows what it finds; close it and nothing runs. There is deliberately no
-background polling.
+`extension/` is the development harness for the CLI's browser side, not the
+TabBrew product extension. Browser-facing features land here paired with their
+CLI command (the session handshake today; `tabbrew chrome tabs list` and the
+like next) so the protocol can be exercised end to end in a real Chrome. The
+product extension moves to its own repository once that protocol is stable; see
+`extension/README.md`.
+
+It is a minimal Manifest V3 side panel, built with [WXT](https://wxt.dev), that
+connects Chrome to the session. The open panel *is* the connection: while it is
+open it polls `GET /health` every 3 seconds and shows what it finds; close it
+and nothing runs. There is deliberately no background polling.
 
 ```bash
 bun run build:ext              # production build to extension/dist/chrome-mv3
 bun run dev:ext                # dev build with live reload
-bun run zip:ext                # build and zip for the store
+bun run zip:ext                # zip a loadable build to hand to someone
 ```
 
 Load it once: `chrome://extensions` → Developer mode → Load unpacked →
@@ -125,7 +133,8 @@ src/core/agent-docs/block.ts                 find, replace and remove the marker
 src/core/agent-docs/targets.ts               which agent doc files exist and which to create
 src/core/agent-docs/cheatsheet.ts            render the block from config + commander metadata
 src/core/agent-docs/install.ts               write and remove the block on disk
-extension/wxt.config.ts                      WXT config; manifest with the CLI version and the two ports' host permissions
+extension/README.md                          why the extension exists: CLI harness, not the product
+extension/wxt.config.ts                      WXT config; harness manifest with the CLI version and the two ports' host permissions
 extension/src/entrypoints/sidepanel/main.ts  the connection: polls the session while the panel is open
 extension/src/entrypoints/background.ts      only makes the toolbar icon open the panel
 extension/src/utils/session.ts               permission helpers around the shared probe
