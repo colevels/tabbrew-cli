@@ -7,10 +7,13 @@ TabBrew product extension.
 
 Every browser-facing feature of the CLI is implemented here in lockstep with its
 command, so the protocol between the two can be exercised end to end in a real
-Chrome before it is considered done. Today that is the session handshake: the
-panel finds a `tabbrew session` on `127.0.0.1:49227` or `:49228`, polls
-`GET /health`, and shows what it finds. Next come command channels such as
-`tabbrew tabs list`, which will land here together with the CLI verb.
+Chrome before it is considered done. Today that is the session handshake and the
+command channel behind `tabbrew tabs list`: the panel finds a `tabbrew session`
+on `127.0.0.1:49227` or `:49228`, polls `GET /health`, and while a session
+answers it holds a long-poll on `GET /requests/next`, runs each request it
+claims against `chrome.*` (`src/utils/operators.ts`), and posts the result to
+`POST /requests/<id>/result`. The verbs that change tabs come next, each with
+its CLI command.
 
 The shared wire contract lives in `src/core/session/protocol.ts` and is imported
 by both the CLI and this extension, so the two sides cannot drift apart.
@@ -29,9 +32,10 @@ auto-imports are off. Each panel state is a component in
 
 ## Design rule
 
-The open side panel *is* the connection. While it is open it polls the session;
-close it and nothing runs. There is deliberately no background polling, and the
-service worker only makes the toolbar icon open the panel.
+The open side panel *is* the connection. While it is open it polls the session
+and serves its commands; close it and nothing runs. There is deliberately no
+background polling: the long-poll is held by the panel page, never the worker,
+and the service worker only makes the toolbar icon open the panel.
 
 ## Build and load
 
@@ -43,4 +47,4 @@ bun run dev:ext     # dev build with live reload
 Then `chrome://extensions` → Developer mode → Load unpacked →
 `extension/dist/chrome-mv3`. Click the toolbar icon to open the panel. The
 panel-state table and the session commands are in the root README under
-"Harness extension" and "Session".
+"Harness extension", "Session" and "Tabs".

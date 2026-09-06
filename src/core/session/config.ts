@@ -15,6 +15,15 @@ export const PROBE_TIMEOUT_MS = 400
 export const SPAWN_WAIT_MS = 4_000
 export const STOP_WAIT_MS = 3_000
 
+// How long a call waits for a panel to claim it, how long a claimed call
+// waits for its result, and how long the panel's poll is held open.
+export const CLAIM_WAIT_MS = parseMs(process.env.TABBREW_SESSION_CLAIM_WAIT_MS) ?? 2_000
+export const OPERATOR_TIMEOUT_MS =
+  parseMs(process.env.TABBREW_SESSION_OPERATOR_TIMEOUT_MS) ?? 10_000
+export const LONG_POLL_MS = parseMs(process.env.TABBREW_SESSION_LONG_POLL_MS) ?? 25_000
+// An upper bound only: the session answers sooner in every case it handles.
+export const OPERATOR_CALL_TIMEOUT_MS = 30_000
+
 export const STATE_DIR = process.env.TABBREW_SESSION_DIR ?? join(homedir(), '.tabbrew')
 export const LOG_PATH = join(STATE_DIR, 'session.log')
 

@@ -117,3 +117,20 @@ export type OperatorOutput<N extends OperatorName> = OperatorMap[N]['output']
 export type Operators = {
   [N in OperatorName]: (input: OperatorInput<N>) => Promise<OperatorOutput<N>>
 }
+
+export const OPERATOR_NAMES = Object.keys({
+  readSnapshot: true,
+  closeTabs: true,
+  updateTab: true,
+  moveTabs: true,
+  groupTabs: true,
+  ungroupTabs: true,
+  updateGroup: true,
+  discardTab: true,
+  focusTab: true,
+  createWindow: true,
+  createTab: true,
+} satisfies Record<OperatorName, true>) as OperatorName[]
+
+export const isOperatorName = (value: string): value is OperatorName =>
+  (OPERATOR_NAMES as string[]).includes(value)

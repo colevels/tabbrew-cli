@@ -31,8 +31,8 @@ bun run check:fix   # apply safe fixes
 
 ## Session
 
-The session is a small HTTP server on `127.0.0.1` that will link this terminal
-to Chrome. `start` launches it in the background and returns; `run` keeps it in
+The session is a small HTTP server on `127.0.0.1` that links this terminal to
+Chrome. `start` launches it in the background and returns; `run` keeps it in
 the foreground.
 
 ```bash
@@ -50,6 +50,16 @@ extension panel polling `/health` counts as use; `tabbrew session status` from
 a terminal does not, so a session nobody is looking at still goes away.
 Background output goes to `~/.tabbrew/session.log`.
 
+Browser commands travel through the same server. A local process posts an
+operator call (`POST /operators/<name>`, for instance `readSnapshot`); the open
+extension panel claims it by long-polling `GET /requests/next`, runs it against
+Chrome, and posts the answer to `POST /requests/<id>/result`; the call resolves
+with that answer. A call nobody claims within 2 seconds fails with `no_panel`; a
+claimed call with no result within 10 seconds fails with `timeout`; a poll with
+nothing to serve is released empty after 25 seconds and the panel polls again.
+Only local processes may post calls, for the same reason only they may stop the
+session.
+
 Environment overrides, mainly for tests:
 
 | Variable | Meaning |
@@ -57,20 +67,50 @@ Environment overrides, mainly for tests:
 | `TABBREW_SESSION_PORTS` | comma-separated ports to try, in order |
 | `TABBREW_SESSION_IDLE_MS` | idle time before the session exits |
 | `TABBREW_SESSION_DIR` | where `session.log` is written |
+| `TABBREW_SESSION_CLAIM_WAIT_MS` | how long a call waits for the panel to claim it |
+| `TABBREW_SESSION_OPERATOR_TIMEOUT_MS` | how long a claimed call waits for its result |
+| `TABBREW_SESSION_LONG_POLL_MS` | how long the panel's poll is held open |
+
+## Tabs
+
+`tabbrew tabs list` prints every open tab, across every window, as the
+extension sees it. It needs a session and the TabBrew panel open in Chrome;
+without the panel it fails with "no TabBrew panel is listening".
+
+```bash
+tabbrew tabs list              # one row per tab
+tabbrew tabs list --json       # the raw snapshot: windows, groups, tabs
+```
+
+```
+TAB   WINDOW  GROUP  FLAGS   URL              TITLE
+1901  1842    -      active  mail.google.com  Inbox
+1903  1842    7      -       github.com       Pull Request #42
+1950  1843    -      -       newtab           New Tab
+```
+
+Rows are ordered by window, then by position in the tab strip. TAB, WINDOW and
+GROUP are Chrome's ids (`-` when the tab is in no group); FLAGS is any of
+`active`, `pinned`, `audible`, `muted`, `discarded`, `loading`, or `-`. The URL
+column shows the host only, without a leading `www.`. TITLE comes last, where a
+long one extends its own row instead of shifting the columns, and is capped at
+60 columns with a trailing `…`; the full title and url, group titles and
+colours, window focus and `lastAccessed` are all in `--json`.
 
 ## Harness extension
 
 `extension/` is the development harness for the CLI's browser side, not the
 TabBrew product extension. Browser-facing features land here paired with their
-CLI command (the session handshake today; `tabbrew tabs list` and the
-like next) so the protocol can be exercised end to end in a real Chrome. The
-product extension moves to its own repository once that protocol is stable; see
-`extension/README.md`.
+CLI command (the session handshake and `tabbrew tabs list` today; the verbs
+that change tabs next) so the protocol can be exercised end to end in a real
+Chrome. The product extension moves to its own repository once that protocol is
+stable; see `extension/README.md`.
 
 It is a minimal Manifest V3 side panel, built with [WXT](https://wxt.dev) and
-React, that connects Chrome to the session. The open panel *is* the connection: while it is
-open it polls `GET /health` every 3 seconds and shows what it finds; close it
-and nothing runs. There is deliberately no background polling.
+React, that connects Chrome to the session. The open panel *is* the connection:
+while it is open it polls `GET /health` every 3 seconds, and once a session
+answers it holds a long-poll on that session and serves the commands it claims;
+close it and nothing runs. There is deliberately no background polling.
 
 ```bash
 bun run build:ext              # production build to extension/dist/chrome-mv3
@@ -87,12 +127,13 @@ Load it once: `chrome://extensions` → Developer mode → Load unpacked →
 | --- | --- |
 | Connect to TabBrew CLI | Chrome has not yet allowed the panel to reach `127.0.0.1:49227/49228`. The button asks once; Chrome remembers. |
 | No session | Nothing answered on either port. Run `tabbrew session start`. |
-| Connected | Address, pid, CLI version and uptime of the session. It stays alive while the panel is open. |
+| Connected | Address, pid, CLI version and uptime of the session, and the last command the panel served. It stays alive while the panel is open. |
 
-The ports and the `service: "tabbrew-session"` marker the panel checks live in
-`src/core/session/protocol.ts`, which both the CLI and the extension import, so
-the two sides cannot drift apart. `extension/wxt.config.ts` also derives the
-manifest's `optional_host_permissions` from that list.
+The ports, the `service: "tabbrew-session"` marker the panel checks, and the
+command channel's paths and shapes live in `src/core/session/protocol.ts`,
+which both the CLI and the extension import, so the two sides cannot drift
+apart. `extension/wxt.config.ts` also derives the manifest's
+`optional_host_permissions` from that list.
 
 ## Init
 
@@ -122,21 +163,27 @@ from `src/commands/`, so it can be tested without going through the CLI.
 src/index.ts                                 root program, registers nouns
 src/commands/<noun>/index.ts                 new Command("<noun>") + addCommand(each verb)
 src/commands/<noun>/<verb>.ts                one verb = one exported Command
+src/commands/tabs/list.ts                    readSnapshot through the session, as a table or --json
 src/commands/init/index.ts                   the init verb, writes the agent cheat sheet
 src/core/<module>/index.ts                   public surface of a core module
-src/core/session/protocol.ts                 wire contract shared with the extension: ports, marker, probe
+src/core/session/protocol.ts                 wire contract shared with the extension: ports, marker, probe, command channel
 src/core/session/config.ts                   timeouts, paths, env overrides, how the CLI re-runs itself
-src/core/session/server.ts                   the loopback server (/health, /stop, idle exit)
+src/core/session/server.ts                   the loopback server (/health, /stop, the request queue, idle exit)
 src/core/session/client.ts                   find, spawn, wait for, and stop a session
+src/core/session/call.ts                     post an operator call to a session and explain its failures
 src/core/session/format.ts                   one-line description of a session
+src/core/operators/contract.ts               what the CLI may ask of Chrome: the snapshot and the operators
+src/core/tabs/format.ts                      the tab table
 src/core/agent-docs/block.ts                 find, replace and remove the marker-fenced block
 src/core/agent-docs/targets.ts               which agent doc files exist and which to create
 src/core/agent-docs/cheatsheet.ts            render the block from config + commander metadata
 src/core/agent-docs/install.ts               write and remove the block on disk
 extension/README.md                          why the extension exists: CLI harness, not the product
 extension/wxt.config.ts                      WXT config; harness manifest with the CLI version and the two ports' host permissions
-extension/src/entrypoints/sidepanel/App.tsx  the connection: polls the session while the panel is open
+extension/src/entrypoints/sidepanel/App.tsx  the connection: polls the session and serves its commands while the panel is open
 extension/src/entrypoints/sidepanel/main.tsx mounts App into sidepanel.html
 extension/src/entrypoints/background.ts      only makes the toolbar icon open the panel
 extension/src/utils/session.ts               permission helpers around the shared probe
+extension/src/utils/channel.ts               the panel's half of the command channel: claim, run, answer
+extension/src/utils/operators.ts             operators -> chrome.*, the one place that touches Chrome
 ```

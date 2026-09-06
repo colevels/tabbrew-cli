@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { browser } from 'wxt/browser'
+import { type ServedEvent, serveOperators } from '../../utils/channel'
+import { createOperators } from '../../utils/operators'
 import {
   discover,
   ensurePermission,
@@ -12,6 +14,8 @@ import {
 
 // Well inside the session's idle window, so an open panel keeps it alive.
 const POLL_MS = 3_000
+
+const operators = createOperators(browser)
 
 type Checked = { at: number; session: SessionInfo | null }
 
@@ -36,7 +40,20 @@ const Missing = () => (
   </section>
 )
 
-const Connected = ({ session }: { session: SessionInfo }) => {
+const describeServed = (served: ServedEvent, now: number): string => {
+  const outcome = served.error ? `failed: ${served.error}` : 'ok'
+  return `last: ${served.operator} ${outcome} · ${Math.round((now - served.at) / 1000)}s ago`
+}
+
+const Connected = ({
+  session,
+  served,
+  now,
+}: {
+  session: SessionInfo
+  served: ServedEvent | null
+  now: number
+}) => {
   const mine = browser.runtime.getManifest().version
   return (
     <section>
@@ -57,6 +74,7 @@ const Connected = ({ session }: { session: SessionInfo }) => {
           This panel is v{mine}; the session was started by tabbrew v{session.version}.
         </p>
       )}
+      <p className="muted">{served ? describeServed(served, now) : 'listening for commands'}</p>
       <p className="muted">The session stays alive while this panel is open.</p>
     </section>
   )
@@ -65,7 +83,11 @@ const Connected = ({ session }: { session: SessionInfo }) => {
 export const App = () => {
   const [granted, setGranted] = useState<boolean | null>(null)
   const [checked, setChecked] = useState<Checked | null>(null)
+  const [served, setServed] = useState<ServedEvent | null>(null)
   const [now, setNow] = useState(Date.now())
+
+  const session = checked?.session ?? null
+  const port = session?.port
 
   useEffect(() => {
     void hasPermission().then(setGranted)
@@ -80,6 +102,15 @@ export const App = () => {
     return () => clearInterval(timer)
   }, [granted])
 
+  // Keyed on the port, not the session: every poll hands back a fresh object
+  // and the channel must outlive them.
+  useEffect(() => {
+    if (port === undefined) return
+    const controller = new AbortController()
+    void serveOperators({ port, operators, signal: controller.signal, onServed: setServed })
+    return () => controller.abort()
+  }, [port])
+
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1_000)
     return () => clearInterval(timer)
@@ -90,8 +121,6 @@ export const App = () => {
     if (await ensurePermission()) setGranted(true)
   }
 
-  const session = checked?.session ?? null
-
   return (
     <>
       <h1>
@@ -101,7 +130,8 @@ export const App = () => {
       <p className="muted">Development harness for the tabbrew CLI. Not the product extension.</p>
 
       {granted === false && <Permission onConnect={() => void connect()} />}
-      {checked && (session ? <Connected session={session} /> : <Missing />)}
+      {checked &&
+        (session ? <Connected session={session} served={served} now={now} /> : <Missing />)}
 
       {checked && <p className="muted">checked {Math.round((now - checked.at) / 1000)}s ago</p>}
     </>
