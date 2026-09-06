@@ -1,5 +1,5 @@
 export * from './call'
-export * from './client'
+export * from './lifecycle'
 export * from './config'
 export * from './format'
 export * from './server'

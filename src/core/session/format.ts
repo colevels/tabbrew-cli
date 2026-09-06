@@ -1,4 +1,4 @@
-import type { SessionInfo } from './client'
+import type { SessionInfo } from './protocol'
 import { HOST, VERSION } from './config'
 import { formatUptime } from './protocol'
 

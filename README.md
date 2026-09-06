@@ -169,7 +169,7 @@ src/core/<module>/index.ts                   public surface of a core module
 src/core/session/protocol.ts                 wire contract shared with the extension: ports, marker, probe, command channel
 src/core/session/config.ts                   timeouts, paths, env overrides, how the CLI re-runs itself
 src/core/session/server.ts                   the loopback server (/health, /stop, the request queue, idle exit)
-src/core/session/client.ts                   find, spawn, wait for, and stop a session
+src/core/session/lifecycle.ts                find, spawn, wait for, and stop a session
 src/core/session/call.ts                     post an operator call to a session and explain its failures
 src/core/session/format.ts                   one-line description of a session
 src/core/operators/contract.ts               what the CLI may ask of Chrome: the snapshot and the operators
