@@ -3,3 +3,7 @@
 - Write minimal comments. Code should be self-documenting.
 - Comment only the non-obvious WHY (constraints, invariants).
 - Never restate WHAT the code does.
+
+## Functions
+
+- If a function is short, not complex, and used once, consider inlining it at the call site.

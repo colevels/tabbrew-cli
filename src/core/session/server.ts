@@ -61,9 +61,6 @@ const empty = (status: number): Response => new Response(null, { status, headers
 const failure = (error: OperatorFailureCode, status: number, detail?: string): Response =>
   json(detail === undefined ? { error } : { error, detail }, status)
 
-const asObject = (value: unknown): Record<string, unknown> | null =>
-  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
-
 // Bun drops a handler still pending after its 10s idle timeout; a held route
 // must ask for more, with slack for the answer to travel.
 const holdSeconds = (ms: number): number => Math.ceil(ms / 1000) + 5
@@ -162,7 +159,8 @@ export function createServer(
     clearTimeout(pending.timer)
     claimed.delete(id)
 
-    const body = asObject(await req.json().catch(() => null))
+    const raw: unknown = await req.json().catch(() => null)
+    const body = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : null
     if (body && 'output' in body) {
       pending.settle(json({ output: body.output }))
       return json({ ok: true })
@@ -240,15 +238,14 @@ export function createServer(
   return { port: server.port ?? port, stop }
 }
 
-const isAddrInUse = (e: unknown): boolean =>
-  typeof e === 'object' && e !== null && (e as { code?: string }).code === 'EADDRINUSE'
-
 export function listen(ports: readonly number[], options: ServerOptions = {}): SessionServer {
   for (const port of ports) {
     try {
       return createServer(port, options)
     } catch (e) {
-      if (!isAddrInUse(e)) throw e
+      if (typeof e !== 'object' || e === null || (e as { code?: string }).code !== 'EADDRINUSE') {
+        throw e
+      }
     }
   }
   throw new Error(`every port is taken: ${ports.map((p) => `${HOST}:${p}`).join(', ')}`)
