@@ -76,6 +76,22 @@ const snapshot: Snapshot = {
 }
 
 const panel = new AbortController()
+const creates: { urls: string[]; focused: boolean }[] = []
+
+function answer(request: OperatorRequest): unknown {
+  if (request.operator === 'createWindow') {
+    const input = request.input as { urls: string[]; focused: boolean }
+    creates.push(input)
+    return {
+      output: {
+        windowId: 9001,
+        focused: input.focused,
+        tabs: input.urls.map((url, i) => ({ tabId: 9100 + i, url })),
+      },
+    }
+  }
+  return { output: snapshot }
+}
 
 async function servePanel(signal: AbortSignal): Promise<void> {
   while (!signal.aborted) {
@@ -85,7 +101,7 @@ async function servePanel(signal: AbortSignal): Promise<void> {
       const request = (await res.json()) as OperatorRequest
       await fetch(base + resultPath(request.id), {
         method: 'POST',
-        body: JSON.stringify({ output: snapshot }),
+        body: JSON.stringify(answer(request)),
         ...fromBrowser,
         signal,
       })
@@ -139,5 +155,55 @@ describe('tabbrew windows list', () => {
     const [header, first] = stdout.split('\n')
     expect(header).toMatch(/^WINDOW\s+ID\s+TABS\s+GROUPS\s+FLAGS\s+ACTIVE$/)
     expect(first).toMatch(/^A\s+1842\s+2\s+1\s+focused\s+mail\.google\.com\s+Inbox$/)
+  })
+})
+
+describe('tabbrew windows create', () => {
+  test('opens unfocused by default and prints a summary', async () => {
+    const { exitCode, stdout } = await tabbrew('windows', 'create', 'https://example.com')
+    expect(exitCode).toBe(0)
+    expect(stdout).toBe('created window 9001 (1 tab)\n')
+    expect(creates.splice(0)).toEqual([{ urls: ['https://example.com'], focused: false }])
+  })
+
+  test('opens focused with --focus', async () => {
+    const { exitCode, stdout } = await tabbrew(
+      'windows',
+      'create',
+      'https://example.com',
+      '--focus',
+    )
+    expect(exitCode).toBe(0)
+    expect(stdout).toBe('created window 9001 (1 tab)\n')
+    expect(creates.splice(0)).toEqual([{ urls: ['https://example.com'], focused: true }])
+  })
+
+  test('opens with no urls', async () => {
+    const { exitCode, stdout } = await tabbrew('windows', 'create')
+    expect(exitCode).toBe(0)
+    expect(stdout).toBe('created window 9001 (0 tabs)\n')
+    expect(creates.splice(0)).toEqual([{ urls: [], focused: false }])
+  })
+
+  test('opens several urls and prints the output as json', async () => {
+    const { exitCode, stdout } = await tabbrew(
+      'windows',
+      'create',
+      'https://a.example.com',
+      'https://b.example.com',
+      '--json',
+    )
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual({
+      windowId: 9001,
+      focused: false,
+      tabs: [
+        { tabId: 9100, url: 'https://a.example.com' },
+        { tabId: 9101, url: 'https://b.example.com' },
+      ],
+    })
+    expect(creates.splice(0)).toEqual([
+      { urls: ['https://a.example.com', 'https://b.example.com'], focused: false },
+    ])
   })
 })
