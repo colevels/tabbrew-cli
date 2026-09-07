@@ -116,6 +116,22 @@ contacted; an id Chrome does not know fails after the snapshot read with
 inside a group joins it) and refuses to move an unpinned tab ahead of pinned
 ones; both surface as `moveTabs failed`.
 
+`tabbrew tabs discard` unloads tabs from memory and leaves them on the tab
+strip, where they reload on their next click. It is the way to free memory
+without closing anything.
+
+```bash
+tabbrew tabs discard 1950                 # unload one tab
+tabbrew tabs discard 1950 1952 --json     # [{tabId, previousTabId, changed}]
+```
+
+Silent on success. Chrome takes one tab per call, so the ids go in order and
+the first refusal stops the rest untouched; Chrome refuses the active tab, an
+unknown id and a few others, and each surfaces as `discardTab failed`. Chrome
+may replace a discarded tab with a new one under a new id: `--json` reports the
+id it has now as `tabId`, the one you gave as `previousTabId`, and `changed`
+when they differ. Take the new id from there, or re-list, before reusing it.
+
 ## Windows
 
 `tabbrew windows list` prints one row per open window, derived from the same
@@ -179,7 +195,8 @@ and an unknown id fails with Chrome's message.
 `extension/` is the development harness for the CLI's browser side, not the
 TabBrew product extension. Browser-facing features land here paired with their
 CLI command (the session handshake, the three `list` verbs,
-`tabbrew groups collapse`/`uncollapse` and `tabbrew tabs move` today)
+`tabbrew groups collapse`/`uncollapse`, `tabbrew tabs move` and
+`tabbrew tabs discard` today)
 so the protocol can be exercised end to end in a real Chrome. The product extension moves to its own repository once that protocol is
 stable; see `extension/README.md`.
 

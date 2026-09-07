@@ -2,14 +2,7 @@ import { Command } from 'commander'
 import type { TabIds } from '../../core/operators'
 import { callOperator, withSession } from '../../core/session'
 import { type MoveTarget, planMove } from '../../core/tabs'
-
-const parseTabId = (raw: string): number | null =>
-  /^\d+$/.test(raw) && Number(raw) > 0 ? Number(raw) : null
-
-const reject = (message: string): void => {
-  console.error(message)
-  process.exitCode = 1
-}
+import { parseTabId, reject } from './tab-ids'
 
 export const move = new Command('move')
   .description('Move tabs next to another tab (needs the TabBrew panel open in Chrome)')

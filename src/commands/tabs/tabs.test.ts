@@ -93,9 +93,18 @@ const snapshot: Snapshot = {
 
 const panel = new AbortController()
 const moves: { tabIds: number[]; index: number; windowId?: number }[] = []
+const discards: number[] = []
 
 function answer(request: OperatorRequest): unknown {
   if (request.operator === 'readSnapshot') return { output: snapshot }
+  if (request.operator === 'discardTab') {
+    const { tabId } = request.input as { tabId: number }
+    discards.push(tabId)
+    if (tabId === 1903) return { error: 'Cannot discard the active tab' }
+    // Chrome may hand back a replacement tab under a new id.
+    const replaced = tabId === 1952
+    return { output: { tabId: replaced ? 2052 : tabId, previousTabId: tabId, changed: replaced } }
+  }
   const input = request.input as { tabIds: number[]; index: number; windowId?: number }
   moves.push(input)
   if (input.tabIds.includes(1903)) return { error: 'Tabs cannot be edited right now' }
@@ -236,5 +245,40 @@ describe('tabbrew tabs move', () => {
     expect(exitCode).toBe(1)
     expect(stderr).toContain('moveTabs failed: Tabs cannot be edited right now')
     moves.splice(0)
+  })
+})
+
+describe('tabbrew tabs discard', () => {
+  test('rejects a bad id before touching the session', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('tabs', 'discard', '1950', '0')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('tab id must be a positive integer: 0')
+    expect(stdout).toBe('')
+    expect(discards).toEqual([])
+  })
+
+  test('discards one tab per call, in order, and prints nothing', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'discard', '1950', '1901')
+    expect(exitCode).toBe(0)
+    expect(stdout).toBe('')
+    expect(discards.splice(0)).toEqual([1950, 1901])
+  })
+
+  test('prints the results as json, including a replaced id', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'discard', '1950', '1952', '--json')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual([
+      { tabId: 1950, previousTabId: 1950, changed: false },
+      { tabId: 2052, previousTabId: 1952, changed: true },
+    ])
+    discards.splice(0)
+  })
+
+  test("stops at Chrome's refusal and leaves the rest untouched", async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('tabs', 'discard', '1903', '1950')
+    expect(exitCode).toBe(1)
+    expect(stdout).toBe('')
+    expect(stderr).toContain('discardTab failed: Cannot discard the active tab')
+    expect(discards.splice(0)).toEqual([1903])
   })
 })
