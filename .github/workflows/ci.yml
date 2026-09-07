@@ -53,8 +53,13 @@ jobs:
         env:
           TABBREW_E2E_CHROME_BIN: ${{ steps.chrome.outputs.bin }}
       - if: failure()
+        run: tail -n +1 /tmp/tabbrew-e2e-*/session.log /tmp/tabbrew-e2e-*/launcher.log || true
+      - if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-chrome-logs
-          path: /tmp/tabbrew-e2e-*/session.log
+          path: |
+            /tmp/tabbrew-e2e-*/session.log
+            /tmp/tabbrew-e2e-*/launcher.log
+            /tmp/tabbrew-e2e-*/chrome_debug.log
           if-no-files-found: ignore

@@ -4,6 +4,14 @@
 # TABBREW_E2E_CHROME_BIN must be Chrome for Testing or Chromium.
 set -eu
 : "${TABBREW_E2E_CHROME_BIN:?}" "${TABBREW_E2E_PROFILE:?}" "${TABBREW_E2E_EXTENSION:?}"
+
+# Ubuntu 24.04 blocks unprivileged user namespaces, which Chrome's sandbox needs.
+case "$(uname -s)" in
+  Linux) sandbox='--no-sandbox --disable-dev-shm-usage --disable-gpu' ;;
+  *) sandbox='' ;;
+esac
+
+# The CLI ignores this process's output; keep it where CI can pick it up.
 exec "$TABBREW_E2E_CHROME_BIN" \
   --user-data-dir="$TABBREW_E2E_PROFILE" \
   --no-first-run \
@@ -11,4 +19,5 @@ exec "$TABBREW_E2E_CHROME_BIN" \
   --disable-sync \
   --disable-extensions-except="$TABBREW_E2E_EXTENSION" \
   --load-extension="$TABBREW_E2E_EXTENSION" \
-  "$1"
+  $sandbox \
+  "$1" >"$TABBREW_E2E_PROFILE/launcher.log" 2>&1
