@@ -13,7 +13,7 @@ export function render(program: Command): string {
     'CLI: run every command as `tabbrew <cmd>`. Non-interactive; safe for agents, CI and scripts.',
     '',
     'WHAT IT IS:',
-    `TabBrew links this terminal to Chrome. A background session listens on ${HOST}:${PORTS.join('/')} and the TabBrew browser extension talks to it. Nothing works until a session is running.`,
+    `A session connects this CLI to the TabBrew side panel in Chrome so you can manage tabs from the terminal. It listens on ${HOST}:${PORTS.join('/')} and the side panel talks to it. Nothing works until a session is running.`,
     '',
     'WORKFLOW — check, then start, then work:',
     '1. `tabbrew session status --json` — is a session up? exit 0 = yes, exit 1 = no.',
