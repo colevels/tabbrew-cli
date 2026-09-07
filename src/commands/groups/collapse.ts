@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { callOperator, discover, OperatorCallError } from '../../core/session'
+import { callOperator, withSession } from '../../core/session'
 
 // Chrome reports -1 for an ungrouped tab, so a group id is always positive.
 const parseGroupId = (raw: string): number | null =>
@@ -22,13 +22,7 @@ export function collapsedVerb(name: string, collapsed: boolean): Command {
         }
         groupIds.push(groupId)
       }
-      const session = await discover()
-      if (!session) {
-        console.error('no session running; run "tabbrew session start"')
-        process.exitCode = 1
-        return
-      }
-      try {
+      await withSession(async (session) => {
         const results: { groupId: number; collapsed: boolean }[] = []
         // In order, one at a time: the first failure stops and the rest stay untouched.
         for (const groupId of groupIds) {
@@ -36,10 +30,7 @@ export function collapsedVerb(name: string, collapsed: boolean): Command {
           results.push({ groupId: output.groupId, collapsed })
         }
         if (opts.json) console.log(JSON.stringify(results))
-      } catch (error) {
-        console.error(error instanceof OperatorCallError ? error.message : String(error))
-        process.exitCode = 1
-      }
+      })
     })
 }
 

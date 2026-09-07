@@ -1,5 +1,6 @@
 import type { OperatorInput, OperatorName, OperatorOutput } from '../operators/contract'
 import { HOST, OPERATOR_CALL_TIMEOUT_MS, OPERATOR_TIMEOUT_MS } from './config'
+import { discover } from './lifecycle'
 import {
   OPERATOR_FAILURE_CODES,
   type OperatorFailureCode,
@@ -82,4 +83,21 @@ export async function callOperator<N extends OperatorName>(
   const body = (await response.json().catch(() => null)) as Record<string, unknown> | null
   if (response.ok && body && 'output' in body) return body.output as OperatorOutput<N>
   throw explain(name, session, response.status, body)
+}
+
+// Every operator-backed command shares the same failure surface: no session,
+// or a call that the session or panel rejected. Both end with exit code 1.
+export async function withSession(work: (session: SessionInfo) => Promise<void>): Promise<void> {
+  const session = await discover()
+  if (!session) {
+    console.error('no session running; run "tabbrew session start"')
+    process.exitCode = 1
+    return
+  }
+  try {
+    await work(session)
+  } catch (error) {
+    console.error(error instanceof OperatorCallError ? error.message : String(error))
+    process.exitCode = 1
+  }
 }
