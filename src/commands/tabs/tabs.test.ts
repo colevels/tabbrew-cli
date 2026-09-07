@@ -125,7 +125,11 @@ describe('tabbrew tabs list', () => {
     void servePanel(panel.signal)
     const { exitCode, stdout } = await tabbrew('tabs', 'list', '--json')
     expect(exitCode).toBe(0)
-    expect(JSON.parse(stdout)).toEqual(snapshot)
+    const labelled = {
+      ...snapshot,
+      windows: snapshot.windows.map((window) => ({ ...window, label: 'A' })),
+    }
+    expect(JSON.parse(stdout)).toEqual(labelled)
   })
 
   test('prints the table', async () => {
@@ -133,7 +137,7 @@ describe('tabbrew tabs list', () => {
     expect(exitCode).toBe(0)
     const [header, first] = stdout.split('\n')
     expect(header).toMatch(/^TAB\s+WINDOW\s+GROUP\s+FLAGS\s+URL\s+TITLE$/)
-    expect(first).toMatch(/^1901\s+1842\s+-\s+active\s+mail\.google\.com\s+Inbox$/)
-    expect(stdout).toContain('1903  1842    7')
+    expect(first).toMatch(/^1901\s+A\s+-\s+active\s+mail\.google\.com\s+Inbox$/)
+    expect(stdout).toContain('1903  A       7')
   })
 })

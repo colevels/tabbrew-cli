@@ -8,6 +8,7 @@ import {
   SERVICE,
   VERSION,
 } from './config'
+import { createWindowLabels } from './labels'
 import {
   matchOperatorPath,
   matchResultPath,
@@ -82,6 +83,7 @@ export function createServer(
   const queue: PendingRequest[] = []
   const claimed = new Map<string, PendingRequest>()
   const pollers: Poller[] = []
+  const labels = createWindowLabels()
 
   const remove = <T>(list: T[], item: T): void => {
     const at = list.indexOf(item)
@@ -162,7 +164,9 @@ export function createServer(
     const raw: unknown = await req.json().catch(() => null)
     const body = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : null
     if (body && 'output' in body) {
-      pending.settle(json({ output: body.output }))
+      const output =
+        pending.request.operator === 'readSnapshot' ? labels.stamp(body.output) : body.output
+      pending.settle(json({ output }))
       return json({ ok: true })
     }
     if (typeof body?.error === 'string') {

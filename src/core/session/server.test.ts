@@ -134,6 +134,26 @@ describe('operator channel', () => {
     expect(await res.json()).toEqual({ output: { tabs: [] } })
   })
 
+  test('readSnapshot windows are labelled, and a label outlives the window it named', async () => {
+    const server = up()
+    const snapshot = async (ids: number[]) => {
+      const calling = call(server, 'readSnapshot', {})
+      const request = await delivered(poll(server))
+      await answer(server, request.id, { output: { windows: ids.map((id) => ({ id })) } })
+      const { output } = (await (await calling).json()) as {
+        output: { windows: { id: number; label: string }[] }
+      }
+      return output.windows.map((window) => `${window.label}=${window.id}`)
+    }
+    expect(await snapshot([20, 10])).toEqual(['B=20', 'A=10'])
+    expect(await snapshot([20, 30])).toEqual(['B=20', 'C=30'])
+
+    const calling = call(server, 'focusTab', { tabId: 1 })
+    const request = await delivered(poll(server))
+    await answer(server, request.id, { output: { windows: [{ id: 40 }] } })
+    expect(await (await calling).json()).toEqual({ output: { windows: [{ id: 40 }] } })
+  })
+
   test('calls are served in order, one per poll', async () => {
     const server = up()
     const first = call(server, 'focusTab', { tabId: 1 })

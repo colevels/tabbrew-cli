@@ -16,9 +16,9 @@ const flags = (tab: TabSnapshot): string => {
   return set.length ? set.join(',') : '-'
 }
 
-const row = (tab: TabSnapshot): string[] => [
+const row = (tab: TabSnapshot, windowLabel: Map<number, string>): string[] => [
   String(tab.id),
-  String(tab.windowId),
+  windowLabel.get(tab.windowId) ?? String(tab.windowId),
   tab.groupId === -1 ? '-' : String(tab.groupId),
   flags(tab),
   cell(domain(tab.url)),
@@ -28,5 +28,14 @@ const row = (tab: TabSnapshot): string[] => [
 const byPlace = (a: TabSnapshot, b: TabSnapshot): number =>
   a.windowId - b.windowId || a.index - b.index
 
-export const formatTabTable = (snapshot: Snapshot): string =>
-  renderTable(COLUMNS, [...snapshot.tabs].sort(byPlace).map(row))
+export function formatTabTable(snapshot: Snapshot): string {
+  const windowLabel = new Map(
+    snapshot.windows.flatMap((window) =>
+      window.label === undefined ? [] : [[window.id, window.label] as const],
+    ),
+  )
+  return renderTable(
+    COLUMNS,
+    [...snapshot.tabs].sort(byPlace).map((tab) => row(tab, windowLabel)),
+  )
+}

@@ -26,6 +26,7 @@ export function render(program: Command): string {
     `- Only ports ${PORTS.join(' and ')} are reachable from Chrome. Never set TABBREW_SESSION_PORTS outside tests.`,
     '- Browser commands need the panel open; "no TabBrew panel is listening" means open it and retry.',
     '- Prefer `--json` output when a command offers it; parse that, not the human text.',
+    '- Windows are named by label (A, B, C, …) as shown by `tabbrew windows list`. A label is stable while a session runs and is reassigned by a new session, so re-list after `session start`.',
     `- Background output goes to ${log}; read it when start fails.`,
     '- After upgrading the tabbrew binary run `tabbrew session stop` then `start` so the new version serves.',
     '- Re-run `tabbrew init` after upgrading to refresh this block; do not edit it by hand.',

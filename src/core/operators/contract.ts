@@ -21,6 +21,8 @@ export interface WindowSnapshot {
   focused: boolean
   incognito: boolean
   state?: WindowState
+  // Stamped by the session on its way to the CLI; the extension never sends it.
+  label?: string
 }
 
 export interface GroupSnapshot {

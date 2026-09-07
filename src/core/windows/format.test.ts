@@ -45,7 +45,10 @@ describe('summarizeWindows', () => {
   test('counts tabs and groups per window and names the active tab, sorted by id', () => {
     const summary = summarizeWindows(
       snapshot(
-        [window({ id: 1843 }), window({ id: 1842, focused: true, state: 'normal' })],
+        [
+          window({ id: 1843, label: 'B' }),
+          window({ id: 1842, label: 'A', focused: true, state: 'normal' }),
+        ],
         [
           tab({ id: 1901, windowId: 1842, active: true }),
           tab({ id: 1903, windowId: 1842, index: 1 }),
@@ -56,6 +59,7 @@ describe('summarizeWindows', () => {
     )
     expect(summary).toEqual([
       {
+        label: 'A',
         id: 1842,
         focused: true,
         incognito: false,
@@ -64,7 +68,7 @@ describe('summarizeWindows', () => {
         groupCount: 1,
         activeTabId: 1901,
       },
-      { id: 1843, focused: false, incognito: false, tabCount: 1, groupCount: 0 },
+      { label: 'B', id: 1843, focused: false, incognito: false, tabCount: 1, groupCount: 0 },
     ])
   })
 })
@@ -73,7 +77,10 @@ describe('formatWindowTable', () => {
   test('lays windows out in a padded table with the active tab last', () => {
     const table = formatWindowTable(
       snapshot(
-        [window({ id: 1842, focused: true, state: 'normal' }), window({ id: 1843 })],
+        [
+          window({ id: 1842, label: 'A', focused: true, state: 'normal' }),
+          window({ id: 1843, label: 'B' }),
+        ],
         [
           tab({
             id: 1901,
@@ -90,9 +97,9 @@ describe('formatWindowTable', () => {
     )
     expect(table).toBe(
       [
-        'WINDOW  TABS  GROUPS  FLAGS    ACTIVE',
-        '1842    2     1       focused  mail.google.com  Inbox',
-        '1843    1     0       -        -',
+        'WINDOW  ID    TABS  GROUPS  FLAGS    ACTIVE',
+        'A       1842  2     1       focused  mail.google.com  Inbox',
+        'B       1843  1     0       -        -',
       ].join('\n'),
     )
     for (const line of lines(table)) expect(line).not.toMatch(/ $/)
@@ -108,7 +115,7 @@ describe('formatWindowTable', () => {
     )
     const [, first, second, third] = lines(table)
     expect(first).toContain('  focused,incognito,minimized  ')
-    expect(second).toMatch(/^2\s+0\s+0\s+-\s+-$/)
+    expect(second).toMatch(/^2\s+2\s+0\s+0\s+-\s+-$/)
     expect(third).toContain('  locked-fullscreen  ')
   })
 
@@ -123,6 +130,11 @@ describe('formatWindowTable', () => {
   })
 
   test('prints only the header when there are no windows', () => {
-    expect(formatWindowTable(snapshot([]))).toBe('WINDOW  TABS  GROUPS  FLAGS  ACTIVE')
+    expect(formatWindowTable(snapshot([]))).toBe('WINDOW  ID  TABS  GROUPS  FLAGS  ACTIVE')
+  })
+
+  test('falls back to the id when a session sent no label', () => {
+    const [, first] = lines(formatWindowTable(snapshot([window({ id: 1842 })])))
+    expect(first).toMatch(/^1842\s+1842\s+/)
   })
 })

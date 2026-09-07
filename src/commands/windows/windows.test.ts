@@ -126,14 +126,18 @@ describe('tabbrew windows list', () => {
     void servePanel(panel.signal)
     const { exitCode, stdout } = await tabbrew('windows', 'list', '--json')
     expect(exitCode).toBe(0)
-    expect(JSON.parse(stdout)).toEqual(summarizeWindows(snapshot))
+    const labelled = {
+      ...snapshot,
+      windows: snapshot.windows.map((window) => ({ ...window, label: 'A' })),
+    }
+    expect(JSON.parse(stdout)).toEqual(summarizeWindows(labelled))
   })
 
   test('prints the table', async () => {
     const { exitCode, stdout } = await tabbrew('windows', 'list')
     expect(exitCode).toBe(0)
     const [header, first] = stdout.split('\n')
-    expect(header).toMatch(/^WINDOW\s+TABS\s+GROUPS\s+FLAGS\s+ACTIVE$/)
-    expect(first).toMatch(/^1842\s+2\s+1\s+focused\s+mail\.google\.com\s+Inbox$/)
+    expect(header).toMatch(/^WINDOW\s+ID\s+TABS\s+GROUPS\s+FLAGS\s+ACTIVE$/)
+    expect(first).toMatch(/^A\s+1842\s+2\s+1\s+focused\s+mail\.google\.com\s+Inbox$/)
   })
 })

@@ -16,39 +16,50 @@ const tab = (overrides: Place & Partial<TabSnapshot>): TabSnapshot => ({
   ...overrides,
 })
 
-const snapshot = (tabs: TabSnapshot[]): Snapshot => ({ takenAt: 0, windows: [], groups: [], tabs })
+const snapshot = (tabs: TabSnapshot[], windows: Snapshot['windows'] = []): Snapshot => ({
+  takenAt: 0,
+  windows,
+  groups: [],
+  tabs,
+})
 
 const lines = (table: string) => table.split('\n')
 
 describe('formatTabTable', () => {
   test('lays tabs out by window and index in a padded table', () => {
     const table = formatTabTable(
-      snapshot([
-        tab({
-          id: 1903,
-          windowId: 1842,
-          index: 1,
-          groupId: 7,
-          title: 'Pull Request #42',
-          url: 'https://github.com/pull/42',
-        }),
-        tab({ id: 1950, windowId: 1843, index: 0, url: 'chrome://newtab/' }),
-        tab({
-          id: 1901,
-          windowId: 1842,
-          index: 0,
-          active: true,
-          title: 'Inbox',
-          url: 'https://mail.google.com/',
-        }),
-      ]),
+      snapshot(
+        [
+          tab({
+            id: 1903,
+            windowId: 1842,
+            index: 1,
+            groupId: 7,
+            title: 'Pull Request #42',
+            url: 'https://github.com/pull/42',
+          }),
+          tab({ id: 1950, windowId: 1843, index: 0, url: 'chrome://newtab/' }),
+          tab({
+            id: 1901,
+            windowId: 1842,
+            index: 0,
+            active: true,
+            title: 'Inbox',
+            url: 'https://mail.google.com/',
+          }),
+        ],
+        [
+          { id: 1842, label: 'A', focused: true, incognito: false },
+          { id: 1843, label: 'B', focused: false, incognito: false },
+        ],
+      ),
     )
     expect(table).toBe(
       [
         'TAB   WINDOW  GROUP  FLAGS   URL              TITLE',
-        '1901  1842    -      active  mail.google.com  Inbox',
-        '1903  1842    7      -       github.com       Pull Request #42',
-        '1950  1843    -      -       newtab           -',
+        '1901  A       -      active  mail.google.com  Inbox',
+        '1903  A       7      -       github.com       Pull Request #42',
+        '1950  B       -      -       newtab           -',
       ].join('\n'),
     )
   })
@@ -141,6 +152,18 @@ describe('formatTabTable', () => {
     // 29 wide chars (58 columns) plus the ellipsis is the most that fits in 60.
     expect(cjk?.endsWith(`${'本'.repeat(29)}…`)).toBe(true)
     expect(cjk).not.toContain('本'.repeat(30))
+  })
+
+  test('falls back to the window id when a session sent no label', () => {
+    const [, first] = lines(
+      formatTabTable(
+        snapshot(
+          [tab({ id: 1, windowId: 1842, index: 0, title: 'a', url: 'u' })],
+          [{ id: 1842, focused: false, incognito: false }],
+        ),
+      ),
+    )
+    expect(first).toMatch(/^1\s+1842\s+/)
   })
 
   test('prints only the header when there are no tabs', () => {

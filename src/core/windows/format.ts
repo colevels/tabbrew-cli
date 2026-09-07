@@ -2,6 +2,7 @@ import type { Snapshot, TabSnapshot, WindowState } from '../operators/contract'
 import { cell, clip, domain, renderTable, TITLE_MAX } from '../table'
 
 export interface WindowSummary {
+  label: string
   id: number
   focused: boolean
   incognito: boolean
@@ -12,7 +13,7 @@ export interface WindowSummary {
 }
 
 // ACTIVE last: it carries the active tab's title, the widest field.
-const COLUMNS = ['WINDOW', 'TABS', 'GROUPS', 'FLAGS', 'ACTIVE'] as const
+const COLUMNS = ['WINDOW', 'ID', 'TABS', 'GROUPS', 'FLAGS', 'ACTIVE'] as const
 
 export function summarizeWindows(snapshot: Snapshot): WindowSummary[] {
   return [...snapshot.windows]
@@ -21,6 +22,7 @@ export function summarizeWindows(snapshot: Snapshot): WindowSummary[] {
       const tabs = snapshot.tabs.filter((tab) => tab.windowId === window.id)
       const activeTabId = tabs.find((tab) => tab.active)?.id
       return {
+        label: window.label ?? String(window.id),
         id: window.id,
         focused: window.focused,
         incognito: window.incognito,
@@ -48,6 +50,7 @@ const active = (tab: TabSnapshot | undefined): string =>
 
 export function formatWindowTable(snapshot: Snapshot): string {
   const rows = summarizeWindows(snapshot).map((window) => [
+    window.label,
     String(window.id),
     String(window.tabCount),
     String(window.groupCount),
