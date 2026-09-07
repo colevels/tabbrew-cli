@@ -94,6 +94,8 @@ const snapshot: Snapshot = {
 const panel = new AbortController()
 const moves: { tabIds: number[]; index: number; windowId?: number }[] = []
 const discards: number[] = []
+const groupings: { tabIds: number[]; groupId?: number; windowId?: number }[] = []
+const groupUpdates: { groupId: number; title?: string; color?: string }[] = []
 
 function answer(request: OperatorRequest): unknown {
   if (request.operator === 'readSnapshot') return { output: snapshot }
@@ -104,6 +106,17 @@ function answer(request: OperatorRequest): unknown {
     // Chrome may hand back a replacement tab under a new id.
     const replaced = tabId === 1952
     return { output: { tabId: replaced ? 2052 : tabId, previousTabId: tabId, changed: replaced } }
+  }
+  if (request.operator === 'groupTabs') {
+    const input = request.input as { tabIds: number[]; groupId?: number; windowId?: number }
+    groupings.push(input)
+    if (input.tabIds.includes(1903)) return { error: 'Tabs cannot be edited right now' }
+    return { output: { groupId: input.groupId ?? 9001 } }
+  }
+  if (request.operator === 'updateGroup') {
+    const input = request.input as { groupId: number; title?: string; color?: string }
+    groupUpdates.push(input)
+    return { output: input }
   }
   const input = request.input as { tabIds: number[]; index: number; windowId?: number }
   moves.push(input)
@@ -280,5 +293,106 @@ describe('tabbrew tabs discard', () => {
     expect(stdout).toBe('')
     expect(stderr).toContain('discardTab failed: Cannot discard the active tab')
     expect(discards.splice(0)).toEqual([1903])
+  })
+})
+
+describe('tabbrew tabs group', () => {
+  test('rejects a bad id before touching the session', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('tabs', 'group', '1950', 'x')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('tab id must be a positive integer: x')
+    expect(stdout).toBe('')
+    expect(groupings).toEqual([])
+  })
+
+  test('rejects --to and --window together', async () => {
+    const { exitCode, stderr } = await tabbrew(
+      'tabs',
+      'group',
+      '1950',
+      '--to',
+      '7',
+      '--window',
+      '1842',
+    )
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('give at most one of --to, --window')
+    expect(groupings).toEqual([])
+  })
+
+  test('rejects an invalid color before touching the session', async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'group', '1950', '--color', 'plaid')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('color must be one of')
+    expect(groupings).toEqual([])
+  })
+
+  test('fails on an unknown --to group without grouping anything', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('tabs', 'group', '1950', '--to', '99')
+    expect(exitCode).toBe(1)
+    expect(stdout).toBe('')
+    expect(stderr).toContain('no group 99; run "tabbrew groups list"')
+    expect(groupings).toEqual([])
+  })
+
+  test('fails on an unknown --window without grouping anything', async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'group', '1950', '--window', '9999')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('no window 9999; run "tabbrew windows list"')
+    expect(groupings).toEqual([])
+  })
+
+  test('defaults to the first tab window when neither flag is given', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'group', '1950', '1901', '--json')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual({ groupId: 9001 })
+    expect(groupings.splice(0)).toEqual([{ tabIds: [1950, 1901], windowId: 1843 }])
+  })
+
+  test('joins an existing group via --to', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'group', '1950', '--to', '7', '--json')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual({ groupId: 7 })
+    expect(groupings.splice(0)).toEqual([{ tabIds: [1950], groupId: 7 }])
+  })
+
+  test('creates a group in a window via --window', async () => {
+    const { exitCode, stdout } = await tabbrew(
+      'tabs',
+      'group',
+      '1950',
+      '--window',
+      '1843',
+      '--json',
+    )
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual({ groupId: 9001 })
+    expect(groupings.splice(0)).toEqual([{ tabIds: [1950], windowId: 1843 }])
+  })
+
+  test('applies --title and --color via a follow-up updateGroup call', async () => {
+    const { exitCode, stdout } = await tabbrew(
+      'tabs',
+      'group',
+      '1950',
+      '--to',
+      '7',
+      '--title',
+      'Foo',
+      '--color',
+      'blue',
+      '--json',
+    )
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual({ groupId: 7, title: 'Foo', color: 'blue' })
+    groupings.splice(0)
+    expect(groupUpdates.splice(0)).toEqual([{ groupId: 7, title: 'Foo', color: 'blue' }])
+  })
+
+  test("surfaces Chrome's refusal", async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'group', '1903', '--to', '7')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('groupTabs failed: Tabs cannot be edited right now')
+    groupings.splice(0)
   })
 })
