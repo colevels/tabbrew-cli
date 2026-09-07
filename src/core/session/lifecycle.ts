@@ -13,7 +13,6 @@ import {
 import type { SessionInfo } from './protocol'
 import * as protocol from './protocol'
 
-
 export const probe = (port: number): Promise<SessionInfo | null> =>
   protocol.probe(port, PROBE_TIMEOUT_MS)
 

@@ -18,7 +18,7 @@ export function render(program: Command): string {
     'WORKFLOW — check, then start, then work:',
     '1. `tabbrew session status --json` — is a session up? exit 0 = yes, exit 1 = no.',
     '2. `tabbrew session start` — start one in the background (no-op if already running).',
-    '3. Open the TabBrew panel in Chrome (toolbar icon), then work: `tabbrew tabs list --json` lists every tab, window and group.',
+    '3. Open the TabBrew panel in Chrome (toolbar icon), then work: `tabbrew tabs list --json` lists every tab, window and group; `tabbrew windows list --json` summarises each window.',
     '4. `tabbrew session stop` — when done (optional; it also exits on its own when idle).',
     '',
     'RULES:',

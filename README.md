@@ -97,11 +97,33 @@ long one extends its own row instead of shifting the columns, and is capped at
 60 columns with a trailing `…`; the full title and url, group titles and
 colours, window focus and `lastAccessed` are all in `--json`.
 
+## Windows
+
+`tabbrew windows list` prints one row per open window, derived from the same
+snapshot as `tabs list`, with the same session and panel requirements.
+
+```bash
+tabbrew windows list           # one row per window
+tabbrew windows list --json    # [{id, focused, incognito, state, tabCount, groupCount, activeTabId}]
+```
+
+```
+WINDOW  TABS  GROUPS  FLAGS    ACTIVE
+1842    2     1       focused  mail.google.com  Inbox
+1843    1     0       -        newtab  New Tab
+```
+
+Rows are ordered by window id. TABS and GROUPS are counts; FLAGS is any of
+`focused`, `incognito`, `minimized`, `maximized`, `fullscreen`,
+`locked-fullscreen`, or `-` (a `normal` state is not shown). ACTIVE comes last
+and shows the host and title of the window's active tab, the title capped at
+60 columns, or `-` when the window has no active tab.
+
 ## Harness extension
 
 `extension/` is the development harness for the CLI's browser side, not the
 TabBrew product extension. Browser-facing features land here paired with their
-CLI command (the session handshake and `tabbrew tabs list` today; the verbs
+CLI command (the session handshake, `tabbrew tabs list` and `tabbrew windows list` today; the verbs
 that change tabs next) so the protocol can be exercised end to end in a real
 Chrome. The product extension moves to its own repository once that protocol is
 stable; see `extension/README.md`.

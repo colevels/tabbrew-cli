@@ -1,5 +1,5 @@
-import type { SessionInfo } from './protocol'
 import { HOST, VERSION } from './config'
+import type { SessionInfo } from './protocol'
 import { formatUptime } from './protocol'
 
 export function describe(session: SessionInfo, state: string): string {
