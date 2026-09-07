@@ -119,11 +119,32 @@ Rows are ordered by window id. TABS and GROUPS are counts; FLAGS is any of
 and shows the host and title of the window's active tab, the title capped at
 60 columns, or `-` when the window has no active tab.
 
+## Groups
+
+`tabbrew groups list` prints one row per tab group, derived from the same
+snapshot as `tabs list`, with the same session and panel requirements.
+
+```bash
+tabbrew groups list            # one row per group
+tabbrew groups list --json     # [{id, windowId, windowLabel, title, color, collapsed, tabCount}]
+```
+
+```
+GROUP  WINDOW  TABS  COLOR  FLAGS      TITLE
+7      A       1     blue   -          Work
+9      A       3     red    collapsed  Reading
+```
+
+Rows are ordered by window, then by the group's position in the tab strip.
+GROUP is Chrome's group id, as shown by `tabs list`; WINDOW is the window's
+label; TABS is a count; FLAGS is `collapsed` or `-`. TITLE comes last, capped
+at 60 columns with a trailing `…`, or `-` when the group has no title.
+
 ## Harness extension
 
 `extension/` is the development harness for the CLI's browser side, not the
 TabBrew product extension. Browser-facing features land here paired with their
-CLI command (the session handshake, `tabbrew tabs list` and `tabbrew windows list` today; the verbs
+CLI command (the session handshake, `tabbrew tabs list`, `tabbrew windows list` and `tabbrew groups list` today; the verbs
 that change tabs next) so the protocol can be exercised end to end in a real
 Chrome. The product extension moves to its own repository once that protocol is
 stable; see `extension/README.md`.
