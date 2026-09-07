@@ -23,6 +23,7 @@
     "zip:ext": "wxt zip extension",
     "typecheck": "tsc --noEmit && tsc --noEmit -p extension",
     "test": "bun test",
+    "test:e2e": "TABBREW_E2E=1 bun test src/e2e",
     "format": "biome format --write .",
     "check": "biome check .",
     "check:fix": "biome check --write .",

@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+# TABBREW_CHROME launcher for the e2e suite: a throwaway profile with the
+# harness loaded. Branded Google Chrome 137+ ignores --load-extension, so
+# TABBREW_E2E_CHROME_BIN must be Chrome for Testing or Chromium.
+set -eu
+: "${TABBREW_E2E_CHROME_BIN:?}" "${TABBREW_E2E_PROFILE:?}" "${TABBREW_E2E_EXTENSION:?}"
+exec "$TABBREW_E2E_CHROME_BIN" \
+  --user-data-dir="$TABBREW_E2E_PROFILE" \
+  --no-first-run \
+  --no-default-browser-check \
+  --disable-sync \
+  --disable-extensions-except="$TABBREW_E2E_EXTENSION" \
+  --load-extension="$TABBREW_E2E_EXTENSION" \
+  "$1"

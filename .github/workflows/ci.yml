@@ -28,3 +28,33 @@ jobs:
       - run: bun run build
       - run: bun run build:ext
       - run: ./dist/tabbrew --version
+
+  # The compiled CLI driving a real Chrome that holds the harness extension.
+  e2e-chrome:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: bun run build:ext
+      # Chrome for Testing, not the runner's branded Chrome: 137+ ignores --load-extension.
+      - id: chrome
+        run: |
+          bunx @puppeteer/browsers install chrome@stable --path "$RUNNER_TEMP/browsers" \
+            | tail -n 1 | sed 's/^chrome@[^ ]* /bin=/' >> "$GITHUB_OUTPUT"
+      - run: |
+          "${{ steps.chrome.outputs.bin }}" --version
+          sudo apt-get install -y --no-install-recommends xvfb
+      - run: xvfb-run --auto-servernum bun run test:e2e
+        env:
+          TABBREW_E2E_CHROME_BIN: ${{ steps.chrome.outputs.bin }}
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-chrome-logs
+          path: /tmp/tabbrew-e2e-*/session.log
+          if-no-files-found: ignore

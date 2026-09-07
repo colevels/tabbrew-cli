@@ -240,6 +240,19 @@ the page; the toolbar icon opens the side panel instead.
 `bun install` runs `wxt prepare`, which generates the TypeScript config in
 `extension/.wxt/`; both that and `dist/` are ignored by git.
 
+The e2e suite in `src/e2e/` drives the compiled CLI against a real Chrome
+holding this build, with no fake panel in between. It is skipped by plain
+`bun test`; CI runs it under Xvfb in the `e2e-chrome` job. Locally:
+
+```bash
+bunx @puppeteer/browsers install chrome@stable   # Chrome for Testing; branded Chrome 137+ refuses --load-extension
+bun run build && bun run build:ext
+TABBREW_E2E_CHROME_BIN=/path/to/chrome bun run test:e2e
+```
+
+It uses a throwaway profile and state directory, needs the default ports free
+(no other session running), and closes its Chrome when done.
+
 | Page shows | Meaning |
 | --- | --- |
 | No session | Nothing answered on either port. Run `tabbrew session start`. |
