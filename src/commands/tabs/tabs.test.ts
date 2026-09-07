@@ -157,10 +157,10 @@ describe('tabbrew tabs list', () => {
   })
 
   test('needs the panel', async () => {
-    expect((await tabbrew('session', 'start')).exitCode).toBe(0)
+    expect((await tabbrew('session', 'start', '--no-open')).exitCode).toBe(0)
     const { exitCode, stdout, stderr } = await tabbrew('tabs', 'list', '--json')
     expect(exitCode).toBe(1)
-    expect(stderr).toContain('TabBrew panel')
+    expect(stderr).toContain('tabbrew session open')
     expect(stdout).toBe('')
   })
 

@@ -6,15 +6,27 @@ import type { OperatorName } from '../operators/contract'
 export const SERVICE = 'tabbrew-session'
 export const HOST = '127.0.0.1'
 
-// extension/wxt.config.ts turns these into the manifest's
-// optional_host_permissions, so Chrome cannot reach a session anywhere else.
+// extension/wxt.config.ts turns these into the manifest's host_permissions,
+// so Chrome cannot reach a session anywhere else.
 export const DEFAULT_PORTS: readonly number[] = [49227, 49228]
+
+// Pinned as the manifest's `key` so every unpacked build gets the same id and
+// the CLI can address the page below without asking Chrome. Public half only;
+// an unpacked build is never signed.
+export const EXTENSION_KEY =
+  'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3ogvU65RPVyak7AOGk18IzJYEObbGOZNnV928TdLFeRu5/v8JqYfaqTh378B3hk7cW6XTZJ2isqjkAOkBnTBjtnRTyQthH82WAxwBChLuGsU4tPkjIGBRoAt7MZDVdfrb2jsAUFTlcniW/2ptDy40Y1k208l2g+zrvwQy6F5iVUzIDgvlkDude1Q/rMIZhi1YGZC+cgIHJMhowh9LcKSVjf5Xba7YohNTADaThLkEtpR35AvWSryRzCgsXvqM7on15keGukrUN6d5seYB98usVIGAop7fMp30yAnB+H+CuMLRuqVHDLF7kD2xicwJHNbrnmZlbZe+7UP7cIodJxJVwIDAQAB'
+
+// The extension page the CLI opens to connect a session; it serves commands
+// exactly like the side panel does.
+export const CONNECTION_PAGE = 'connection.html'
 
 export interface SessionInfo {
   port: number
   pid: number
   version: string
   uptimeMs: number
+  // Whether a page is holding the command channel right now.
+  listening: boolean
 }
 
 export async function probe(port: number, timeoutMs: number): Promise<SessionInfo | null> {
@@ -31,6 +43,7 @@ export async function probe(port: number, timeoutMs: number): Promise<SessionInf
       pid: Number(body.pid),
       version: String(body.version ?? ''),
       uptimeMs: Number(body.uptimeMs ?? 0),
+      listening: body.listening === true,
     }
   } catch {
     return null
@@ -59,10 +72,11 @@ export function formatUptime(ms: number): string {
   return `${h}h ${m % 60}m`
 }
 
-// The command channel: a local process posts an operator call, the open panel
-// claims it by long-polling, runs it against Chrome and posts the result.
-// Two path prefixes because the two sides are policed differently: only a
-// local process may call an operator, while any panel may serve requests.
+// The command channel: a local process posts an operator call, a connected
+// page (side panel or connection page) claims it by long-polling, runs it
+// against Chrome and posts the result. Two path prefixes because the two
+// sides are policed differently: only a local process may call an operator,
+// while any page may serve requests.
 export interface OperatorRequest {
   id: string
   operator: OperatorName

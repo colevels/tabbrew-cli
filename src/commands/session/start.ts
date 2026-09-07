@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 import {
+  connect,
+  connectionUrl,
   describe,
   discover,
   HOST,
@@ -9,13 +11,34 @@ import {
   spawnDetached,
   waitForSession,
 } from '../../core/session'
+import type { SessionInfo } from '../../core/session/protocol'
+
+async function report(session: SessionInfo, state: string, open: boolean): Promise<void> {
+  if (!open) {
+    console.log(describe(session, state))
+    return
+  }
+  const connected = await connect(session)
+  if (connected) {
+    console.log(describe(connected, `${state}, connected`))
+    return
+  }
+  console.log(describe(session, state))
+  console.error(
+    `the connection page did not answer; open ${connectionUrl()} in the Chrome profile where the harness is loaded`,
+  )
+  process.exitCode = 1
+}
 
 export const start = new Command('start')
-  .description('Start the session in the background (no-op if one is running)')
-  .action(async () => {
+  .description(
+    'Start the session in the background and connect Chrome to it (no-op if one is running)',
+  )
+  .option('--no-open', 'do not open the connection page in Chrome')
+  .action(async (opts: { open: boolean }) => {
     const existing = await discover()
     if (existing) {
-      console.log(describe(existing, 'already running'))
+      await report(existing, 'already running', opts.open)
       return
     }
 
@@ -29,5 +52,5 @@ export const start = new Command('start')
       process.exitCode = 1
       return
     }
-    console.log(describe(session, 'started'))
+    await report(session, 'started', opts.open)
   })

@@ -193,6 +193,7 @@ export function createServer(
           pid: process.pid,
           port: self.port,
           uptimeMs: Date.now() - startedAt,
+          listening: pollers.length > 0 || claimed.size > 0,
         })
       }
 

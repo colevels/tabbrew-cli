@@ -5,7 +5,7 @@ import { parseTabId, reject } from './tab-ids'
 
 export const discard = new Command('discard')
   .description(
-    'Unload tabs from memory, keeping them on the tab strip (needs the TabBrew panel open in Chrome)',
+    'Unload tabs from memory, keeping them on the tab strip (needs a connected session; see tabbrew session open)',
   )
   .argument('<tab...>', 'tab ids, as shown by "tabs list"')
   .option('--json', 'machine-readable output')

@@ -1,16 +1,8 @@
 import { useEffect, useState } from 'react'
 import { browser } from 'wxt/browser'
-import { type ServedEvent, serveOperators } from '../../utils/channel'
-import { createOperators } from '../../utils/operators'
-import {
-  discover,
-  ensurePermission,
-  formatUptime,
-  HOST,
-  hasPermission,
-  PORTS,
-  type SessionInfo,
-} from '../../utils/session'
+import { type ServedEvent, serveOperators } from '../utils/channel'
+import { createOperators } from '../utils/operators'
+import { discover, formatUptime, HOST, PORTS, type SessionInfo } from '../utils/session'
 
 // Well inside the session's idle window, so an open panel keeps it alive.
 const POLL_MS = 3_000
@@ -18,17 +10,6 @@ const POLL_MS = 3_000
 const operators = createOperators(browser)
 
 type Checked = { at: number; session: SessionInfo | null }
-
-const Permission = ({ onConnect }: { onConnect: () => void }) => (
-  <section>
-    <p>
-      Allow this panel to reach the tabbrew CLI on <code>{HOST}</code>.
-    </p>
-    <button type="button" onClick={onConnect}>
-      Connect to TabBrew CLI
-    </button>
-  </section>
-)
 
 const Missing = () => (
   <section>
@@ -75,32 +56,33 @@ const Connected = ({
         </p>
       )}
       <p className="muted">{served ? describeServed(served, now) : 'listening for commands'}</p>
-      <p className="muted">The session stays alive while this panel is open.</p>
+      <p className="muted">The session stays alive while this page is open.</p>
     </section>
   )
 }
 
-export const App = () => {
-  const [granted, setGranted] = useState<boolean | null>(null)
+// onLost fires once a session this page was serving stops answering.
+export const App = ({ onLost }: { onLost?: () => void }) => {
   const [checked, setChecked] = useState<Checked | null>(null)
   const [served, setServed] = useState<ServedEvent | null>(null)
   const [now, setNow] = useState(Date.now())
+  const [wasServing, setWasServing] = useState(false)
 
   const session = checked?.session ?? null
   const port = session?.port
 
+  // Closing the page is how polling stops.
   useEffect(() => {
-    void hasPermission().then(setGranted)
-  }, [])
-
-  // Closing the panel unloads this page, which is how polling stops.
-  useEffect(() => {
-    if (!granted) return
     const refresh = async () => setChecked({ at: Date.now(), session: await discover() })
     void refresh()
     const timer = setInterval(() => void refresh(), POLL_MS)
     return () => clearInterval(timer)
-  }, [granted])
+  }, [])
+
+  useEffect(() => {
+    if (port !== undefined) setWasServing(true)
+    else if (wasServing) onLost?.()
+  }, [port, wasServing, onLost])
 
   // Keyed on the port, not the session: every poll hands back a fresh object
   // and the channel must outlive them.
@@ -116,11 +98,6 @@ export const App = () => {
     return () => clearInterval(timer)
   }, [])
 
-  // ensurePermission() must be the first await: Chrome's transient activation lapses otherwise.
-  const connect = async () => {
-    if (await ensurePermission()) setGranted(true)
-  }
-
   return (
     <>
       <h1>
@@ -129,7 +106,6 @@ export const App = () => {
       </h1>
       <p className="muted">Development harness for the tabbrew CLI. Not the product extension.</p>
 
-      {granted === false && <Permission onConnect={() => void connect()} />}
       {checked &&
         (session ? <Connected session={session} served={served} now={now} /> : <Missing />)}
 

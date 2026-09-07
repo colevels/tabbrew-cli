@@ -3,7 +3,9 @@ import { callOperator, withSession } from '../../core/session'
 import { formatWindowTable, summarizeWindows } from '../../core/windows'
 
 export const list = new Command('list')
-  .description('List every open Chrome window (needs the TabBrew panel open in Chrome)')
+  .description(
+    'List every open Chrome window (needs a connected session; see tabbrew session open)',
+  )
   .option('--json', 'machine-readable output')
   .action((opts: { json?: boolean }) =>
     withSession(async (session) => {

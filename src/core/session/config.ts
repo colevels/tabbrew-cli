@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import pkg from '../../../package.json'
 import { DEFAULT_PORTS } from './protocol'
 
-export { HOST, SERVICE } from './protocol'
+export { CONNECTION_PAGE, EXTENSION_KEY, HOST, SERVICE } from './protocol'
 
 export const VERSION: string = pkg.version
 
@@ -14,6 +14,8 @@ export const IDLE_EXIT_MS = parseMs(process.env.TABBREW_SESSION_IDLE_MS) ?? 10 *
 export const PROBE_TIMEOUT_MS = 400
 export const SPAWN_WAIT_MS = 4_000
 export const STOP_WAIT_MS = 3_000
+// Chrome has to open a tab and load the page before it can hold the channel.
+export const CONNECT_WAIT_MS = parseMs(process.env.TABBREW_SESSION_CONNECT_WAIT_MS) ?? 5_000
 
 // How long a call waits for a panel to claim it, how long a claimed call
 // waits for its result, and how long the panel's poll is held open.

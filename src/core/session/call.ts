@@ -37,12 +37,12 @@ function explain(
     case 'no_panel':
       return new OperatorCallError(
         error,
-        'no TabBrew panel is listening; open the TabBrew panel in Chrome (toolbar icon) and retry',
+        'nothing is connected to the session; run "tabbrew session open" and retry',
       )
     case 'timeout':
       return new OperatorCallError(
         error,
-        `the TabBrew panel did not answer within ${Math.round(OPERATOR_TIMEOUT_MS / 1000)}s`,
+        `the connected page did not answer within ${Math.round(OPERATOR_TIMEOUT_MS / 1000)}s`,
       )
     case 'operator_failed':
       return new OperatorCallError(error, `${name} failed: ${detail}`)

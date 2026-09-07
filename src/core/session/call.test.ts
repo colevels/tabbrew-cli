@@ -22,6 +22,7 @@ const info = (port: number): SessionInfo => ({
   pid: process.pid,
   version: VERSION,
   uptimeMs: 0,
+  listening: true,
 })
 const fromBrowser = { headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'cors' } }
 
@@ -60,11 +61,11 @@ describe('callOperator', () => {
     expect(await served).toMatchObject({ operator: 'readSnapshot', input: {} })
   })
 
-  test('says to open the panel when nobody is listening', async () => {
+  test('says to open the connection page when nobody is listening', async () => {
     const { port } = up({ claimWaitMs: 50 })
     const error = await failure(callOperator(info(port), 'readSnapshot', {}))
     expect(error.code).toBe('no_panel')
-    expect(error.message).toContain('open the TabBrew panel')
+    expect(error.message).toContain('tabbrew session open')
   })
 
   test('carries the panel error with the operator name', async () => {

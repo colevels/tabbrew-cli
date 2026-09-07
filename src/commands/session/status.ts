@@ -14,7 +14,9 @@ export const status = new Command('status')
         ),
       )
     } else if (session) {
-      console.log(describe(session, 'running'))
+      console.log(
+        describe(session, session.listening ? 'running, connected' : 'running, not connected'),
+      )
     } else {
       console.log(`no session running (checked ${HOST}:${PORTS.join(', ')})`)
     }

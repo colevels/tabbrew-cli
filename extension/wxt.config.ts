@@ -1,6 +1,6 @@
 import { defineConfig } from 'wxt'
 import pkg from '../package.json'
-import { DEFAULT_PORTS, HOST } from '../src/core/session/protocol'
+import { DEFAULT_PORTS, EXTENSION_KEY, HOST } from '../src/core/session/protocol'
 
 const repoUrl = pkg.repository.url.replace(/^git\+/, '').replace(/\.git$/, '')
 
@@ -21,8 +21,12 @@ export default defineConfig({
     version_name: `${pkg.version} (harness)`,
     homepage_url: repoUrl,
     minimum_chrome_version: '114',
+    // Pins the id, so the CLI can open connection.html by URL.
+    key: EXTENSION_KEY,
     permissions: ['tabs', 'tabGroups'],
-    optional_host_permissions: DEFAULT_PORTS.map((port) => `http://${HOST}:${port}/*`),
+    // Required, not optional: the connection page opens without a user
+    // gesture, so it could never ask for them.
+    host_permissions: DEFAULT_PORTS.map((port) => `http://${HOST}:${port}/*`),
     action: { default_title: 'TabBrew CLI Harness' },
   },
 })

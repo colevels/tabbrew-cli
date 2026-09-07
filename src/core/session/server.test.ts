@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { SERVICE, VERSION } from './config'
-import type { OperatorRequest } from './protocol'
+import { NEXT_REQUEST_PATH, type OperatorRequest } from './protocol'
 import { createServer, type ServerOptions, type SessionServer } from './server'
 
 const servers: SessionServer[] = []
@@ -46,6 +46,18 @@ describe('session server', () => {
       port: server.port,
     })
     expect(body.uptimeMs).toBeGreaterThanOrEqual(0)
+    expect(body.listening).toBe(false)
+  })
+
+  test('GET /health reports a page holding the channel', async () => {
+    const server = up({ longPollMs: 300 })
+    const held = fetch(url(server, NEXT_REQUEST_PATH))
+    await Bun.sleep(30)
+    const body = (await (await fetch(url(server, '/health'))).json()) as Record<string, unknown>
+    expect(body.listening).toBe(true)
+    expect((await held).status).toBe(204)
+    const after = (await (await fetch(url(server, '/health'))).json()) as Record<string, unknown>
+    expect(after.listening).toBe(false)
   })
 
   test('unknown routes are 404', async () => {
