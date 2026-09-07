@@ -116,10 +116,11 @@ export const createOperators = (chrome: ChromeApi): Operators => ({
     return { tabId: tab?.id ?? tabId, index: tab?.index }
   },
 
+  // Chrome answers a one-id list with a single Tab, not a list of one.
   moveTabs: async ({ tabIds, index, windowId }) => {
     const moved = await chrome.tabs.move(tabIds, omitUndefined({ index, windowId }))
     return {
-      tabs: moved.map((tab) => ({
+      tabs: (Array.isArray(moved) ? moved : [moved]).map((tab) => ({
         tabId: requireTabId(tab),
         windowId: tab.windowId,
         index: tab.index,

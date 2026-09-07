@@ -97,6 +97,25 @@ long one extends its own row instead of shifting the columns, and is capped at
 60 columns with a trailing `…`; the full title and url, group titles and
 colours, window focus and `lastAccessed` are all in `--json`.
 
+`tabbrew tabs move` puts tabs next to another tab, addressed by the TAB
+column. The moved tabs end up in the anchor's window, so a tab from window B
+placed after a tab in window A crosses windows with no extra flag. It is the
+first verb that changes tabs.
+
+```bash
+tabbrew tabs move 1950 --after 1901         # 1950 lands right after 1901
+tabbrew tabs move 1950 1952 --before 1903   # both, in the order given, just before 1903
+tabbrew tabs move 1950 --after 1901 --json  # [{tabId, windowId, index}]
+```
+
+Silent on success. All the ids go to Chrome in one call, so either every tab
+moves or none does. An id that is not a positive integer, a missing anchor
+flag, or a tab named as its own anchor is rejected before the session is
+contacted; an id Chrome does not know fails after the snapshot read with
+`no tab <id>`. Chrome decides what happens at a group boundary (a tab dropped
+inside a group joins it) and refuses to move an unpinned tab ahead of pinned
+ones; both surface as `moveTabs failed`.
+
 ## Windows
 
 `tabbrew windows list` prints one row per open window, derived from the same
@@ -159,8 +178,8 @@ and an unknown id fails with Chrome's message.
 
 `extension/` is the development harness for the CLI's browser side, not the
 TabBrew product extension. Browser-facing features land here paired with their
-CLI command (the session handshake, the three `list` verbs and
-`tabbrew groups collapse`/`uncollapse` today; the verbs that change tabs next)
+CLI command (the session handshake, the three `list` verbs,
+`tabbrew groups collapse`/`uncollapse` and `tabbrew tabs move` today)
 so the protocol can be exercised end to end in a real Chrome. The product extension moves to its own repository once that protocol is
 stable; see `extension/README.md`.
 

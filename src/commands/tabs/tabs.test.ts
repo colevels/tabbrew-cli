@@ -40,7 +40,10 @@ async function tabbrew(...args: string[]) {
 
 const snapshot: Snapshot = {
   takenAt: 1_700_000_000_000,
-  windows: [{ id: 1842, focused: true, incognito: false, state: 'normal' }],
+  windows: [
+    { id: 1842, focused: true, incognito: false, state: 'normal' },
+    { id: 1843, focused: false, incognito: false, state: 'normal' },
+  ],
   groups: [{ id: 7, windowId: 1842, title: 'Work', color: 'blue', collapsed: false }],
   tabs: [
     {
@@ -71,10 +74,41 @@ const snapshot: Snapshot = {
       status: 'complete',
       groupId: 7,
     },
+    {
+      id: 1950,
+      windowId: 1843,
+      index: 0,
+      url: 'chrome://newtab/',
+      title: 'New Tab',
+      pinned: false,
+      audible: false,
+      muted: false,
+      discarded: false,
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    },
   ],
 }
 
 const panel = new AbortController()
+const moves: { tabIds: number[]; index: number; windowId?: number }[] = []
+
+function answer(request: OperatorRequest): unknown {
+  if (request.operator === 'readSnapshot') return { output: snapshot }
+  const input = request.input as { tabIds: number[]; index: number; windowId?: number }
+  moves.push(input)
+  if (input.tabIds.includes(1903)) return { error: 'Tabs cannot be edited right now' }
+  return {
+    output: {
+      tabs: input.tabIds.map((tabId, offset) => ({
+        tabId,
+        windowId: input.windowId,
+        index: input.index + offset,
+      })),
+    },
+  }
+}
 
 async function servePanel(signal: AbortSignal): Promise<void> {
   while (!signal.aborted) {
@@ -84,7 +118,7 @@ async function servePanel(signal: AbortSignal): Promise<void> {
       const request = (await res.json()) as OperatorRequest
       await fetch(base + resultPath(request.id), {
         method: 'POST',
-        body: JSON.stringify({ output: snapshot }),
+        body: JSON.stringify(answer(request)),
         ...fromBrowser,
         signal,
       })
@@ -127,7 +161,7 @@ describe('tabbrew tabs list', () => {
     expect(exitCode).toBe(0)
     const labelled = {
       ...snapshot,
-      windows: snapshot.windows.map((window) => ({ ...window, label: 'A' })),
+      windows: snapshot.windows.map((window, i) => ({ ...window, label: 'AB'[i] })),
     }
     expect(JSON.parse(stdout)).toEqual(labelled)
   })
@@ -139,5 +173,68 @@ describe('tabbrew tabs list', () => {
     expect(header).toMatch(/^TAB\s+WINDOW\s+GROUP\s+FLAGS\s+URL\s+TITLE$/)
     expect(first).toMatch(/^1901\s+A\s+-\s+active\s+mail\.google\.com\s+Inbox$/)
     expect(stdout).toContain('1903  A       7')
+  })
+})
+
+describe('tabbrew tabs move', () => {
+  test('rejects a bad id before touching the session', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew(
+      'tabs',
+      'move',
+      '1950',
+      'x',
+      '--after',
+      '1901',
+    )
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('tab id must be a positive integer: x')
+    expect(stdout).toBe('')
+    expect(moves).toEqual([])
+  })
+
+  test('needs exactly one anchor flag', async () => {
+    const both = await tabbrew('tabs', 'move', '1950', '--after', '1901', '--before', '1903')
+    expect(both.exitCode).toBe(1)
+    expect(both.stderr).toContain('give exactly one of --after, --before')
+    const none = await tabbrew('tabs', 'move', '1950')
+    expect(none.exitCode).toBe(1)
+    expect(none.stderr).toContain('give exactly one of --after, --before')
+    expect(moves).toEqual([])
+  })
+
+  test('refuses to move a tab next to itself', async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'move', '1901', '--after', '1901')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('a tab cannot be moved next to itself: 1901')
+    expect(moves).toEqual([])
+  })
+
+  test('moves across windows in one call and prints nothing', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'move', '1950', '--after', '1901')
+    expect(exitCode).toBe(0)
+    expect(stdout).toBe('')
+    expect(moves.splice(0)).toEqual([{ tabIds: [1950], index: 1, windowId: 1842 }])
+  })
+
+  test('prints the placements as json', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'move', '1950', '--before', '1901', '--json')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual([{ tabId: 1950, windowId: 1842, index: 0 }])
+    moves.splice(0)
+  })
+
+  test('fails on an unknown anchor without moving anything', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('tabs', 'move', '1950', '--after', '4')
+    expect(exitCode).toBe(1)
+    expect(stdout).toBe('')
+    expect(stderr).toContain('no tab 4; run "tabbrew tabs list"')
+    expect(moves).toEqual([])
+  })
+
+  test("surfaces Chrome's refusal", async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'move', '1903', '--after', '1901')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('moveTabs failed: Tabs cannot be edited right now')
+    moves.splice(0)
   })
 })
