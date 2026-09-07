@@ -76,6 +76,15 @@ const snapshot: Snapshot = {
 }
 
 const panel = new AbortController()
+const updates: { groupId: number; collapsed: boolean }[] = []
+
+function answer(request: OperatorRequest): unknown {
+  if (request.operator === 'readSnapshot') return { output: snapshot }
+  const input = request.input as { groupId: number; collapsed: boolean }
+  updates.push(input)
+  if (input.groupId === 99) return { error: `No group with id: ${input.groupId}` }
+  return { output: { groupId: input.groupId, title: 'Work', color: 'blue' } }
+}
 
 async function servePanel(signal: AbortSignal): Promise<void> {
   while (!signal.aborted) {
@@ -85,7 +94,7 @@ async function servePanel(signal: AbortSignal): Promise<void> {
       const request = (await res.json()) as OperatorRequest
       await fetch(base + resultPath(request.id), {
         method: 'POST',
-        body: JSON.stringify({ output: snapshot }),
+        body: JSON.stringify(answer(request)),
         ...fromBrowser,
         signal,
       })
@@ -139,5 +148,49 @@ describe('tabbrew groups list', () => {
     const [header, first] = stdout.split('\n')
     expect(header).toMatch(/^GROUP\s+WINDOW\s+TABS\s+COLOR\s+FLAGS\s+TITLE$/)
     expect(first).toMatch(/^7\s+A\s+1\s+blue\s+-\s+Work$/)
+  })
+})
+
+describe('tabbrew groups collapse', () => {
+  test('rejects a bad id before touching the session', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('groups', 'collapse', '7', 'x')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('group id must be a positive integer: x')
+    expect(stdout).toBe('')
+    expect(updates).toEqual([])
+  })
+
+  test('collapses each id in order and prints nothing', async () => {
+    const { exitCode, stdout } = await tabbrew('groups', 'collapse', '7', '9')
+    expect(exitCode).toBe(0)
+    expect(stdout).toBe('')
+    expect(updates.splice(0)).toEqual([
+      { groupId: 7, collapsed: true },
+      { groupId: 9, collapsed: true },
+    ])
+  })
+
+  test('prints the results as json', async () => {
+    const { exitCode, stdout } = await tabbrew('groups', 'collapse', '7', '--json')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual([{ groupId: 7, collapsed: true }])
+    updates.splice(0)
+  })
+
+  test('stops at the first failure', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('groups', 'collapse', '7', '99', '9')
+    expect(exitCode).toBe(1)
+    expect(stdout).toBe('')
+    expect(stderr).toContain('updateGroup failed: No group with id: 99')
+    expect(updates.splice(0).map((update) => update.groupId)).toEqual([7, 99])
+  })
+})
+
+describe('tabbrew groups uncollapse', () => {
+  test('expands the group', async () => {
+    const { exitCode, stdout } = await tabbrew('groups', 'uncollapse', '7', '--json')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual([{ groupId: 7, collapsed: false }])
+    expect(updates.splice(0)).toEqual([{ groupId: 7, collapsed: false }])
   })
 })

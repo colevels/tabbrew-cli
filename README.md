@@ -140,13 +140,28 @@ GROUP is Chrome's group id, as shown by `tabs list`; WINDOW is the window's
 label; TABS is a count; FLAGS is `collapsed` or `-`. TITLE comes last, capped
 at 60 columns with a trailing `…`, or `-` when the group has no title.
 
+`tabbrew groups collapse` and `tabbrew groups uncollapse` fold or expand
+groups, addressed by the GROUP column of `groups list`. They are the first
+verbs that change Chrome.
+
+```bash
+tabbrew groups collapse 7 9       # collapse groups 7 and 9, in order
+tabbrew groups uncollapse 7       # expand it again
+tabbrew groups collapse 7 --json  # [{groupId, collapsed}]
+```
+
+Both are silent on success. Ids are sent one at a time in the order given;
+the first failure stops with exit 1 and the groups before it stay changed. An
+id that is not a positive integer is rejected before the session is contacted,
+and an unknown id fails with Chrome's message.
+
 ## Harness extension
 
 `extension/` is the development harness for the CLI's browser side, not the
 TabBrew product extension. Browser-facing features land here paired with their
-CLI command (the session handshake, `tabbrew tabs list`, `tabbrew windows list` and `tabbrew groups list` today; the verbs
-that change tabs next) so the protocol can be exercised end to end in a real
-Chrome. The product extension moves to its own repository once that protocol is
+CLI command (the session handshake, the three `list` verbs and
+`tabbrew groups collapse`/`uncollapse` today; the verbs that change tabs next)
+so the protocol can be exercised end to end in a real Chrome. The product extension moves to its own repository once that protocol is
 stable; see `extension/README.md`.
 
 It is a minimal Manifest V3 side panel, built with [WXT](https://wxt.dev) and
@@ -207,6 +222,7 @@ src/index.ts                                 root program, registers nouns
 src/commands/<noun>/index.ts                 new Command("<noun>") + addCommand(each verb)
 src/commands/<noun>/<verb>.ts                one verb = one exported Command
 src/commands/tabs/list.ts                    readSnapshot through the session, as a table or --json
+src/commands/groups/collapse.ts              the collapse verb and the factory uncollapse shares
 src/commands/init/index.ts                   the init verb, writes the agent cheat sheet
 src/core/<module>/index.ts                   public surface of a core module
 src/core/session/protocol.ts                 wire contract shared with the extension: ports, marker, probe, command channel
