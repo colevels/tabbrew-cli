@@ -95,7 +95,7 @@ const panel = new AbortController()
 const moves: { tabIds: number[]; index: number; windowId?: number }[] = []
 const discards: number[] = []
 const groupings: { tabIds: number[]; groupId?: number; windowId?: number }[] = []
-const groupUpdates: { groupId: number; title?: string; color?: string }[] = []
+const groupUpdates: { groupId: number; title?: string; color?: string; collapsed?: boolean }[] = []
 
 function answer(request: OperatorRequest): unknown {
   if (request.operator === 'readSnapshot') return { output: snapshot }
@@ -114,7 +114,12 @@ function answer(request: OperatorRequest): unknown {
     return { output: { groupId: input.groupId ?? 9001 } }
   }
   if (request.operator === 'updateGroup') {
-    const input = request.input as { groupId: number; title?: string; color?: string }
+    const input = request.input as {
+      groupId: number
+      title?: string
+      color?: string
+      collapsed?: boolean
+    }
     groupUpdates.push(input)
     return { output: input }
   }
@@ -327,6 +332,13 @@ describe('tabbrew tabs group', () => {
     expect(groupings).toEqual([])
   })
 
+  test('rejects --collapse and --expand together', async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'group', '1950', '--collapse', '--expand')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('give at most one of --collapse, --expand')
+    expect(groupings).toEqual([])
+  })
+
   test('fails on an unknown --to group without grouping anything', async () => {
     const { exitCode, stdout, stderr } = await tabbrew('tabs', 'group', '1950', '--to', '99')
     expect(exitCode).toBe(1)
@@ -387,6 +399,22 @@ describe('tabbrew tabs group', () => {
     expect(JSON.parse(stdout)).toEqual({ groupId: 7, title: 'Foo', color: 'blue' })
     groupings.splice(0)
     expect(groupUpdates.splice(0)).toEqual([{ groupId: 7, title: 'Foo', color: 'blue' }])
+  })
+
+  test('applies --collapse via a follow-up updateGroup call', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'group', '1950', '--to', '7', '--collapse')
+    expect(exitCode).toBe(0)
+    expect(stdout).toBe('')
+    groupings.splice(0)
+    expect(groupUpdates.splice(0)).toEqual([{ groupId: 7, collapsed: true }])
+  })
+
+  test('applies --expand via a follow-up updateGroup call', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'group', '1950', '--to', '7', '--expand')
+    expect(exitCode).toBe(0)
+    expect(stdout).toBe('')
+    groupings.splice(0)
+    expect(groupUpdates.splice(0)).toEqual([{ groupId: 7, collapsed: false }])
   })
 
   test("surfaces Chrome's refusal", async () => {

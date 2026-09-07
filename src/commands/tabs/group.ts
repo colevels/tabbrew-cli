@@ -26,15 +26,26 @@ export const group = new Command('group')
   .option('--window <window>', 'create a new group in this window')
   .option('--title <title>', 'set the group title')
   .option('--color <color>', `set the group color (${COLORS.join('|')})`)
+  .option('--collapse', 'collapse the group')
+  .option('--expand', 'expand the group')
   .option('--json', 'machine-readable output')
   .action(
     async (
       raws: string[],
-      opts: { to?: string; window?: string; title?: string; color?: string; json?: boolean },
+      opts: {
+        to?: string
+        window?: string
+        title?: string
+        color?: string
+        collapse?: boolean
+        expand?: boolean
+        json?: boolean
+      },
     ) => {
       if (opts.to !== undefined && opts.window !== undefined) {
         return reject('give at most one of --to, --window')
       }
+      if (opts.collapse && opts.expand) return reject('give at most one of --collapse, --expand')
       const tabIds: number[] = []
       for (const raw of raws) {
         const tabId = parseTabId(raw)
@@ -57,17 +68,19 @@ export const group = new Command('group')
         return reject(`color must be one of ${COLORS.join(', ')}: ${opts.color}`)
       }
       const color = opts.color as GroupColor | undefined
+      const collapsed = opts.collapse ? true : opts.expand ? false : undefined
       await withSession(async (session) => {
         const snapshot = await callOperator(session, 'readSnapshot', {})
         const plan = planGroup(snapshot, tabIds as [number, ...number[]], { groupId, windowId })
         if (!plan.ok) return reject(plan.message)
         const grouped = await callOperator(session, 'groupTabs', plan.input)
         let output: { groupId: number; title?: string; color?: GroupColor } = grouped
-        if (opts.title !== undefined || color !== undefined) {
+        if (opts.title !== undefined || color !== undefined || collapsed !== undefined) {
           output = await callOperator(session, 'updateGroup', {
             groupId: grouped.groupId,
             title: opts.title,
             color,
+            collapsed,
           })
         }
         if (opts.json) console.log(JSON.stringify(output))
