@@ -3,7 +3,7 @@
 // TABBREW_E2E=1 and TABBREW_E2E_CHROME_BIN (Chrome for Testing or Chromium;
 // branded Chrome 137+ ignores --load-extension); see scripts/e2e-chrome.sh.
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pkg from '../../package.json'
@@ -60,6 +60,20 @@ async function json<T>(...args: string[]): Promise<T> {
 }
 
 const snapshot = () => json<Snapshot>('tabs', 'list')
+
+// What a person would see: the plain tables, appended to TABBREW_E2E_REPORT
+// after each step so CI can show the state of the real Chrome as it went.
+async function report(stage: string): Promise<void> {
+  const path = process.env.TABBREW_E2E_REPORT
+  if (!path) return
+  const sections = await Promise.all(
+    (['windows', 'groups', 'tabs'] as const).map(async (noun) => {
+      const { stdout, stderr } = await tabbrew(noun, 'list')
+      return `\`tabbrew ${noun} list\`\n\n\`\`\`\n${(stdout + stderr).trimEnd()}\n\`\`\`\n`
+    }),
+  )
+  appendFileSync(path, `### ${stage}\n\n${sections.join('\n')}\n`)
+}
 
 // The tabs of one window in strip order, once none of them is still loading:
 // a title is only trustworthy after the page has finished.
@@ -145,6 +159,7 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
     expect(status.running).toBe(true)
     expect(status.listening).toBe(true)
     expect(status.version).toBe(pkg.version)
+    await report('After `tabbrew session start`')
   })
 
   test('tabs list sees the connection page', async () => {
@@ -171,6 +186,7 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
 
     const tabs = await settledTabs(windowId)
     expect(tabs).toMatchObject(PAGES.map((_, page) => expectedTab(page, { index: page })))
+    await report('After `tabbrew windows create` with five pages')
   })
 
   test('tabs group joins two tabs and tabs list shows only them in the group', async () => {
@@ -200,6 +216,7 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
     expect(groups.filter((group) => group.windowId === windowId)).toMatchObject([
       { id: groupId, windowId, title: 'ci', color: 'blue', collapsed: false, tabCount: 2 },
     ])
+    await report('After `tabbrew tabs group` on two tabs')
   })
 
   test('groups collapse and uncollapse toggle the group', async () => {
@@ -235,6 +252,7 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
       expectedTab(3, { index: 3 }),
       expectedTab(4, { index: 4 }),
     ])
+    await report('After `tabbrew tabs move` of the first tab behind the group')
   })
 
   test('tabs discard unloads a background tab and keeps it in its group', async () => {
@@ -243,6 +261,7 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
 
     const tab = (await snapshot()).tabs.find((t) => t.id === result?.tabId)
     expect(tab).toMatchObject({ windowId, index: 0, url: pageUrl(1), discarded: true, groupId })
+    await report('After `tabbrew tabs discard` of a grouped background tab')
   })
 
   test('session stop ends the session', async () => {

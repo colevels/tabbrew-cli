@@ -49,16 +49,23 @@ jobs:
       - run: |
           "${{ steps.chrome.outputs.bin }}" --version
           sudo apt-get install -y --no-install-recommends xvfb
-      - run: xvfb-run --auto-servernum bun run test:e2e
+      - run: |
+          xvfb-run --auto-servernum bun run test:e2e \
+            --reporter=junit --reporter-outfile="$RUNNER_TEMP/e2e-junit.xml"
         env:
           TABBREW_E2E_CHROME_BIN: ${{ steps.chrome.outputs.bin }}
-      - if: failure()
-        run: tail -n +1 /tmp/tabbrew-e2e-*/session.log /tmp/tabbrew-e2e-*/launcher.log || true
-      - if: failure()
+          TABBREW_E2E_REPORT: ${{ runner.temp }}/e2e-report.md
+      - if: always()
+        run: |
+          bun scripts/e2e-summary.ts "$RUNNER_TEMP/e2e-junit.xml" "$RUNNER_TEMP/e2e-report.md" \
+            /tmp/tabbrew-e2e-*/session.log /tmp/tabbrew-e2e-*/launcher.log
+      - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-chrome-logs
+          name: e2e-chrome
           path: |
+            ${{ runner.temp }}/e2e-junit.xml
+            ${{ runner.temp }}/e2e-report.md
             /tmp/tabbrew-e2e-*/session.log
             /tmp/tabbrew-e2e-*/launcher.log
             /tmp/tabbrew-e2e-*/chrome_debug.log
