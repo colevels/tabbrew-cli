@@ -5,7 +5,7 @@
 //   bun scripts/e2e-summary.ts <junit.xml> <report.md> [log...]
 //
 // Writes to $GITHUB_STEP_SUMMARY, or stdout when unset.
-import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename } from 'node:path'
 
 const [junitPath, reportPath, ...logPaths] = process.argv.slice(2)
@@ -140,3 +140,5 @@ const out = `${lines.join('\n')}\n`
 const summary = process.env.GITHUB_STEP_SUMMARY
 if (summary) appendFileSync(summary, out)
 else process.stdout.write(out)
+// The PR comment reuses the same markdown.
+if (process.env.E2E_SUMMARY_OUT) writeFileSync(process.env.E2E_SUMMARY_OUT, out)
