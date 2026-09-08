@@ -33,6 +33,10 @@ jobs:
   e2e-chrome:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # To push screenshots to the e2e-screenshots branch and keep the PR comment.
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -64,6 +68,16 @@ jobs:
             /tmp/tabbrew-e2e-*/session.log /tmp/tabbrew-e2e-*/launcher.log
         env:
           E2E_SHOTS_DIR: ${{ runner.temp }}/e2e-shots
+          E2E_SUMMARY_OUT: ${{ runner.temp }}/e2e-summary.md
+      # Only a branch of this repository: a fork's token cannot push or comment.
+      - if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: scripts/e2e-pr-comment.sh
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          SHOTS: ${{ runner.temp }}/e2e-shots
+          SUMMARY: ${{ runner.temp }}/e2e-summary.md
+          GH_TOKEN: ${{ github.token }}
       - if: always()
         uses: actions/upload-artifact@v4
         with:
