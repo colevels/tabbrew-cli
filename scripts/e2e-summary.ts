@@ -5,7 +5,7 @@
 //   bun scripts/e2e-summary.ts <junit.xml> <report.md> [log...]
 //
 // Writes to $GITHUB_STEP_SUMMARY, or stdout when unset.
-import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 
 const [junitPath, reportPath, ...logPaths] = process.argv.slice(2)
@@ -98,6 +98,23 @@ if (report) {
     report,
     '',
     '</details>',
+    '',
+  )
+}
+
+// A job summary cannot embed artifact files, so the screenshots are only named here.
+const shotsDir = process.env.E2E_SHOTS_DIR
+const shots =
+  shotsDir && existsSync(shotsDir)
+    ? readdirSync(shotsDir)
+        .filter((f) => f.endsWith('.png'))
+        .sort()
+    : []
+if (shots.length > 0) {
+  lines.push(
+    `Screenshots of the Xvfb screen, in the \`e2e-chrome\` artifact:`,
+    '',
+    ...shots.map((f) => `- \`${f}\``),
     '',
   )
 }

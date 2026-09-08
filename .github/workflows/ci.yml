@@ -48,17 +48,22 @@ jobs:
             | tail -n 1 | sed 's/^chrome@[^ ]* /bin=/' >> "$GITHUB_OUTPUT"
       - run: |
           "${{ steps.chrome.outputs.bin }}" --version
-          sudo apt-get install -y --no-install-recommends xvfb
+          # xvfb ships with the image; `import` (ImageMagick) takes the screenshots.
+          sudo apt-get install -y --no-install-recommends xvfb imagemagick
+          mkdir -p "$RUNNER_TEMP/e2e-shots"
       - run: |
-          xvfb-run --auto-servernum bun run test:e2e \
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' bun run test:e2e \
             --reporter=junit --reporter-outfile="$RUNNER_TEMP/e2e-junit.xml"
         env:
           TABBREW_E2E_CHROME_BIN: ${{ steps.chrome.outputs.bin }}
           TABBREW_E2E_REPORT: ${{ runner.temp }}/e2e-report.md
+          TABBREW_E2E_SHOTS: ${{ runner.temp }}/e2e-shots
       - if: always()
         run: |
           bun scripts/e2e-summary.ts "$RUNNER_TEMP/e2e-junit.xml" "$RUNNER_TEMP/e2e-report.md" \
             /tmp/tabbrew-e2e-*/session.log /tmp/tabbrew-e2e-*/launcher.log
+        env:
+          E2E_SHOTS_DIR: ${{ runner.temp }}/e2e-shots
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -66,6 +71,7 @@ jobs:
           path: |
             ${{ runner.temp }}/e2e-junit.xml
             ${{ runner.temp }}/e2e-report.md
+            ${{ runner.temp }}/e2e-shots/*.png
             /tmp/tabbrew-e2e-*/session.log
             /tmp/tabbrew-e2e-*/launcher.log
             /tmp/tabbrew-e2e-*/chrome_debug.log

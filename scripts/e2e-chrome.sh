@@ -7,7 +7,8 @@ set -eu
 
 # Ubuntu 24.04 blocks unprivileged user namespaces, which Chrome's sandbox needs.
 case "$(uname -s)" in
-  Linux) sandbox='--no-sandbox --disable-dev-shm-usage --disable-gpu' ;;
+  # Sized to sit inside the Xvfb screen, so a screenshot of it shows the whole window.
+  Linux) sandbox='--no-sandbox --disable-dev-shm-usage --disable-gpu --window-position=0,0 --window-size=1280,900' ;;
   *) sandbox='' ;;
 esac
 

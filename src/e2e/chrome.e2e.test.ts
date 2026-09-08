@@ -73,6 +73,25 @@ async function report(stage: string): Promise<void> {
     }),
   )
   appendFileSync(path, `### ${stage}\n\n${sections.join('\n')}\n`)
+  await screenshot(stage)
+}
+
+// A picture of the Xvfb screen into TABBREW_E2E_SHOTS (Linux only: ImageMagick's
+// `import` reads the X display the test itself runs under).
+let shots = 0
+async function screenshot(stage: string): Promise<void> {
+  const dir = process.env.TABBREW_E2E_SHOTS
+  if (!dir || process.platform !== 'linux' || !process.env.DISPLAY) return
+  shots += 1
+  const slug = stage
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+  // Chrome paints a moment after the API reports the change.
+  await Bun.sleep(750)
+  const file = join(dir, `${String(shots).padStart(2, '0')}-${slug}.png`)
+  const code = await Bun.spawn(['import', '-window', 'root', file], { stderr: 'inherit' }).exited
+  if (code !== 0) console.error(`screenshot failed (${code}): ${file}`)
 }
 
 // The tabs of one window in strip order, once none of them is still loading:
