@@ -96,6 +96,7 @@ const moves: { tabIds: number[]; index: number; windowId?: number }[] = []
 const discards: number[] = []
 const groupings: { tabIds: number[]; groupId?: number; windowId?: number }[] = []
 const groupUpdates: { groupId: number; title?: string; color?: string; collapsed?: boolean }[] = []
+const creations: { url?: string; windowId?: number; index?: number }[] = []
 
 function answer(request: OperatorRequest): unknown {
   if (request.operator === 'readSnapshot') return { output: snapshot }
@@ -122,6 +123,19 @@ function answer(request: OperatorRequest): unknown {
     }
     groupUpdates.push(input)
     return { output: input }
+  }
+  if (request.operator === 'createTab') {
+    const input = request.input as { url?: string; windowId?: number; index?: number }
+    creations.push(input)
+    if (input.url === 'https://bad.example/') return { error: 'Cannot open that URL' }
+    return {
+      output: {
+        tabId: 2100,
+        windowId: input.windowId ?? 1842,
+        index: input.index ?? 9,
+        url: input.url ?? 'chrome://newtab/',
+      },
+    }
   }
   const input = request.input as { tabIds: number[]; index: number; windowId?: number }
   moves.push(input)
@@ -422,5 +436,113 @@ describe('tabbrew tabs group', () => {
     expect(exitCode).toBe(1)
     expect(stderr).toContain('groupTabs failed: Tabs cannot be edited right now')
     groupings.splice(0)
+  })
+})
+
+describe('tabbrew tabs create', () => {
+  test('opens a new tab page when given no url', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'create')
+    expect(exitCode).toBe(0)
+    expect(stdout.trim()).toBe('created tab 2100 in window A at index 9')
+    expect(creations.splice(0)).toEqual([{}])
+  })
+
+  test('prints the created tab as json', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'create', 'https://a.example/', '--json')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual({
+      tabId: 2100,
+      windowId: 1842,
+      index: 9,
+      url: 'https://a.example/',
+    })
+    expect(creations.splice(0)).toEqual([{ url: 'https://a.example/' }])
+  })
+
+  test('makes a bare host absolute', async () => {
+    expect((await tabbrew('tabs', 'create', 'example.com')).exitCode).toBe(0)
+    expect(creations.splice(0)).toEqual([{ url: 'https://example.com' }])
+  })
+
+  test('places the tab after an anchor, in the anchor window', async () => {
+    const { exitCode, stdout } = await tabbrew(
+      'tabs',
+      'create',
+      'https://a.example/',
+      '--after',
+      '1901',
+    )
+    expect(exitCode).toBe(0)
+    expect(stdout.trim()).toBe('created tab 2100 in window A at index 1')
+    expect(creations.splice(0)).toEqual([{ url: 'https://a.example/', windowId: 1842, index: 1 }])
+  })
+
+  test('places the tab before an anchor', async () => {
+    expect((await tabbrew('tabs', 'create', '--before', '1903')).exitCode).toBe(0)
+    expect(creations.splice(0)).toEqual([{ windowId: 1842, index: 1 }])
+  })
+
+  test('opens the tab in a named window', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'create', '--window', '1843')
+    expect(exitCode).toBe(0)
+    expect(stdout.trim()).toBe('created tab 2100 in window B at index 9')
+    expect(creations.splice(0)).toEqual([{ windowId: 1843 }])
+  })
+
+  test('joins a group through a follow-up groupTabs call', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'create', '--group', '7', '--json')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toMatchObject({ tabId: 2100, groupId: 7 })
+    expect(creations.splice(0)).toEqual([{ windowId: 1842 }])
+    expect(groupings.splice(0)).toEqual([{ tabIds: [2100], groupId: 7 }])
+  })
+
+  test('rejects a group that lives in another window', async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'create', '--window', '1843', '--group', '7')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('group 7 is in window 1842')
+    expect(creations).toEqual([])
+  })
+
+  test('rejects more than one placement flag', async () => {
+    const { exitCode, stderr } = await tabbrew(
+      'tabs',
+      'create',
+      '--window',
+      '1842',
+      '--after',
+      '1901',
+    )
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('give at most one of --window, --after, --before')
+    expect(creations).toEqual([])
+  })
+
+  test('rejects an unknown anchor', async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'create', '--after', '4242')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('no tab 4242')
+    expect(creations).toEqual([])
+  })
+
+  test('rejects an unknown window', async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'create', '--window', '4242')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('no window 4242')
+    expect(creations).toEqual([])
+  })
+
+  test('rejects a non-numeric id', async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'create', '--group', 'work')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('--group must be a positive integer: work')
+    expect(creations).toEqual([])
+  })
+
+  test("surfaces Chrome's refusal", async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'create', 'https://bad.example/')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('createTab failed: Cannot open that URL')
+    creations.splice(0)
   })
 })

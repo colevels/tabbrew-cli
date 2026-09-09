@@ -108,7 +108,7 @@ export interface OperatorMap {
     output: { windowId?: number; focused: boolean; tabs: { tabId: number; url: string }[] }
   }
   createTab: {
-    input: { url: string; windowId?: number; index?: number; active?: boolean }
+    input: { url?: string; windowId?: number; index?: number; active?: boolean }
     output: { tabId: number; windowId: number; index: number; url: string }
   }
 }

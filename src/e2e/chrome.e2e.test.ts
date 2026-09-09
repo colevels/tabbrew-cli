@@ -306,6 +306,26 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
     await report('After `tabbrew groups close`')
   })
 
+  test('tabs create opens a background tab after an anchor', async () => {
+    const created = await json<OperatorOutput<'createTab'>>(
+      'tabs',
+      'create',
+      pageUrl(1),
+      '--after',
+      String(ids[0]),
+    )
+    expect(created).toMatchObject({ windowId, index: 1, url: pageUrl(1) })
+
+    const tabs = await settledTabs(windowId)
+    expect(tabs).toMatchObject([
+      expectedTab(0, { index: 0 }),
+      { id: created.tabId, windowId, index: 1, url: pageUrl(1), title: PAGES[1], active: false },
+      expectedTab(3, { index: 2 }),
+      expectedTab(4, { index: 3 }),
+    ])
+    await report('After `tabbrew tabs create` behind the first tab')
+  })
+
   test('session stop ends the session', async () => {
     expect((await tabbrew('session', 'stop')).exitCode).toBe(0)
     expect((await tabbrew('session', 'status')).exitCode).toBe(1)

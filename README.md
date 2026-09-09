@@ -114,6 +114,28 @@ long one extends its own row instead of shifting the columns, and is capped at
 60 columns with a trailing `…`; the full title and url, group titles and
 colours, window focus and `lastAccessed` are all in `--json`.
 
+`tabbrew tabs create` opens a tab. Without a url it opens a new tab page, and
+without a placement flag Chrome puts it at the end of the current window. The
+tab always opens in the background, so a script can build up a window without
+the focus jumping around.
+
+```bash
+tabbrew tabs create https://example.com              # at the end of the current window
+tabbrew tabs create example.com                      # a bare host is read as https://
+tabbrew tabs create https://example.com --after 1901 # right after 1901, in its window
+tabbrew tabs create --window 1843                    # a new tab page, at the end of window 1843
+tabbrew tabs create --group 7 --json                 # inside group 7: {tabId, windowId, index, url, groupId}
+```
+
+Prints `created tab <id> in window <label> at index <n>` on success, because the
+new id is the one thing you cannot look up beforehand. `--window`, `--after` and
+`--before` all name the destination window, so give at most one; `--group` may
+join any of them, as long as the group is in that same window, and is applied by
+a second call once the tab exists. An id that is not a positive integer is
+rejected before the session is contacted; an unknown tab, window or group fails
+after the snapshot read with `no tab <id>`, `no window <id>` or `no group <id>`.
+A url Chrome will not open surfaces as `createTab failed`.
+
 `tabbrew tabs move` puts tabs next to another tab, addressed by the TAB
 column. The moved tabs end up in the anchor's window, so a tab from window B
 placed after a tab in window A crosses windows with no extra flag. It is the
@@ -225,8 +247,8 @@ Silent on success, with the same ordering, validation and failure rules as
 `extension/` is the development harness for the CLI's browser side, not the
 TabBrew product extension. Browser-facing features land here paired with their
 CLI command (the session handshake, the three `list` verbs,
-`tabbrew groups collapse`/`uncollapse`/`close`, `tabbrew tabs move` and
-`tabbrew tabs discard` today)
+`tabbrew groups collapse`/`uncollapse`/`close`, `tabbrew tabs create`,
+`tabbrew tabs move` and `tabbrew tabs discard` today)
 so the protocol can be exercised end to end in a real Chrome. The product extension moves to its own repository once that protocol is
 stable; see `extension/README.md`.
 

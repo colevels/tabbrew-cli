@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { Snapshot, TabSnapshot } from '../operators/contract'
-import { planMove } from './place'
+import { planCreate, planMove } from './place'
 
 type Place = Pick<TabSnapshot, 'id' | 'windowId' | 'index'>
 
@@ -27,6 +27,81 @@ const snapshot: Snapshot = {
     tab({ id: 1950, windowId: 1843, index: 0 }),
   ],
 }
+
+const populated: Snapshot = {
+  ...snapshot,
+  windows: [
+    { id: 1842, focused: true, incognito: false },
+    { id: 1843, focused: false, incognito: false },
+  ],
+  groups: [{ id: 7, windowId: 1843, title: 'Work', color: 'blue', collapsed: false }],
+}
+
+describe('planCreate', () => {
+  test('leaves the placement to Chrome when nothing is asked for', () => {
+    expect(planCreate(populated, {})).toEqual({ ok: true, input: {} })
+  })
+
+  test('lands after or before an anchor, in the anchor window', () => {
+    expect(planCreate(populated, { after: 1902 })).toEqual({
+      ok: true,
+      input: { windowId: 1842, index: 2 },
+    })
+    expect(planCreate(populated, { before: 1902 })).toEqual({
+      ok: true,
+      input: { windowId: 1842, index: 1 },
+    })
+  })
+
+  test('opens in a named window, at its end', () => {
+    expect(planCreate(populated, { windowId: 1843 })).toEqual({
+      ok: true,
+      input: { windowId: 1843 },
+    })
+  })
+
+  test('opens in the group window when only a group is given', () => {
+    expect(planCreate(populated, { groupId: 7 })).toEqual({
+      ok: true,
+      input: { windowId: 1843 },
+      groupId: 7,
+    })
+  })
+
+  test('keeps the anchor index when the group is in the same window', () => {
+    expect(planCreate(populated, { after: 1950, groupId: 7 })).toEqual({
+      ok: true,
+      input: { windowId: 1843, index: 1 },
+      groupId: 7,
+    })
+  })
+
+  test('rejects a group that lives in another window', () => {
+    expect(planCreate(populated, { windowId: 1842, groupId: 7 })).toEqual({
+      ok: false,
+      message: 'group 7 is in window 1843',
+    })
+    expect(planCreate(populated, { after: 1901, groupId: 7 })).toEqual({
+      ok: false,
+      message: 'group 7 is in window 1843',
+    })
+  })
+
+  test('rejects an unknown anchor, window or group', () => {
+    expect(planCreate(populated, { after: 1 })).toEqual({
+      ok: false,
+      message: 'no tab 1; run "tabbrew tabs list"',
+    })
+    expect(planCreate(populated, { windowId: 2 })).toEqual({
+      ok: false,
+      message: 'no window 2; run "tabbrew windows list"',
+    })
+    expect(planCreate(populated, { groupId: 3 })).toEqual({
+      ok: false,
+      message: 'no group 3; run "tabbrew groups list"',
+    })
+  })
+})
 
 describe('planMove', () => {
   test('lands after an anchor in another window', () => {
