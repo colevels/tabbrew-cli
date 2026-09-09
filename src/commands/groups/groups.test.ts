@@ -77,10 +77,16 @@ const snapshot: Snapshot = {
 
 const panel = new AbortController()
 const updates: { groupId: number; collapsed: boolean }[] = []
+const closes: number[] = []
 
 function answer(request: OperatorRequest): unknown {
   if (request.operator === 'readSnapshot') return { output: snapshot }
   const input = request.input as { groupId: number; collapsed: boolean }
+  if (request.operator === 'closeGroup') {
+    closes.push(input.groupId)
+    if (input.groupId === 99) return { error: `No group with id: ${input.groupId}` }
+    return { output: { groupId: input.groupId, tabIds: [1903] } }
+  }
   updates.push(input)
   if (input.groupId === 99) return { error: `No group with id: ${input.groupId}` }
   return { output: { groupId: input.groupId, title: 'Work', color: 'blue' } }
@@ -192,5 +198,37 @@ describe('tabbrew groups uncollapse', () => {
     expect(exitCode).toBe(0)
     expect(JSON.parse(stdout)).toEqual([{ groupId: 7, collapsed: false }])
     expect(updates.splice(0)).toEqual([{ groupId: 7, collapsed: false }])
+  })
+})
+
+describe('tabbrew groups close', () => {
+  test('rejects a bad id before touching the session', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('groups', 'close', '7', '0')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('group id must be a positive integer: 0')
+    expect(stdout).toBe('')
+    expect(closes).toEqual([])
+  })
+
+  test('closes each id in order and prints nothing', async () => {
+    const { exitCode, stdout } = await tabbrew('groups', 'close', '7', '9')
+    expect(exitCode).toBe(0)
+    expect(stdout).toBe('')
+    expect(closes.splice(0)).toEqual([7, 9])
+  })
+
+  test('prints the closed tab ids as json', async () => {
+    const { exitCode, stdout } = await tabbrew('groups', 'close', '7', '--json')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual([{ groupId: 7, tabIds: [1903] }])
+    closes.splice(0)
+  })
+
+  test('stops at the first failure', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('groups', 'close', '7', '99', '9')
+    expect(exitCode).toBe(1)
+    expect(stdout).toBe('')
+    expect(stderr).toContain('closeGroup failed: No group with id: 99')
+    expect(closes.splice(0)).toEqual([7, 99])
   })
 })

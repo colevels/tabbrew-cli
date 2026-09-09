@@ -283,6 +283,29 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
     await report('After `tabbrew tabs discard` of a grouped background tab')
   })
 
+  test('groups close removes the group and its tabs without leaving a window behind', async () => {
+    const windowsBefore = await json<WindowSummary[]>('windows', 'list')
+    const groupedIds = (await snapshot()).tabs
+      .filter((tab) => tab.groupId === groupId)
+      .map((tab) => tab.id)
+    expect(groupedIds).toHaveLength(2)
+
+    const [closed] = await json<OperatorOutput<'closeGroup'>[]>('groups', 'close', String(groupId))
+    expect(closed?.groupId).toBe(groupId)
+    expect(closed?.tabIds.sort()).toEqual(groupedIds.sort())
+
+    const groups = await json<GroupSummary[]>('groups', 'list')
+    expect(groups.find((group) => group.id === groupId)).toBeUndefined()
+    const tabs = await settledTabs(windowId)
+    expect(tabs).toMatchObject([
+      expectedTab(0, { index: 0 }),
+      expectedTab(3, { index: 1 }),
+      expectedTab(4, { index: 2 }),
+    ])
+    expect(await json<WindowSummary[]>('windows', 'list')).toHaveLength(windowsBefore.length)
+    await report('After `tabbrew groups close`')
+  })
+
   test('session stop ends the session', async () => {
     expect((await tabbrew('session', 'stop')).exitCode).toBe(0)
     expect((await tabbrew('session', 'status')).exitCode).toBe(1)

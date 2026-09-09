@@ -207,12 +207,25 @@ the first failure stops with exit 1 and the groups before it stay changed. An
 id that is not a positive integer is rejected before the session is contacted,
 and an unknown id fails with Chrome's message.
 
+`tabbrew groups close` closes groups. Removing a group's tabs would also
+drop it from Chrome's saved tab groups, so instead each group is moved into a
+throwaway window and that window is closed: the tabs go away and the group
+stays saved on the profile.
+
+```bash
+tabbrew groups close 7 9       # close groups 7 and 9, in order
+tabbrew groups close 7 --json  # [{groupId, tabIds}]
+```
+
+Silent on success, with the same ordering, validation and failure rules as
+`collapse`. An id with no tabs behind it fails with `No group with id`.
+
 ## Harness extension
 
 `extension/` is the development harness for the CLI's browser side, not the
 TabBrew product extension. Browser-facing features land here paired with their
 CLI command (the session handshake, the three `list` verbs,
-`tabbrew groups collapse`/`uncollapse`, `tabbrew tabs move` and
+`tabbrew groups collapse`/`uncollapse`/`close`, `tabbrew tabs move` and
 `tabbrew tabs discard` today)
 so the protocol can be exercised end to end in a real Chrome. The product extension moves to its own repository once that protocol is
 stable; see `extension/README.md`.

@@ -97,6 +97,7 @@ export interface OperatorMap {
     input: { groupId: number; title?: string; color?: GroupColor; collapsed?: boolean }
     output: { groupId: number; title?: string; color?: GroupColor }
   }
+  closeGroup: { input: { groupId: number }; output: { groupId: number; tabIds: number[] } }
   discardTab: {
     input: { tabId: number }
     output: { tabId: number; previousTabId: number; changed: boolean }
@@ -128,6 +129,7 @@ export const OPERATOR_NAMES = Object.keys({
   groupTabs: true,
   ungroupTabs: true,
   updateGroup: true,
+  closeGroup: true,
   discardTab: true,
   focusTab: true,
   createWindow: true,

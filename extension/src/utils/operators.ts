@@ -13,12 +13,17 @@ export interface ChromeApi {
     getLastFocused(): Promise<Browser.windows.Window>
     update(windowId: number, info: Browser.windows.UpdateInfo): Promise<Browser.windows.Window>
     create(data: Browser.windows.CreateData): Promise<Browser.windows.Window | undefined>
+    remove(windowId: number): Promise<void>
   }
   tabGroups: {
     query(info: Browser.tabGroups.QueryInfo): Promise<Browser.tabGroups.TabGroup[]>
     update(
       groupId: number,
       properties: Browser.tabGroups.UpdateProperties,
+    ): Promise<Browser.tabGroups.TabGroup | undefined>
+    move(
+      groupId: number,
+      properties: Browser.tabGroups.MoveProperties,
     ): Promise<Browser.tabGroups.TabGroup | undefined>
   }
   tabs: {
@@ -151,6 +156,23 @@ export const createOperators = (chrome: ChromeApi): Operators => ({
   updateGroup: async ({ groupId, title, color, collapsed }) => {
     const group = await chrome.tabGroups.update(groupId, omitUndefined({ title, color, collapsed }))
     return { groupId: group?.id ?? groupId, title: group?.title, color: group?.color }
+  },
+
+  // Removing the tabs would drop the group from Chrome's saved groups; closing
+  // a whole window keeps it saved on the profile. So the group is moved into a
+  // scratch window and that window is closed, taking the group with it.
+  closeGroup: async ({ groupId }) => {
+    const tabIds = (await chrome.tabs.query({ groupId })).map(requireTabId)
+    if (tabIds.length === 0) throw new Error(`No group with id: ${groupId}`)
+    const scratch = await chrome.windows.create({ focused: false })
+    if (scratch?.id === undefined) throw new Error('Chrome returned a window without an id')
+    try {
+      await chrome.tabGroups.move(groupId, { windowId: scratch.id, index: -1 })
+    } finally {
+      // A failed move must not leave the scratch window standing.
+      await chrome.windows.remove(scratch.id)
+    }
+    return { groupId, tabIds }
   },
 
   // The one operator that destroys an id: Chrome replaces the tab, and

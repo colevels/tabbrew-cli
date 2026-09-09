@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { callOperator, withSession } from '../../core/session'
 
 // Chrome reports -1 for an ungrouped tab, so a group id is always positive.
-const parseGroupId = (raw: string): number | null =>
+export const parseGroupId = (raw: string): number | null =>
   /^\d+$/.test(raw) && Number(raw) > 0 ? Number(raw) : null
 
 export function collapsedVerb(name: string, collapsed: boolean): Command {

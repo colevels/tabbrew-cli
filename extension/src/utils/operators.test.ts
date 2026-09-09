@@ -56,9 +56,11 @@ const defaults = (): ChromeApi => ({
     getLastFocused: async () => aWindow(),
     update: async (windowId) => aWindow({ id: windowId, focused: true }),
     create: async (data) => aWindow({ id: 20, focused: !!data.focused, tabs: [] }),
+    remove: async () => {},
   },
   tabGroups: {
     query: async () => [],
+    move: async (groupId, properties) => aGroup({ id: groupId, windowId: properties.windowId }),
     update: async (groupId, properties) =>
       aGroup({
         id: groupId,
@@ -324,6 +326,45 @@ describe('updateGroup', () => {
       ['tabGroups.update', 100, { title: 'Reading', color: 'red' }],
     ])
     expect(result).toEqual({ groupId: 100, title: 'Reading', color: 'red' })
+  })
+})
+
+describe('closeGroup', () => {
+  const grouped = async () => [aTab({ id: 1, groupId: 100 }), aTab({ id: 2, groupId: 100 })]
+
+  test('moves the group into a scratch window and closes that window', async () => {
+    const chrome = fakeChrome({ tabs: { query: grouped } })
+    const result = await createOperators(chrome).closeGroup({ groupId: 100 })
+    expect(chrome.calls).toStrictEqual([
+      ['tabs.query', { groupId: 100 }],
+      ['windows.create', { focused: false }],
+      ['tabGroups.move', 100, { windowId: 20, index: -1 }],
+      ['windows.remove', 20],
+    ])
+    expect(result).toEqual({ groupId: 100, tabIds: [1, 2] })
+  })
+
+  test('refuses an empty group before opening a window', async () => {
+    const chrome = fakeChrome({ tabs: { query: async () => [] } })
+    await expect(createOperators(chrome).closeGroup({ groupId: 100 })).rejects.toThrow(
+      'No group with id: 100',
+    )
+    expect(chrome.calls).toStrictEqual([['tabs.query', { groupId: 100 }]])
+  })
+
+  test('closes the scratch window even when the move fails', async () => {
+    const chrome = fakeChrome({
+      tabs: { query: grouped },
+      tabGroups: {
+        move: async () => {
+          throw new Error('cannot move')
+        },
+      },
+    })
+    await expect(createOperators(chrome).closeGroup({ groupId: 100 })).rejects.toThrow(
+      'cannot move',
+    )
+    expect(chrome.calls.at(-1)).toEqual(['windows.remove', 20])
   })
 })
 
