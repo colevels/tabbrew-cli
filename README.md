@@ -187,6 +187,24 @@ may replace a discarded tab with a new one under a new id: `--json` reports the
 id it has now as `tabId`, the one you gave as `previousTabId`, and `changed`
 when they differ. Take the new id from there, or re-list, before reusing it.
 
+`tabbrew tabs close` closes tabs outright. It is the counterpart to `discard`:
+nothing is kept, and there is no undo from the CLI.
+
+```bash
+tabbrew tabs close 1950            # close one tab
+tabbrew tabs close 1950 1952 --json  # [1950, 1952]
+```
+
+Silent on success. All the ids go to Chrome in one call, so either every tab
+closes or none does; a repeated id is collapsed, since Chrome refuses a list
+that names the same tab twice. An id that is not a positive integer is rejected
+before the session is contacted, and an id Chrome does not know fails after the
+snapshot read with `no tab <id>` — nothing closes in either case. Anything
+Chrome itself refuses surfaces as `closeTabs failed`. Closing the last tab in a
+window closes that window, exactly as it does in the UI; closing every tab of a
+group drops the group, so use `tabbrew groups close` when Chrome should keep it
+among its saved groups.
+
 ## Windows
 
 `tabbrew windows list` prints one row per open window, derived from the same
@@ -264,7 +282,8 @@ Silent on success, with the same ordering, validation and failure rules as
 TabBrew product extension. Browser-facing features land here paired with their
 CLI command (the session handshake, the three `list` verbs,
 `tabbrew groups collapse`/`uncollapse`/`close`, `tabbrew tabs create`,
-`tabbrew tabs focus`, `tabbrew tabs move` and `tabbrew tabs discard` today)
+`tabbrew tabs focus`, `tabbrew tabs move`, `tabbrew tabs discard` and
+`tabbrew tabs close` today)
 so the protocol can be exercised end to end in a real Chrome. The product extension moves to its own repository once that protocol is
 stable; see `extension/README.md`.
 
