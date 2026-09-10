@@ -9,9 +9,10 @@ focus, move, group, discard and close tabs, fold and close groups. Every verb
 has `--json`, and `tabbrew init` writes a cheat sheet so an AI coding agent
 working in your repo can drive the browser the same way.
 
-It needs two things: the `tabbrew` binary, and a small extension loaded in
-Chrome that the CLI talks to over `127.0.0.1`. The extension in this repo is
-the CLI's **harness**, not a Web Store product (see [Harness
+It needs two things: the `tabbrew` binary, and the [TabBrew
+extension](https://chromewebstore.google.com/detail/ikmpmkkcmhhnjmdiooekbhfmomcbefkf)
+in Chrome, which the CLI talks to over `127.0.0.1`. The extension in this repo
+is the CLI's **harness** for developing that protocol (see [Harness
 extension](#harness-extension)); it is shipped as a zip with every release.
 
 ## Install
@@ -59,17 +60,16 @@ bun link                       # puts `tabbrew` on your PATH, pointing at this c
 
 ## Set up the extension
 
-Once per version:
+Install [TabBrew](https://chromewebstore.google.com/detail/ikmpmkkcmhhnjmdiooekbhfmomcbefkf)
+from the Chrome Web Store. That is all: `tabbrew session start` opens its
+connection page by id.
 
-1. Download `tabbrew-extension.zip` from the [release that matches
-   `tabbrew --version`](https://github.com/colevels/tabbrew-cli/releases/latest)
-   and unzip it somewhere permanent.
-2. Open `chrome://extensions`, turn on **Developer mode**, click **Load
-   unpacked** and pick the unzipped folder.
-
-The extension carries the CLI's version, so its page tells you when the two
-drift apart. From a source checkout, `bun run build:ext` produces the same
-build at `extension/dist/chrome-mv3`.
+To drive another build instead, the harness or an unpacked checkout of the
+product, load it through `chrome://extensions` → **Developer mode** → **Load
+unpacked** and set `TABBREW_EXTENSION_ID` to the id Chrome shows there. The
+harness is `tabbrew-extension.zip` on the [release that matches
+`tabbrew --version`](https://github.com/colevels/tabbrew-cli/releases/latest);
+its page tells you when the two drift apart.
 
 ## Quick start
 
@@ -150,11 +150,12 @@ Background output goes to `~/.tabbrew/session.log`.
 `open` launches `chrome-extension://<id>/connection.html` through `open -a
 "Google Chrome"` on macOS, `google-chrome` on Linux and `start chrome` on
 Windows, then waits up to 5 seconds for the page to hold the command channel.
-The id is fixed by the `key` pinned in the harness manifest, so the CLI never
-has to ask Chrome for it. Opening the page twice is harmless: the second copy
-finds the first and closes itself. When its session stops, the page closes
-itself too. Set `TABBREW_CHROME` to a program that takes the URL as its only
-argument to use another browser or profile.
+The id is the Web Store extension's, so the CLI never has to ask Chrome for
+it; `TABBREW_EXTENSION_ID` names another build, such as the harness. Opening
+the page twice is harmless: the second copy finds the first and closes itself.
+When its session stops, the page closes itself too. Set `TABBREW_CHROME` to a
+program that takes the URL as its only argument to use another browser or
+profile.
 
 Browser commands travel through the same server. A local process posts an
 operator call (`POST /operators/<name>`, for instance `readSnapshot`); a
@@ -180,6 +181,7 @@ Environment overrides, mainly for tests:
 | `TABBREW_SESSION_LONG_POLL_MS` | how long a page's poll is held open |
 | `TABBREW_SESSION_CONNECT_WAIT_MS` | how long `open` waits for the connection page |
 | `TABBREW_CHROME` | program that opens the connection page, given its URL |
+| `TABBREW_EXTENSION_ID` | extension whose connection page to open, instead of the Web Store one |
 
 ### Tabs
 
@@ -437,9 +439,11 @@ bun run zip:ext                # extension/dist/tabbrew-extension.zip, the relea
 
 Load it once: `chrome://extensions` → Developer mode → Load unpacked →
 `extension/dist/chrome-mv3`. The manifest pins a `key`, so the id Chrome
-shows is the one the CLI computes; a build loaded before the key was pinned
-must be removed and loaded again. From then on `tabbrew session start` opens
-the page; the toolbar icon opens the side panel instead.
+shows is the same on every machine; a build loaded before the key was pinned
+must be removed and loaded again. The CLI opens the Web Store extension by
+default, so point it here with `TABBREW_EXTENSION_ID=<that id>`; from then on
+`tabbrew session start` opens the page, and the toolbar icon opens the side
+panel instead.
 `bun install` runs `wxt prepare`, which generates the TypeScript config in
 `extension/.wxt/`; both that and `dist/` are ignored by git.
 
@@ -460,7 +464,7 @@ The ports, the `service: "tabbrew-session"` marker the page checks, and the
 command channel's paths and shapes live in `src/core/session/protocol.ts`,
 which both the CLI and the extension import, so the two sides cannot drift
 apart. `extension/wxt.config.ts` also derives the manifest's
-`optional_host_permissions` from that list.
+`host_permissions` from that list.
 
 ## Layout
 

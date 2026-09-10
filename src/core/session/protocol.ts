@@ -16,6 +16,10 @@ export const DEFAULT_PORTS: readonly number[] = [49227, 49228]
 export const EXTENSION_KEY =
   'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3ogvU65RPVyak7AOGk18IzJYEObbGOZNnV928TdLFeRu5/v8JqYfaqTh378B3hk7cW6XTZJ2isqjkAOkBnTBjtnRTyQthH82WAxwBChLuGsU4tPkjIGBRoAt7MZDVdfrb2jsAUFTlcniW/2ptDy40Y1k208l2g+zrvwQy6F5iVUzIDgvlkDude1Q/rMIZhi1YGZC+cgIHJMhowh9LcKSVjf5Xba7YohNTADaThLkEtpR35AvWSryRzCgsXvqM7on15keGukrUN6d5seYB98usVIGAop7fMp30yAnB+H+CuMLRuqVHDLF7kD2xicwJHNbrnmZlbZe+7UP7cIodJxJVwIDAQAB'
 
+// The TabBrew extension on the Chrome Web Store, which the CLI opens by default;
+// the harness above is reached through TABBREW_EXTENSION_ID instead.
+export const PRODUCT_EXTENSION_ID = 'ikmpmkkcmhhnjmdiooekbhfmomcbefkf'
+
 // The extension page the CLI opens to connect a session; it serves commands
 // exactly like the side panel does.
 export const CONNECTION_PAGE = 'connection.html'

@@ -25,7 +25,7 @@ async function report(session: SessionInfo, state: string, open: boolean): Promi
   }
   console.log(describe(session, state))
   console.error(
-    `the connection page did not answer; open ${connectionUrl()} in the Chrome profile where the harness is loaded`,
+    `the connection page did not answer; open ${connectionUrl()} in the Chrome profile where TabBrew is installed`,
   )
   process.exitCode = 1
 }
