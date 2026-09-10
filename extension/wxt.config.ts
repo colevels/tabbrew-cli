@@ -10,6 +10,8 @@ export default defineConfig({
   // Finder cannot pick a dot-directory in "Load unpacked", so not `.output`.
   outDir: 'dist',
   imports: false,
+  // A fixed name, so releases/latest/download/tabbrew-extension.zip always resolves.
+  zip: { name: 'tabbrew-extension', artifactTemplate: '{{name}}.zip' },
   // This is the CLI's development harness, not the product extension; see README.md.
   manifest: {
     name: 'TabBrew CLI Harness',

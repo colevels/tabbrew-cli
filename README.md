@@ -1,35 +1,129 @@
 # tabbrew-cli
 
 [![CI](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/colevels/tabbrew-cli)](https://github.com/colevels/tabbrew-cli/releases/latest)
+[![npm](https://img.shields.io/npm/v/tabbrew-cli)](https://www.npmjs.com/package/tabbrew-cli)
 
-TabBrew CLI, built on Bun and commander. The repo also holds `extension/`, a
-Chrome extension **harness** used to develop and test the CLI's browser
-protocol; the TabBrew product extension lives in its own repository.
+Manage Chrome tabs, windows and tab groups from the terminal: list them, open,
+focus, move, group, discard and close tabs, fold and close groups. Every verb
+has `--json`, and `tabbrew init` writes a cheat sheet so an AI coding agent
+working in your repo can drive the browser the same way.
 
-## Run
+It needs two things: the `tabbrew` binary, and a small extension loaded in
+Chrome that the CLI talks to over `127.0.0.1`. The extension in this repo is
+the CLI's **harness**, not a Web Store product (see [Harness
+extension](#harness-extension)); it is shipped as a zip with every release.
+
+## Install
+
+### Install script (macOS, Linux)
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/colevels/tabbrew-cli/main/install.sh | sh
+```
+
+Picks the binary for your OS and CPU from the latest release, verifies its
+SHA-256 against `checksums.txt`, and installs `tabbrew` to `~/.local/bin`
+(override with `TABBREW_INSTALL_DIR`). Read [`install.sh`](./install.sh) first
+if you prefer.
+
+### Prebuilt binary
+
+Download `tabbrew-<os>-<arch>` from the [releases
+page](https://github.com/colevels/tabbrew-cli/releases/latest), `chmod +x` it
+and put it on your PATH. Every asset is built in GitHub Actions and carries a
+SLSA build-provenance attestation; verify one with the [GitHub
+CLI](https://cli.github.com):
+
+```bash
+gh attestation verify tabbrew-darwin-arm64 --repo colevels/tabbrew-cli
+```
+
+### npm
+
+Requires [Bun](https://bun.sh) 1.1 or newer on the machine: the package ships
+TypeScript that Bun runs directly.
+
+```bash
+npm install -g tabbrew-cli     # or: bun install -g tabbrew-cli
+bunx tabbrew-cli --help        # one-off, no install
+```
+
+### From source
+
+```bash
+git clone https://github.com/colevels/tabbrew-cli && cd tabbrew-cli
 bun install
-bun start --help
+bun link                       # puts `tabbrew` on your PATH, pointing at this checkout
 ```
 
-## Build a standalone binary
+## Set up the extension
+
+Once per version:
+
+1. Download `tabbrew-extension.zip` from the [release that matches
+   `tabbrew --version`](https://github.com/colevels/tabbrew-cli/releases/latest)
+   and unzip it somewhere permanent.
+2. Open `chrome://extensions`, turn on **Developer mode**, click **Load
+   unpacked** and pick the unzipped folder.
+
+The extension carries the CLI's version, so its page tells you when the two
+drift apart. From a source checkout, `bun run build:ext` produces the same
+build at `extension/dist/chrome-mv3`.
+
+## Quick start
 
 ```bash
-bun run build
-./dist/tabbrew --version
+tabbrew session start   # starts the local session and opens the connection page in Chrome
+tabbrew tabs list       # every open tab, across every window
+tabbrew init            # write the cheat sheet for AI agents into CLAUDE.md
 ```
 
-## Format & lint
+The session exits on its own after 10 idle minutes; `tabbrew session start`
+again brings it back. Nothing works while no extension page is open, and the
+CLI never changes a tab that you did not name.
 
-Biome handles formatting, linting, and import order (`biome.json`).
+| Page shows | Meaning |
+| --- | --- |
+| No session | Nothing answered on either port. Run `tabbrew session start`. |
+| Connected | Address, pid, CLI version and uptime of the session, and the last command the page served. It stays alive while the page is open. |
+
+## Update
+
+Installed the binary (install script or download):
 
 ```bash
-bun run check       # verify (what CI runs)
-bun run check:fix   # apply safe fixes
+tabbrew update --check   # current vs latest, changes nothing (--json for scripts)
+tabbrew update           # download the latest release, verify its checksum, swap the binary in place
 ```
 
-## Session
+`update` reads the newest version from the `releases/latest` redirect (no API
+token, no rate limit), downloads the asset for your OS and CPU, checks it
+against `checksums.txt` and atomically replaces the running executable. It is
+a no-op when you are current. `TABBREW_UPDATE_REPOSITORY`,
+`TABBREW_UPDATE_LATEST_URL` and `TABBREW_UPDATE_DOWNLOAD_BASE_URL` point it at
+a fork or mirror.
+
+Installed from npm: `npm install -g tabbrew-cli@latest`. From source:
+`git pull && bun run build`. `tabbrew update` refuses to touch either.
+
+After any update, run `tabbrew session stop` then `tabbrew session start` so
+the new version serves, load the matching `tabbrew-extension.zip` in
+`chrome://extensions` (remove the old one first), and re-run `tabbrew init` in
+repos that carry the cheat sheet.
+
+## Uninstall
+
+```bash
+rm ~/.local/bin/tabbrew      # or wherever it was installed; npm: npm uninstall -g tabbrew-cli
+rm -rf ~/.tabbrew            # session log
+```
+
+Then remove the extension in `chrome://extensions`.
+
+## Commands
+
+### Session
 
 The session is a small HTTP server on `127.0.0.1` that links this terminal to
 Chrome. `start` launches it in the background, opens the extension's
@@ -87,7 +181,7 @@ Environment overrides, mainly for tests:
 | `TABBREW_SESSION_CONNECT_WAIT_MS` | how long `open` waits for the connection page |
 | `TABBREW_CHROME` | program that opens the connection page, given its URL |
 
-## Tabs
+### Tabs
 
 `tabbrew tabs list` prints every open tab, across every window, as the
 extension sees it. It needs a session with a connected page, which
@@ -205,7 +299,7 @@ window closes that window, exactly as it does in the UI; closing every tab of a
 group drops the group, so use `tabbrew groups close` when Chrome should keep it
 among its saved groups.
 
-## Windows
+### Windows
 
 `tabbrew windows list` prints one row per open window, derived from the same
 snapshot as `tabs list`, with the same session and connection requirements.
@@ -227,7 +321,7 @@ Rows are ordered by window id. TABS and GROUPS are counts; FLAGS is any of
 and shows the host and title of the window's active tab, the title capped at
 60 columns, or `-` when the window has no active tab.
 
-## Groups
+### Groups
 
 `tabbrew groups list` prints one row per tab group, derived from the same
 snapshot as `tabs list`, with the same session and connection requirements.
@@ -276,6 +370,45 @@ tabbrew groups close 7 --json  # [{groupId, tabIds}]
 Silent on success, with the same ordering, validation and failure rules as
 `collapse`. An id with no tabs behind it fails with `No group with id`.
 
+### Init
+
+`tabbrew init` writes a cheat sheet for AI coding agents so they discover the
+CLI instead of guessing. It is non-interactive and safe to re-run: the block
+lives between `<!-- TABBREW:START -->` and `<!-- TABBREW:END -->` markers and is
+replaced in place on every run; everything outside it is left alone.
+
+```bash
+tabbrew init                    # update CLAUDE.md, .claude/CLAUDE.md, AGENTS.md, .cursorrules if present, else create CLAUDE.md
+tabbrew init --agent codex      # target one tool's file: claude, cursor, codex, all
+tabbrew init --path docs/AI.md  # explicit file(s); must stay inside the current directory
+tabbrew init --print            # show the block, write nothing
+tabbrew init --remove           # strip the block everywhere (deletes a file that held nothing else)
+```
+
+The command reference inside the block is generated from the registered
+commands, so it cannot drift; re-run `init` after upgrading the CLI.
+
+## Development
+
+```bash
+bun install
+bun start --help            # run from source
+bun run build               # standalone binary at dist/tabbrew
+./dist/tabbrew --version
+```
+
+Biome handles formatting, linting, and import order (`biome.json`).
+
+```bash
+bun run check       # verify (what CI runs)
+bun run check:fix   # apply safe fixes
+bun run typecheck
+bun test
+```
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the branch flow and how a release
+is cut.
+
 ## Harness extension
 
 `extension/` is the development harness for the CLI's browser side, not the
@@ -299,7 +432,7 @@ hand. There is deliberately no background polling.
 ```bash
 bun run build:ext              # production build to extension/dist/chrome-mv3
 bun run dev:ext                # dev build with live reload
-bun run zip:ext                # zip a loadable build to hand to someone
+bun run zip:ext                # extension/dist/tabbrew-extension.zip, the release asset
 ```
 
 Load it once: `chrome://extensions` → Developer mode → Load unpacked →
@@ -323,39 +456,16 @@ TABBREW_E2E_CHROME_BIN=/path/to/chrome bun run test:e2e
 It uses a throwaway profile and state directory, needs the default ports free
 (no other session running), and closes its Chrome when done.
 
-| Page shows | Meaning |
-| --- | --- |
-| No session | Nothing answered on either port. Run `tabbrew session start`. |
-| Connected | Address, pid, CLI version and uptime of the session, and the last command the page served. It stays alive while the page is open. |
-
 The ports, the `service: "tabbrew-session"` marker the page checks, and the
 command channel's paths and shapes live in `src/core/session/protocol.ts`,
 which both the CLI and the extension import, so the two sides cannot drift
 apart. `extension/wxt.config.ts` also derives the manifest's
 `optional_host_permissions` from that list.
 
-## Init
-
-`tabbrew init` writes a cheat sheet for AI coding agents so they discover the
-CLI instead of guessing. It is non-interactive and safe to re-run: the block
-lives between `<!-- TABBREW:START -->` and `<!-- TABBREW:END -->` markers and is
-replaced in place on every run; everything outside it is left alone.
-
-```bash
-tabbrew init                    # update CLAUDE.md, .claude/CLAUDE.md, AGENTS.md, .cursorrules if present, else create CLAUDE.md
-tabbrew init --agent codex      # target one tool's file: claude, cursor, codex, all
-tabbrew init --path docs/AI.md  # explicit file(s); must stay inside the current directory
-tabbrew init --print            # show the block, write nothing
-tabbrew init --remove           # strip the block everywhere (deletes a file that held nothing else)
-```
-
-The command reference inside the block is generated from the registered
-commands, so it cannot drift; re-run `init` after upgrading the CLI.
-
 ## Layout
 
-Commands are organised as noun folders with one verb per file; `init` is the
-one top-level verb. `src/core/` holds the logic behind them and never imports
+Commands are organised as noun folders with one verb per file; `init` and
+`update` are the top-level verbs. `src/core/` holds the logic behind them and never imports
 from `src/commands/`, so it can be tested without going through the CLI.
 
 ```
@@ -379,6 +489,10 @@ src/core/agent-docs/block.ts                 find, replace and remove the marker
 src/core/agent-docs/targets.ts               which agent doc files exist and which to create
 src/core/agent-docs/cheatsheet.ts            render the block from config + commander metadata
 src/core/agent-docs/install.ts               write and remove the block on disk
+src/commands/update/index.ts                 the update verb: check, download, verify, swap
+src/core/update/config.ts                    where releases live, with env overrides for tests and forks
+src/core/update/index.ts                     resolve the latest release, verify its checksum, replace the binary
+install.sh                                   curl | sh installer: picks the asset, verifies it, installs to ~/.local/bin
 extension/README.md                          why the extension exists: CLI harness, not the product
 extension/wxt.config.ts                      WXT config; harness manifest with the CLI version and the two ports' host permissions
 extension/src/components/App.tsx             the connection: polls the session and serves its commands while a page is open
