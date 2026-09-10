@@ -30,7 +30,8 @@ mounted by two entrypoints: `connection.html`, the tab the CLI opens, and
 
 - Not the product. The real TabBrew extension will live in its own repository
   and will be started once the CLI protocol has settled.
-- Not published. Nothing here goes to the Chrome Web Store; load it unpacked.
+- Not published to the Chrome Web Store. Each GitHub Release carries the build
+  as `tabbrew-extension.zip`; load it unpacked.
 
 ## Design rule
 
