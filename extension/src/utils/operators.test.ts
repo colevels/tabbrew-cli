@@ -396,7 +396,7 @@ describe('focusTab', () => {
     expect(await createOperators(chrome).focusTab({ tabId: 7 })).toEqual({ tabId: 7, windowId: 30 })
     expect(chrome.calls).toEqual([
       ['tabs.update', 7, { active: true }],
-      ['windows.update', 30, { focused: true, drawAttention: true }],
+      ['windows.update', 30, { focused: true }],
     ])
   })
 

@@ -136,6 +136,22 @@ rejected before the session is contacted; an unknown tab, window or group fails
 after the snapshot read with `no tab <id>`, `no window <id>` or `no group <id>`.
 A url Chrome will not open surfaces as `createTab failed`.
 
+`tabbrew tabs focus` is the counterpart to `create`'s background opening: it
+selects the tab in its window and raises that window to the front. The raise is
+real OS focus, so it pulls attention away from whatever the person is doing —
+it is the one verb that does, deliberately.
+
+```bash
+tabbrew tabs focus 1901         # select 1901 and bring its window forward
+tabbrew tabs focus 1901 --json  # {tabId, windowId}
+```
+
+Silent on success, and takes exactly one tab: focusing several is meaningless.
+An id that is not a positive integer is rejected before the session is
+contacted. Unlike the verbs that plan against a snapshot, `focus` needs no
+snapshot, so an unknown id is Chrome's answer, not the CLI's: it fails with
+`focusTab failed: tab <id> not found` rather than `no tab <id>`.
+
 `tabbrew tabs move` puts tabs next to another tab, addressed by the TAB
 column. The moved tabs end up in the anchor's window, so a tab from window B
 placed after a tab in window A crosses windows with no extra flag. It is the
@@ -248,7 +264,7 @@ Silent on success, with the same ordering, validation and failure rules as
 TabBrew product extension. Browser-facing features land here paired with their
 CLI command (the session handshake, the three `list` verbs,
 `tabbrew groups collapse`/`uncollapse`/`close`, `tabbrew tabs create`,
-`tabbrew tabs move` and `tabbrew tabs discard` today)
+`tabbrew tabs focus`, `tabbrew tabs move` and `tabbrew tabs discard` today)
 so the protocol can be exercised end to end in a real Chrome. The product extension moves to its own repository once that protocol is
 stable; see `extension/README.md`.
 

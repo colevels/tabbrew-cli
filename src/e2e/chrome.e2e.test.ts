@@ -326,6 +326,26 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
     await report('After `tabbrew tabs create` behind the first tab')
   })
 
+  test('tabs focus activates a background tab and raises its window', async () => {
+    const focused = await json<OperatorOutput<'focusTab'>>('tabs', 'focus', String(ids[3]))
+    expect(focused).toEqual({ tabId: ids[3] as number, windowId })
+
+    const tabs = await settledTabs(windowId)
+    expect(tabs.map((tab) => [tab.id, tab.active])).toEqual([
+      [ids[0] as number, false],
+      [tabs[1]?.id as number, false],
+      [ids[3] as number, true],
+      [ids[4] as number, false],
+    ])
+
+    const windows = await json<WindowSummary[]>('windows', 'list')
+    expect(windows.find((window) => window.id === windowId)).toMatchObject({
+      focused: true,
+      activeTabId: ids[3] as number,
+    })
+    await report('After `tabbrew tabs focus` on a background tab')
+  })
+
   test('session stop ends the session', async () => {
     expect((await tabbrew('session', 'stop')).exitCode).toBe(0)
     expect((await tabbrew('session', 'status')).exitCode).toBe(1)

@@ -97,6 +97,7 @@ const discards: number[] = []
 const groupings: { tabIds: number[]; groupId?: number; windowId?: number }[] = []
 const groupUpdates: { groupId: number; title?: string; color?: string; collapsed?: boolean }[] = []
 const creations: { url?: string; windowId?: number; index?: number }[] = []
+const focuses: number[] = []
 
 function answer(request: OperatorRequest): unknown {
   if (request.operator === 'readSnapshot') return { output: snapshot }
@@ -136,6 +137,13 @@ function answer(request: OperatorRequest): unknown {
         url: input.url ?? 'chrome://newtab/',
       },
     }
+  }
+  if (request.operator === 'focusTab') {
+    const { tabId } = request.input as { tabId: number }
+    focuses.push(tabId)
+    const tab = snapshot.tabs.find((candidate) => candidate.id === tabId)
+    if (!tab) return { error: `tab ${tabId} not found` }
+    return { output: { tabId, windowId: tab.windowId } }
   }
   const input = request.input as { tabIds: number[]; index: number; windowId?: number }
   moves.push(input)
@@ -544,5 +552,35 @@ describe('tabbrew tabs create', () => {
     expect(exitCode).toBe(1)
     expect(stderr).toContain('createTab failed: Cannot open that URL')
     creations.splice(0)
+  })
+})
+
+describe('tabbrew tabs focus', () => {
+  test('is silent on success', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'focus', '1950')
+    expect(exitCode).toBe(0)
+    expect(stdout).toBe('')
+    expect(focuses.splice(0)).toEqual([1950])
+  })
+
+  test('prints the focused tab as json', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'focus', '1950', '--json')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual({ tabId: 1950, windowId: 1843 })
+    expect(focuses.splice(0)).toEqual([1950])
+  })
+
+  test('rejects a non-numeric id before the session is contacted', async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'focus', 'inbox')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('tab id must be a positive integer: inbox')
+    expect(focuses).toEqual([])
+  })
+
+  test("surfaces Chrome's refusal", async () => {
+    const { exitCode, stderr } = await tabbrew('tabs', 'focus', '4242')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('focusTab failed: tab 4242 not found')
+    focuses.splice(0)
   })
 })

@@ -191,7 +191,7 @@ export const createOperators = (chrome: ChromeApi): Operators => ({
   focusTab: async ({ tabId }) => {
     const tab = await chrome.tabs.update(tabId, { active: true })
     if (!tab) throw new Error(`tab ${tabId} not found`)
-    await chrome.windows.update(tab.windowId, { focused: true, drawAttention: true })
+    await chrome.windows.update(tab.windowId, { focused: true })
     return { tabId: tab.id ?? tabId, windowId: tab.windowId }
   },
 
