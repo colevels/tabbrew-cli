@@ -13,7 +13,7 @@ export const open = new Command('open')
     const connected = await connect(session)
     if (!connected) {
       console.error(
-        `the connection page did not answer; open ${connectionUrl()} in the Chrome profile where the harness is loaded`,
+        `the connection page did not answer; open ${connectionUrl()} in the Chrome profile where TabBrew is installed`,
       )
       process.exitCode = 1
       return

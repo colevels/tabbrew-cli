@@ -3,11 +3,12 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { connectionUrl, extensionId, openInChrome } from './chrome'
-import { CONNECTION_PAGE } from './config'
+import { CONNECTION_PAGE, PRODUCT_EXTENSION_ID } from './config'
 
 const dirs: string[] = []
 afterEach(() => {
   delete process.env.TABBREW_CHROME
+  delete process.env.TABBREW_EXTENSION_ID
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
@@ -39,8 +40,14 @@ describe('chrome', () => {
     expect(extensionId(key)).toBe('codoepemapijbcompelcemabmgngjgco')
   })
 
-  test('connectionUrl addresses the pinned extension', () => {
-    expect(connectionUrl()).toMatch(new RegExp(`^chrome-extension://[a-p]{32}/${CONNECTION_PAGE}$`))
+  test('connectionUrl addresses the Web Store extension by default', () => {
+    expect(connectionUrl()).toBe(`chrome-extension://${PRODUCT_EXTENSION_ID}/${CONNECTION_PAGE}`)
+  })
+
+  test('TABBREW_EXTENSION_ID points connectionUrl at another build', () => {
+    process.env.TABBREW_EXTENSION_ID = extensionId()
+    expect(connectionUrl()).toBe(`chrome-extension://${extensionId()}/${CONNECTION_PAGE}`)
+    expect(extensionId()).not.toBe(PRODUCT_EXTENSION_ID)
   })
 
   test('openInChrome hands the URL to TABBREW_CHROME', async () => {

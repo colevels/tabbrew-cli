@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { CONNECT_WAIT_MS, CONNECTION_PAGE, EXTENSION_KEY } from './config'
+import { CONNECT_WAIT_MS, CONNECTION_PAGE, EXTENSION_KEY, PRODUCT_EXTENSION_ID } from './config'
 import { probe } from './lifecycle'
 import type { SessionInfo } from './protocol'
 
@@ -12,7 +12,10 @@ export const extensionId = (key = EXTENSION_KEY): string =>
     .slice(0, 32)
     .replace(/[0-9a-f]/g, (c) => String.fromCharCode(97 + Number.parseInt(c, 16)))
 
-export const connectionUrl = (): string => `chrome-extension://${extensionId()}/${CONNECTION_PAGE}`
+// TABBREW_EXTENSION_ID points at another build of the extension: the harness
+// (extensionId()), or an unpacked product checkout, whose id Chrome shows.
+export const connectionUrl = (): string =>
+  `chrome-extension://${process.env.TABBREW_EXTENSION_ID || PRODUCT_EXTENSION_ID}/${CONNECTION_PAGE}`
 
 // TABBREW_CHROME names a launcher that takes the URL as its only argument;
 // tests point it at a script and a user can point it at a specific browser.

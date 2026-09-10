@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import pkg from '../../package.json'
 import type { GroupSummary } from '../core/groups'
 import type { OperatorOutput, Snapshot, TabPlacement, TabSnapshot } from '../core/operators'
-import { connectionUrl } from '../core/session/chrome'
+import { connectionUrl, extensionId } from '../core/session/chrome'
 import type { WindowSummary } from '../core/windows'
 
 const enabled = !!process.env.TABBREW_E2E
@@ -111,6 +111,8 @@ async function settledTabs(windowId: number, timeoutMs = 15_000): Promise<TabSna
 
 beforeAll(() => {
   if (!enabled) return
+  // The CLI opens the Web Store extension by default; this Chrome holds the harness.
+  process.env.TABBREW_EXTENSION_ID = extensionId()
   if (!process.env.TABBREW_E2E_CHROME_BIN) throw new Error('TABBREW_E2E_CHROME_BIN is not set')
   if (!existsSync(binary)) throw new Error(`${binary} is missing; run "bun run build"`)
   if (!existsSync(extension)) throw new Error(`${extension} is missing; run "bun run build:ext"`)

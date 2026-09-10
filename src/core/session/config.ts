@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import pkg from '../../../package.json'
 import { DEFAULT_PORTS } from './protocol'
 
-export { CONNECTION_PAGE, EXTENSION_KEY, HOST, SERVICE } from './protocol'
+export { CONNECTION_PAGE, EXTENSION_KEY, HOST, PRODUCT_EXTENSION_ID, SERVICE } from './protocol'
 
 export const VERSION: string = pkg.version
 
