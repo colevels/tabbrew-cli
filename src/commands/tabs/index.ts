@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { close } from './close'
 import { create } from './create'
 import { discard } from './discard'
 import { focus } from './focus'
@@ -13,4 +14,5 @@ export const tabs = new Command('tabs')
   .addCommand(focus)
   .addCommand(move)
   .addCommand(discard)
+  .addCommand(close)
   .addCommand(group)
