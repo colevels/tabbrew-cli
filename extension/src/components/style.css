@@ -1,0 +1,67 @@
+:root {
+  color-scheme: light dark;
+  font:
+    14px / 1.45 system-ui,
+    sans-serif;
+}
+body {
+  margin: 0;
+  padding: 16px;
+}
+h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #9a9a9a;
+}
+.dot.on {
+  background: #2da44e;
+}
+p {
+  margin: 0 0 8px;
+}
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0 0 12px;
+}
+dt {
+  opacity: 0.7;
+}
+dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+code,
+pre {
+  border-radius: 6px;
+  background: rgba(127, 127, 127, 0.15);
+}
+code {
+  padding: 1px 5px;
+}
+pre {
+  margin: 8px 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+}
+button {
+  font: inherit;
+  padding: 6px 12px;
+  border: 1px solid rgba(127, 127, 127, 0.5);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.muted {
+  font-size: 12px;
+  opacity: 0.7;
+}
