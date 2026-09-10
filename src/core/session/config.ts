@@ -32,7 +32,7 @@ export const LOG_PATH = join(STATE_DIR, 'session.log')
 // Under `bun run src/index.ts` execPath is bun and the entry is Bun.main; in
 // a compiled binary execPath is tabbrew itself and Bun.main is a virtual path
 // baked into it.
-const compiled = Bun.main.includes('$bunfs') || Bun.main.includes('~BUN')
+export const compiled = Bun.main.includes('$bunfs') || Bun.main.includes('~BUN')
 
 export function selfArgv(...args: string[]): [string, ...string[]] {
   return compiled ? [process.execPath, ...args] : [process.execPath, Bun.main, ...args]
