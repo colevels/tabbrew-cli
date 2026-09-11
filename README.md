@@ -66,7 +66,10 @@ connection page by id.
 
 To drive another build instead, the harness or an unpacked checkout of the
 product, load it through `chrome://extensions` → **Developer mode** → **Load
-unpacked** and set `TABBREW_EXTENSION_ID` to the id Chrome shows there. The
+unpacked** and set `TABBREW_EXTENSION_ID` to the id Chrome shows there, or
+record it once for the project with `tabbrew init --extension <that id>`
+(`--extension harness` for the harness, `--extension store` to go back), which
+keeps it in `.tabbrew.json` next to the agent docs. The
 harness is `tabbrew-extension.zip` on the [release that matches
 `tabbrew --version`](https://github.com/colevels/tabbrew-cli/releases/latest);
 its page tells you when the two drift apart.
@@ -151,7 +154,8 @@ Background output goes to `~/.tabbrew/session.log`.
 "Google Chrome"` on macOS, `google-chrome` on Linux and `start chrome` on
 Windows, then waits up to 5 seconds for the page to hold the command channel.
 The id is the Web Store extension's, so the CLI never has to ask Chrome for
-it; `TABBREW_EXTENSION_ID` names another build, such as the harness. Opening
+it; `TABBREW_EXTENSION_ID`, else `extensionId` in the nearest `.tabbrew.json`
+up from the current directory, names another build, such as the harness. Opening
 the page twice is harmless: the second copy finds the first and closes itself.
 When its session stops, the page closes itself too. Set `TABBREW_CHROME` to a
 program that takes the URL as its only argument to use another browser or
@@ -181,7 +185,7 @@ Environment overrides, mainly for tests:
 | `TABBREW_SESSION_LONG_POLL_MS` | how long a page's poll is held open |
 | `TABBREW_SESSION_CONNECT_WAIT_MS` | how long `open` waits for the connection page |
 | `TABBREW_CHROME` | program that opens the connection page, given its URL |
-| `TABBREW_EXTENSION_ID` | extension whose connection page to open, instead of the Web Store one |
+| `TABBREW_EXTENSION_ID` | extension whose connection page to open, instead of the Web Store one; overrides `.tabbrew.json` |
 
 ### Tabs
 
@@ -385,10 +389,17 @@ tabbrew init --agent codex      # target one tool's file: claude, cursor, codex,
 tabbrew init --path docs/AI.md  # explicit file(s); must stay inside the current directory
 tabbrew init --print            # show the block, write nothing
 tabbrew init --remove           # strip the block everywhere (deletes a file that held nothing else)
+tabbrew init --extension harness   # also record which extension build `session start` opens: store, harness or an id
 ```
 
 The command reference inside the block is generated from the registered
 commands, so it cannot drift; re-run `init` after upgrading the CLI.
+
+`--extension` writes `{"extensionId": "<id>"}` to `.tabbrew.json` in the
+current directory and `session start` / `session open` read the nearest one up
+from wherever they run. `harness` resolves to the harness id, a 32-letter id is
+kept as given, and `store` removes the key (and the file, if nothing else is in
+it). `TABBREW_EXTENSION_ID` still wins over the file.
 
 ## Development
 
@@ -441,7 +452,8 @@ Load it once: `chrome://extensions` → Developer mode → Load unpacked →
 `extension/dist/chrome-mv3`. The manifest pins a `key`, so the id Chrome
 shows is the same on every machine; a build loaded before the key was pinned
 must be removed and loaded again. The CLI opens the Web Store extension by
-default, so point it here with `TABBREW_EXTENSION_ID=<that id>`; from then on
+default, so point it here with `TABBREW_EXTENSION_ID=<that id>` or, once per
+checkout, `tabbrew init --extension harness`; from then on
 `tabbrew session start` opens the page, and the toolbar icon opens the side
 panel instead.
 `bun install` runs `wxt prepare`, which generates the TypeScript config in

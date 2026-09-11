@@ -56,7 +56,9 @@ bun run dev:ext     # dev build with live reload
 Then `chrome://extensions` → Developer mode → Load unpacked →
 `extension/dist/chrome-mv3`. A build loaded before the `key` was pinned has a
 different id; remove it and load again. The CLI opens the Web Store extension
-by default, so set `TABBREW_EXTENSION_ID` to the id Chrome shows;
+by default, so set `TABBREW_EXTENSION_ID` to the id Chrome shows, or run
+`tabbrew init --extension harness` once in the checkout to keep it in
+`.tabbrew.json`;
 `tabbrew session start` then opens the connection page, and the toolbar icon
 opens the side panel. The page-state table
 and the session commands are in the root README under "Harness extension",

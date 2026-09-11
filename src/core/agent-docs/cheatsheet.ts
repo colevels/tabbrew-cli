@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import type { Command } from 'commander'
 import pkg from '../../../package.json'
-import { HOST, IDLE_EXIT_MS, LOG_PATH, PORTS } from '../session'
+import { HOST, IDLE_EXIT_MS, LOG_PATH, PORTS, PROJECT_CONFIG } from '../session'
 import { MARKER_END, MARKER_START } from './block'
 
 export function render(program: Command): string {
@@ -32,6 +32,7 @@ export function render(program: Command): string {
     `- Background output goes to ${log}; read it when start fails.`,
     '- After upgrading the tabbrew binary run `tabbrew session stop` then `start` so the new version serves.',
     '- Re-run `tabbrew init` after upgrading to refresh this block; do not edit it by hand.',
+    `- \`${PROJECT_CONFIG}\` in the project picks which extension build \`session start\` opens; set it with \`tabbrew init --extension harness|<id>\` (\`store\` clears it), not by hand.`,
     '',
     'COMMANDS:',
     ...commandLines(program),
