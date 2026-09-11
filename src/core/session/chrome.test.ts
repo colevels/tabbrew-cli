@@ -24,7 +24,8 @@ export function recordingLauncher(): { path: string; opened: () => string[] } {
     path,
     opened: () => {
       try {
-        return readFileSync(log, 'utf8').trim().split('\n')
+        // The shell creates the log before echo writes, so an empty read is "not yet".
+        return readFileSync(log, 'utf8').split('\n').filter(Boolean)
       } catch {
         return []
       }
