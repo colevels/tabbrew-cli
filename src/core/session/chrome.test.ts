@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { connectionUrl, extensionId, openInChrome } from './chrome'
 import { CONNECTION_PAGE, PRODUCT_EXTENSION_ID } from './config'
+import { PROJECT_CONFIG } from './project'
 
 const dirs: string[] = []
 afterEach(() => {
@@ -48,6 +49,22 @@ describe('chrome', () => {
     process.env.TABBREW_EXTENSION_ID = extensionId()
     expect(connectionUrl()).toBe(`chrome-extension://${extensionId()}/${CONNECTION_PAGE}`)
     expect(extensionId()).not.toBe(PRODUCT_EXTENSION_ID)
+  })
+
+  test('.tabbrew.json in the project points connectionUrl at another build', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tabbrew-chrome-'))
+    dirs.push(dir)
+    const id = 'abcdefghijklmnopabcdefghijklmnop'
+    writeFileSync(join(dir, PROJECT_CONFIG), JSON.stringify({ extensionId: id }))
+    const cwd = process.cwd()
+    process.chdir(dir)
+    try {
+      expect(connectionUrl()).toBe(`chrome-extension://${id}/${CONNECTION_PAGE}`)
+      process.env.TABBREW_EXTENSION_ID = PRODUCT_EXTENSION_ID
+      expect(connectionUrl()).toBe(`chrome-extension://${PRODUCT_EXTENSION_ID}/${CONNECTION_PAGE}`)
+    } finally {
+      process.chdir(cwd)
+    }
   })
 
   test('openInChrome hands the URL to TABBREW_CHROME', async () => {

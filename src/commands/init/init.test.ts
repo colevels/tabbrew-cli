@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pkg from '../../../package.json'
 import { MARKER_END, MARKER_START } from '../../core/agent-docs'
+import { extensionId, PROJECT_CONFIG } from '../../core/session'
 
 const entry = join(import.meta.dir, '../../index.ts')
 let dir = ''
@@ -125,5 +126,56 @@ describe('tabbrew init', () => {
     const { exitCode, stdout } = tabbrew('--remove')
     expect(exitCode).toBe(0)
     expect(stdout).toContain('no agent docs found')
+  })
+
+  describe('--extension', () => {
+    const ID = 'abcdefghijklmnopabcdefghijklmnop'
+    const config = () => JSON.parse(read(PROJECT_CONFIG))
+
+    test('harness records the harness id beside the docs', () => {
+      const { exitCode, stdout } = tabbrew('--extension', 'harness')
+      expect(exitCode).toBe(0)
+      expect(stdout).toContain(`extension → harness (${extensionId()}) in ${PROJECT_CONFIG}`)
+      expect(config()).toEqual({ extensionId: extensionId() })
+      expect(exists('CLAUDE.md')).toBe(true)
+    })
+
+    test('an explicit id is stored as given', () => {
+      expect(tabbrew('--extension', ID).exitCode).toBe(0)
+      expect(config()).toEqual({ extensionId: ID })
+    })
+
+    test('store clears the id and removes an otherwise empty file', () => {
+      tabbrew('--extension', ID)
+      const { exitCode, stdout } = tabbrew('--extension', 'store')
+      expect(exitCode).toBe(0)
+      expect(stdout).toContain(`removed from ${PROJECT_CONFIG}`)
+      expect(exists(PROJECT_CONFIG)).toBe(false)
+      expect(tabbrew('--extension', 'store').stdout).toContain('nothing to remove')
+    })
+
+    test('other keys in the file survive', () => {
+      writeFileSync(join(dir, PROJECT_CONFIG), JSON.stringify({ other: 1 }))
+      tabbrew('--extension', ID)
+      expect(config()).toEqual({ other: 1, extensionId: ID })
+      tabbrew('--extension', 'store')
+      expect(config()).toEqual({ other: 1 })
+    })
+
+    test('a bad value is rejected before anything is written', () => {
+      const { exitCode, stderr } = tabbrew('--extension', 'nope')
+      expect(exitCode).toBe(1)
+      expect(stderr).toContain('store, harness or a 32-letter')
+      expect(readdirSync(dir)).toEqual([])
+    })
+
+    test('cannot be combined with --print or --remove', () => {
+      for (const flag of ['--print', '--remove']) {
+        const { exitCode, stderr } = tabbrew('--extension', 'harness', flag)
+        expect(exitCode).toBe(1)
+        expect(stderr).toContain('cannot be combined')
+      }
+      expect(readdirSync(dir)).toEqual([])
+    })
   })
 })
