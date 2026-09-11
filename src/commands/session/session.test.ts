@@ -15,7 +15,8 @@ let stateDir = ''
 let launcher = ''
 const opened = (): string[] => {
   try {
-    return readFileSync(join(stateDir, 'opened'), 'utf8').trim().split('\n')
+    // The shell creates the log before echo writes, so an empty read is "not yet".
+    return readFileSync(join(stateDir, 'opened'), 'utf8').split('\n').filter(Boolean)
   } catch {
     return []
   }
