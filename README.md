@@ -1,21 +1,39 @@
-# tabbrew-cli
+<p align="center">
+  <img src="docs/logo.svg" alt="TabBrew" width="160">
+</p>
 
-[![CI](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/colevels/tabbrew-cli)](https://github.com/colevels/tabbrew-cli/releases/latest)
-[![npm](https://img.shields.io/npm/v/tabbrew-cli)](https://www.npmjs.com/package/tabbrew-cli)
+<h1 align="center">tabbrew-cli</h1>
 
-**A Chrome tab manager for the terminal.**
+<p align="center"><strong>A CLI for managing Chrome tabs, windows and groups.</strong></p>
 
-Manage Chrome tabs, windows and tab groups from the terminal: list them, open,
-focus, move, group, ungroup, discard, reload and close tabs, fold and close groups. Every verb
-has `--json`, and `tabbrew init` writes a cheat sheet so an AI coding agent
-working in your repo can drive the browser the same way.
+<p align="center">
+  <a href="https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml"><img src="https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/colevels/tabbrew-cli/releases/latest"><img src="https://img.shields.io/github/v/release/colevels/tabbrew-cli" alt="Release"></a>
+  <a href="https://www.npmjs.com/package/tabbrew-cli"><img src="https://img.shields.io/npm/v/tabbrew-cli" alt="npm"></a>
+  <a href="https://chromewebstore.google.com/detail/ikmpmkkcmhhnjmdiooekbhfmomcbefkf"><img src="https://img.shields.io/chrome-web-store/v/ikmpmkkcmhhnjmdiooekbhfmomcbefkf?label=chrome%20web%20store" alt="Chrome Web Store"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/colevels/tabbrew-cli" alt="License"></a>
+</p>
 
-It needs two things: the `tabbrew` binary, and the [TabBrew
-extension](https://chromewebstore.google.com/detail/ikmpmkkcmhhnjmdiooekbhfmomcbefkf)
-in Chrome, which the CLI talks to over `127.0.0.1`. The extension in this repo
-is the CLI's **harness** for developing that protocol (see [Harness
-extension](#harness-extension)); it is shipped as a zip with every release.
+<p align="center">
+  <a href="#install">Install</a> •
+  <a href="#set-up-the-extension">Extension</a> •
+  <a href="#quick-start">Quick start</a> •
+  <a href="#commands">Commands</a> •
+  <a href="#harness-extension">Harness</a> •
+  <a href="./CONTRIBUTING.md">Contributing</a>
+</p>
+
+---
+
+A tab manager for Chrome that lives in your terminal. Every verb takes
+`--json`, and `tabbrew init` writes AI coding agents a cheat sheet, so you
+can hand tab, window and group management to the agent you already work
+with.
+
+You need two things: the `tabbrew` binary ([Install](#install)) and the
+[TabBrew extension](https://chromewebstore.google.com/detail/ikmpmkkcmhhnjmdiooekbhfmomcbefkf)
+from the Chrome Web Store. The CLI talks to the extension over `127.0.0.1`
+and only touches the tabs you name.
 
 ## What Tabbrew Does
 
@@ -42,6 +60,7 @@ unless a command names it.
 | `tabbrew groups close` | Close groups while Chrome keeps them among its saved groups |
 | `tabbrew init` | Write a cheat sheet into `CLAUDE.md` / `AGENTS.md` so an AI agent can drive the browser |
 | `tabbrew update` | Replace the installed binary with the latest release |
+| `tabbrew uninstall` | Stop the session, remove `~/.tabbrew` and the binary it installed |
 
 ## Install
 
@@ -147,10 +166,14 @@ repos that carry the cheat sheet.
 ## Uninstall
 
 ```bash
-rm ~/.local/bin/tabbrew      # or wherever it was installed; npm: npm uninstall -g tabbrew-cli
-rm -rf ~/.tabbrew            # session log
+tabbrew uninstall --dry-run    # show what would go, change nothing
+tabbrew uninstall              # stop the session, remove ~/.tabbrew and the binary
+npm uninstall -g tabbrew-cli   # if installed from npm; from source: bun unlink
 ```
 
+`uninstall` removes the binary only when it is the one `install.sh` or
+`tabbrew update` put there; npm and source installs keep theirs. Before you
+run it, `tabbrew init --remove` in any repo that carries the cheat sheet.
 Then remove the extension in `chrome://extensions`.
 
 ## Commands

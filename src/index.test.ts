@@ -24,9 +24,9 @@ describe('tabbrew cli', () => {
     expect(exitCode).toBe(0)
     expect(stdout).toContain('USAGE\n  tabbrew <command> <subcommand> [flags]')
     expect(stdout).toContain(
-      'CORE COMMANDS\n  session:  Connect this CLI to the TabBrew extension in Chrome',
+      'CORE COMMANDS\n  session:    Connect this CLI to the TabBrew extension in Chrome',
     )
-    expect(stdout).toContain('ADDITIONAL COMMANDS\n  init:     Write the TabBrew cheat sheet')
+    expect(stdout).toContain('ADDITIONAL COMMANDS\n  init:       Write the TabBrew cheat sheet')
     expect(stdout).toContain(
       '  -h, --help     show help for command\n  -V, --version  show tabbrew version',
     )

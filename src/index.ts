@@ -6,6 +6,7 @@ import { helpSections, installHelp } from './commands/help'
 import { init } from './commands/init'
 import { session } from './commands/session'
 import { tabs } from './commands/tabs'
+import { uninstall } from './commands/uninstall'
 import { update } from './commands/update'
 import { windows } from './commands/windows'
 
@@ -23,6 +24,7 @@ program
   .commandsGroup('ADDITIONAL COMMANDS')
   .addCommand(init)
   .addCommand(update)
+  .addCommand(uninstall)
 
 helpSections(program, {
   examples: ['tabbrew session start', 'tabbrew tabs list', 'tabbrew init'],

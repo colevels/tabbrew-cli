@@ -1,6 +1,6 @@
 {
   "name": "tabbrew-cli",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "Manage Chrome tabs, windows and tab groups from the terminal, for people and AI coding agents",
   "type": "module",
   "license": "MIT",
