@@ -4,6 +4,8 @@
 [![Release](https://img.shields.io/github/v/release/colevels/tabbrew-cli)](https://github.com/colevels/tabbrew-cli/releases/latest)
 [![npm](https://img.shields.io/npm/v/tabbrew-cli)](https://www.npmjs.com/package/tabbrew-cli)
 
+**A Chrome tab manager for the terminal.**
+
 Manage Chrome tabs, windows and tab groups from the terminal: list them, open,
 focus, move, group, ungroup, discard, reload and close tabs, fold and close groups. Every verb
 has `--json`, and `tabbrew init` writes a cheat sheet so an AI coding agent
