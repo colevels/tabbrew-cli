@@ -1,16 +1,31 @@
 <p align="center">
-  <img src="docs/logo.svg" alt="TabBrew" width="128">
+  <img src="docs/logo.svg" alt="TabBrew" width="160">
 </p>
 
-<p align="center"><strong>A Chrome tab manager for the terminal.</strong></p>
+<h1 align="center">tabbrew-cli</h1>
 
-# tabbrew-cli
+<p align="center"><strong>A CLI for managing Chrome tabs, windows and groups.</strong></p>
 
-[![CI](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/colevels/tabbrew-cli)](https://github.com/colevels/tabbrew-cli/releases/latest)
-[![npm](https://img.shields.io/npm/v/tabbrew-cli)](https://www.npmjs.com/package/tabbrew-cli)
+<p align="center">
+  <a href="https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml"><img src="https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/colevels/tabbrew-cli/releases/latest"><img src="https://img.shields.io/github/v/release/colevels/tabbrew-cli" alt="Release"></a>
+  <a href="https://www.npmjs.com/package/tabbrew-cli"><img src="https://img.shields.io/npm/v/tabbrew-cli" alt="npm"></a>
+  <a href="https://chromewebstore.google.com/detail/ikmpmkkcmhhnjmdiooekbhfmomcbefkf"><img src="https://img.shields.io/chrome-web-store/v/ikmpmkkcmhhnjmdiooekbhfmomcbefkf?label=chrome%20web%20store" alt="Chrome Web Store"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/colevels/tabbrew-cli" alt="License"></a>
+</p>
 
-Manage Chrome tabs, windows and tab groups from the terminal: list them, open,
+<p align="center">
+  <a href="#install">Install</a> •
+  <a href="#set-up-the-extension">Extension</a> •
+  <a href="#quick-start">Quick start</a> •
+  <a href="#commands">Commands</a> •
+  <a href="#harness-extension">Harness</a> •
+  <a href="./CONTRIBUTING.md">Contributing</a>
+</p>
+
+---
+
+Manage Chrome tabs, windows and tab groups from the command line: list them, open,
 focus, move, group, ungroup, discard, reload and close tabs, fold and close groups. Every verb
 has `--json`, and `tabbrew init` writes a cheat sheet so an AI coding agent
 working in your repo can drive the browser the same way.
