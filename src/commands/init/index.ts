@@ -26,6 +26,7 @@ function resolveExtension(value: string): string | null {
 }
 
 export const init = new Command('init')
+  .summary('Write the TabBrew cheat sheet for AI coding agents')
   .description('Write the TabBrew cheat sheet for AI coding agents (CLAUDE.md by default)')
   .addOption(new Option('--agent <tool>', "which tool's file to target").choices(AGENTS))
   .option('--path <file...>', 'explicit file(s) to write, relative to the current directory')

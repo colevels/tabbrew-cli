@@ -7,7 +7,11 @@ import { group } from './group'
 import { list } from './list'
 import { move } from './move'
 
-export const tabs = browserGroup('tabs', 'Tabs open in Chrome')
+export const tabs = browserGroup('tabs', 'Tabs open in Chrome', [
+  'tabbrew tabs list',
+  'tabbrew tabs focus 42',
+  'tabbrew tabs group 42 43 --title Docs --color blue',
+])
   .addCommand(create)
   .addCommand(list)
   .addCommand(focus)
