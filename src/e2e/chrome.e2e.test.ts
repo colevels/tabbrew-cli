@@ -285,6 +285,30 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
     await report('After `tabbrew tabs discard` of a grouped background tab')
   })
 
+  test('tabs reload loads a discarded tab back in place, under the same id', async () => {
+    const tabId = (await snapshot()).tabs.find((tab) => tab.discarded)?.id as number
+    expect(tabId).toBeGreaterThan(0)
+
+    const results = await json<OperatorOutput<'reloadTab'>[]>(
+      'tabs',
+      'reload',
+      String(tabId),
+      '--hard',
+    )
+    expect(results).toEqual([{ tabId }])
+
+    const tab = (await settledTabs(windowId)).find((t) => t.id === tabId)
+    expect(tab).toMatchObject({
+      windowId,
+      index: 0,
+      url: pageUrl(1),
+      discarded: false,
+      status: 'complete',
+      groupId,
+    })
+    await report('After `tabbrew tabs reload --hard` of the discarded tab')
+  })
+
   test('groups close removes the group and its tabs without leaving a window behind', async () => {
     const windowsBefore = await json<WindowSummary[]>('windows', 'list')
     const groupedIds = (await snapshot()).tabs

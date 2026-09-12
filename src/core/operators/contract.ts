@@ -102,6 +102,7 @@ export interface OperatorMap {
     input: { tabId: number }
     output: { tabId: number; previousTabId: number; changed: boolean }
   }
+  reloadTab: { input: { tabId: number; bypassCache?: boolean }; output: { tabId: number } }
   focusTab: { input: { tabId: number }; output: { tabId: number; windowId: number } }
   createWindow: {
     input: { urls: string[]; focused: boolean }
@@ -131,6 +132,7 @@ export const OPERATOR_NAMES = Object.keys({
   updateGroup: true,
   closeGroup: true,
   discardTab: true,
+  reloadTab: true,
   focusTab: true,
   createWindow: true,
   createTab: true,

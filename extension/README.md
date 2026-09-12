@@ -8,7 +8,7 @@ TabBrew product extension.
 Every browser-facing feature of the CLI is implemented here in lockstep with its
 command, so the protocol between the two can be exercised end to end in a real
 Chrome before it is considered done. Today that is the session handshake and the
-command channel behind `tabbrew tabs list`, `tabbrew windows list`, `tabbrew groups list`, `tabbrew groups collapse`/`uncollapse`/`close`, `tabbrew windows create` and `tabbrew tabs create`/`focus`/`move`/`group`/`discard`: an extension page finds a `tabbrew session`
+command channel behind `tabbrew tabs list`, `tabbrew windows list`, `tabbrew groups list`, `tabbrew groups collapse`/`uncollapse`/`close`, `tabbrew windows create` and `tabbrew tabs create`/`focus`/`move`/`group`/`discard`/`reload`: an extension page finds a `tabbrew session`
 on `127.0.0.1:49227` or `:49228`, polls `GET /health`, and while a session
 answers it holds a long-poll on `GET /requests/next`, runs each request it
 claims against `chrome.*` (`src/utils/operators.ts`), and posts the result to

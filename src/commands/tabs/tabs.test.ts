@@ -94,6 +94,7 @@ const snapshot: Snapshot = {
 const panel = new AbortController()
 const moves: { tabIds: number[]; index: number; windowId?: number }[] = []
 const discards: number[] = []
+const reloads: { tabId: number; bypassCache?: boolean }[] = []
 const closes: number[][] = []
 const groupings: { tabIds: number[]; groupId?: number; windowId?: number }[] = []
 const groupUpdates: { groupId: number; title?: string; color?: string; collapsed?: boolean }[] = []
@@ -109,6 +110,12 @@ function answer(request: OperatorRequest): unknown {
     // Chrome may hand back a replacement tab under a new id.
     const replaced = tabId === 1952
     return { output: { tabId: replaced ? 2052 : tabId, previousTabId: tabId, changed: replaced } }
+  }
+  if (request.operator === 'reloadTab') {
+    const input = request.input as { tabId: number; bypassCache?: boolean }
+    reloads.push(input)
+    if (input.tabId === 4242) return { error: 'No tab with id: 4242' }
+    return { output: { tabId: input.tabId } }
   }
   if (request.operator === 'closeTabs') {
     const { tabIds } = request.input as { tabIds: number[] }
@@ -327,6 +334,41 @@ describe('tabbrew tabs discard', () => {
     expect(stdout).toBe('')
     expect(stderr).toContain('discardTab failed: Cannot discard the active tab')
     expect(discards.splice(0)).toEqual([1903])
+  })
+})
+
+describe('tabbrew tabs reload', () => {
+  test('rejects a bad id before touching the session', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('tabs', 'reload', '1950', '0')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('tab id must be a positive integer: 0')
+    expect(stdout).toBe('')
+    expect(reloads).toEqual([])
+  })
+
+  test('reloads one tab per call, in order, and prints nothing', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'reload', '1950', '1901')
+    expect(exitCode).toBe(0)
+    expect(stdout).toBe('')
+    expect(reloads.splice(0)).toEqual([
+      { tabId: 1950, bypassCache: false },
+      { tabId: 1901, bypassCache: false },
+    ])
+  })
+
+  test('sends --hard as bypassCache and prints the results as json', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'reload', '1950', '--hard', '--json')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual([{ tabId: 1950 }])
+    expect(reloads.splice(0)).toEqual([{ tabId: 1950, bypassCache: true }])
+  })
+
+  test("stops at Chrome's refusal and leaves the rest untouched", async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('tabs', 'reload', '4242', '1950')
+    expect(exitCode).toBe(1)
+    expect(stdout).toBe('')
+    expect(stderr).toContain('reloadTab failed: No tab with id: 4242')
+    expect(reloads.splice(0)).toEqual([{ tabId: 4242, bypassCache: false }])
   })
 })
 

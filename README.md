@@ -5,7 +5,7 @@
 [![npm](https://img.shields.io/npm/v/tabbrew-cli)](https://www.npmjs.com/package/tabbrew-cli)
 
 Manage Chrome tabs, windows and tab groups from the terminal: list them, open,
-focus, move, group, discard and close tabs, fold and close groups. Every verb
+focus, move, group, discard, reload and close tabs, fold and close groups. Every verb
 has `--json`, and `tabbrew init` writes a cheat sheet so an AI coding agent
 working in your repo can drive the browser the same way.
 
@@ -30,6 +30,7 @@ unless a command names it.
 | `tabbrew tabs move` | Put tabs next to another tab, across windows if needed |
 | `tabbrew tabs group` | Gather tabs into a new or existing group, with title, colour and collapsed state |
 | `tabbrew tabs discard` | Unload tabs from memory, keeping them on the tab strip |
+| `tabbrew tabs reload` | Reload tabs in place, optionally bypassing the cache |
 | `tabbrew tabs close` | Close tabs |
 | `tabbrew windows list` | One row per open window, with tab and group counts |
 | `tabbrew windows create` | Open a new window, empty or with URLs |
@@ -311,6 +312,25 @@ may replace a discarded tab with a new one under a new id: `--json` reports the
 id it has now as `tabId`, the one you gave as `previousTabId`, and `changed`
 when they differ. Take the new id from there, or re-list, before reusing it.
 
+`tabbrew tabs reload` reloads tabs in place, as F5 does: the tab keeps its id,
+its position and its group. It is the verb an agent wants after changing the
+code behind a localhost tab, and it loads a discarded tab back.
+
+```bash
+tabbrew tabs reload 1950                   # reload one tab
+tabbrew tabs reload 1950 1952 --hard       # both, bypassing the cache
+tabbrew tabs reload 1950 --json            # [{tabId}]
+```
+
+Silent on success. Chrome takes one tab per call, so the ids go in order and
+the first refusal stops the rest untouched. An id that is not a positive
+integer is rejected before the session is contacted; `reload` needs no
+snapshot, so an unknown id is Chrome's answer and fails with
+`reloadTab failed: No tab with id: <id>`. `--hard` is the hard reload of
+DevTools: the page is fetched again instead of served from the cache. The
+command returns as soon as Chrome starts the reload, not when the page has
+finished loading.
+
 `tabbrew tabs close` closes tabs outright. It is the counterpart to `discard`:
 nothing is kept, and there is no undo from the CLI.
 
@@ -452,8 +472,8 @@ is cut.
 TabBrew product extension. Browser-facing features land here paired with their
 CLI command (the session handshake, the three `list` verbs,
 `tabbrew groups collapse`/`uncollapse`/`close`, `tabbrew tabs create`,
-`tabbrew tabs focus`, `tabbrew tabs move`, `tabbrew tabs discard` and
-`tabbrew tabs close` today)
+`tabbrew tabs focus`, `tabbrew tabs move`, `tabbrew tabs discard`,
+`tabbrew tabs reload` and `tabbrew tabs close` today)
 so the protocol can be exercised end to end in a real Chrome. The product extension moves to its own repository once that protocol is
 stable; see `extension/README.md`.
 
