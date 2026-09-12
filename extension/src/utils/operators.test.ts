@@ -81,6 +81,7 @@ const defaults = (): ChromeApi => ({
     group: async () => 100,
     ungroup: async () => {},
     discard: async (tabId) => aTab({ id: tabId + 1000, discarded: true }),
+    reload: async () => {},
     create: async (properties) =>
       aTab({
         id: 50,
@@ -385,6 +386,20 @@ describe('discardTab', () => {
       previousTabId: 7,
       changed: false,
     })
+  })
+})
+
+describe('reloadTab', () => {
+  test('reloads the tab and sends bypassCache explicitly', async () => {
+    const chrome = fakeChrome()
+    expect(await createOperators(chrome).reloadTab({ tabId: 7 })).toEqual({ tabId: 7 })
+    expect(chrome.calls).toEqual([['tabs.reload', 7, { bypassCache: false }]])
+  })
+
+  test('passes bypassCache through', async () => {
+    const chrome = fakeChrome()
+    await createOperators(chrome).reloadTab({ tabId: 7, bypassCache: true })
+    expect(chrome.calls).toEqual([['tabs.reload', 7, { bypassCache: true }]])
   })
 })
 

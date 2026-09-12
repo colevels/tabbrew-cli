@@ -29,8 +29,8 @@ explains how to run it locally, and CI runs it on every pull request.
 
 Browser-facing features come with their extension half in `extension/` and an
 e2e case in `src/e2e/`, so the protocol is exercised in a real Chrome before the
-change is considered done. Keep the README's command reference and layout
-table current in the same pull request.
+change is considered done. Keep the README's command reference current in
+the same pull request.
 
 ## Releasing
 

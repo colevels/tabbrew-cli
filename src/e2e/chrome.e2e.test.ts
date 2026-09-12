@@ -285,6 +285,30 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
     await report('After `tabbrew tabs discard` of a grouped background tab')
   })
 
+  test('tabs reload loads a discarded tab back in place, under the same id', async () => {
+    const tabId = (await snapshot()).tabs.find((tab) => tab.discarded)?.id as number
+    expect(tabId).toBeGreaterThan(0)
+
+    const results = await json<OperatorOutput<'reloadTab'>[]>(
+      'tabs',
+      'reload',
+      String(tabId),
+      '--hard',
+    )
+    expect(results).toEqual([{ tabId }])
+
+    const tab = (await settledTabs(windowId)).find((t) => t.id === tabId)
+    expect(tab).toMatchObject({
+      windowId,
+      index: 0,
+      url: pageUrl(1),
+      discarded: false,
+      status: 'complete',
+      groupId,
+    })
+    await report('After `tabbrew tabs reload --hard` of the discarded tab')
+  })
+
   test('groups close removes the group and its tabs without leaving a window behind', async () => {
     const windowsBefore = await json<WindowSummary[]>('windows', 'list')
     const groupedIds = (await snapshot()).tabs
@@ -306,6 +330,34 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
     ])
     expect(await json<WindowSummary[]>('windows', 'list')).toHaveLength(windowsBefore.length)
     await report('After `tabbrew groups close`')
+  })
+
+  test('tabs ungroup frees grouped tabs and drops the emptied group', async () => {
+    const grouped = await json<OperatorOutput<'groupTabs'>>(
+      'tabs',
+      'group',
+      String(ids[3]),
+      String(ids[4]),
+    )
+    expect(grouped.groupId).toBeGreaterThan(0)
+    expect((await settledTabs(windowId)).map((tab) => tab.groupId)).toEqual([
+      -1,
+      grouped.groupId,
+      grouped.groupId,
+    ])
+
+    const freed = await json<number[]>('tabs', 'ungroup', String(ids[3]), String(ids[4]))
+    expect(freed).toEqual([ids[3] as number, ids[4] as number])
+
+    const tabs = await settledTabs(windowId)
+    expect(tabs).toMatchObject([
+      expectedTab(0, { index: 0 }),
+      expectedTab(3, { index: 1 }),
+      expectedTab(4, { index: 2 }),
+    ])
+    const groups = await json<GroupSummary[]>('groups', 'list')
+    expect(groups.find((group) => group.id === grouped.groupId)).toBeUndefined()
+    await report('After `tabbrew tabs ungroup` on a fresh group of two tabs')
   })
 
   test('tabs create opens a background tab after an anchor', async () => {

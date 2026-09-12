@@ -37,6 +37,7 @@ export interface ChromeApi {
     group(options: Browser.tabs.GroupOptions): Promise<number>
     ungroup(tabIds: [number, ...number[]]): Promise<void>
     discard(tabId: number): Promise<Browser.tabs.Tab | undefined>
+    reload(tabId: number, properties: Browser.tabs.ReloadProperties): Promise<void>
     create(properties: Browser.tabs.CreateProperties): Promise<Browser.tabs.Tab>
   }
 }
@@ -184,6 +185,13 @@ export const createOperators = (chrome: ChromeApi): Operators => ({
       previousTabId: tabId,
       changed: tab?.id !== undefined && tab.id !== tabId,
     }
+  },
+
+  // bypassCache always travels explicitly, for the same reason createWindow
+  // always sends focused.
+  reloadTab: async ({ tabId, bypassCache = false }) => {
+    await chrome.tabs.reload(tabId, { bypassCache })
+    return { tabId }
   },
 
   // Selecting the tab inside its window is not enough when that window sits

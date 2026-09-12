@@ -19,6 +19,7 @@ export const EXTENSION_KEY =
 // The TabBrew extension on the Chrome Web Store, which the CLI opens by default;
 // the harness above is reached through TABBREW_EXTENSION_ID instead.
 export const PRODUCT_EXTENSION_ID = 'ikmpmkkcmhhnjmdiooekbhfmomcbefkf'
+export const PRODUCT_STORE_URL = `https://chromewebstore.google.com/detail/${PRODUCT_EXTENSION_ID}`
 
 // The extension page the CLI opens to connect a session; it serves commands
 // exactly like the side panel does.

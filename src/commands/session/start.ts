@@ -1,9 +1,9 @@
 import { Command } from 'commander'
 import {
   connect,
-  connectionUrl,
   describe,
   discover,
+  explainNotConnected,
   HOST,
   LOG_PATH,
   PORTS,
@@ -24,9 +24,7 @@ async function report(session: SessionInfo, state: string, open: boolean): Promi
     return
   }
   console.log(describe(session, state))
-  console.error(
-    `the connection page did not answer; open ${connectionUrl()} in the Chrome profile where TabBrew is installed`,
-  )
+  console.error(explainNotConnected())
   process.exitCode = 1
 }
 

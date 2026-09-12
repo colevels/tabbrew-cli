@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { connect, connectionUrl, describe, discover } from '../../core/session'
+import { connect, describe, discover, explainNotConnected } from '../../core/session'
 
 export const open = new Command('open')
   .description('Open the connection page in Chrome so the session can drive it')
@@ -12,9 +12,7 @@ export const open = new Command('open')
     }
     const connected = await connect(session)
     if (!connected) {
-      console.error(
-        `the connection page did not answer; open ${connectionUrl()} in the Chrome profile where TabBrew is installed`,
-      )
+      console.error(explainNotConnected())
       process.exitCode = 1
       return
     }

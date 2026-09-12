@@ -5,9 +5,7 @@ import { type MoveTarget, planMove } from '../../core/tabs'
 import { parseTabId, reject } from './tab-ids'
 
 export const move = new Command('move')
-  .description(
-    'Move tabs next to another tab (needs a connected session; see tabbrew session open)',
-  )
+  .description('Move tabs next to another tab')
   .argument('<tab...>', 'tab ids, as shown by "tabs list"')
   .option('--after <tab>', 'place them right after this tab')
   .option('--before <tab>', 'place them right before this tab')

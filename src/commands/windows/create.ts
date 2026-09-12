@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { callOperator, withSession } from '../../core/session'
 
 export const create = new Command('create')
-  .description('Open a new Chrome window (needs a connected session; see tabbrew session open)')
+  .description('Open a new Chrome window')
   .argument('[url...]', 'URLs to open in the new window (default: a new tab)')
   .option('--focus', 'focus the new window')
   .option('--json', 'machine-readable output')

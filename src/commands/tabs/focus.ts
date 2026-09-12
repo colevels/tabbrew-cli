@@ -3,9 +3,7 @@ import { callOperator, withSession } from '../../core/session'
 import { parseTabId, reject } from './tab-ids'
 
 export const focus = new Command('focus')
-  .description(
-    'Bring a tab to the front, raising its window (needs a connected session; see tabbrew session open)',
-  )
+  .description('Bring a tab to the front, raising its window')
   .argument('<tab>', 'tab id, as shown by "tabs list"')
   .option('--json', 'machine-readable output')
   .action(async (raw: string, opts: { json?: boolean }) => {

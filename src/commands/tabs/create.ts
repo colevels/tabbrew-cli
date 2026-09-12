@@ -9,9 +9,7 @@ const absolute = (url: string): string =>
   /^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `https://${url}`
 
 export const create = new Command('create')
-  .description(
-    'Open a new tab in the background (needs a connected session; see tabbrew session open)',
-  )
+  .description('Open a new tab in the background')
   .argument('[url]', 'URL to open (default: a new tab page)')
   .option('--window <window>', 'open it in this window')
   .option('--after <tab>', 'place it right after this tab')

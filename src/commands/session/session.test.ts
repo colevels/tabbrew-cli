@@ -3,8 +3,12 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pkg from '../../../package.json'
-import { connectionUrl } from '../../core/session/chrome'
-import { NEXT_REQUEST_PATH } from '../../core/session/protocol'
+import { extensionId } from '../../core/session/chrome'
+import {
+  NEXT_REQUEST_PATH,
+  PRODUCT_EXTENSION_ID,
+  PRODUCT_STORE_URL,
+} from '../../core/session/protocol'
 
 const root = `${import.meta.dir}/../../..`
 // A port nothing else on the machine (or a real session) is likely to hold.
@@ -22,19 +26,28 @@ const opened = (): string[] => {
   }
 }
 
-const env = () => ({
-  ...process.env,
-  TABBREW_SESSION_PORTS: String(port),
-  TABBREW_SESSION_DIR: stateDir,
-  TABBREW_SESSION_LONG_POLL_MS: '500',
-  TABBREW_SESSION_CONNECT_WAIT_MS: '1500',
-  TABBREW_CHROME: launcher,
-})
+// A developer's shell may point at the harness; these tests want the Store default.
+const env = (extension?: string) => {
+  const { TABBREW_EXTENSION_ID: _, ...base } = process.env
+  return {
+    ...base,
+    ...(extension ? { TABBREW_EXTENSION_ID: extension } : {}),
+    TABBREW_SESSION_PORTS: String(port),
+    TABBREW_SESSION_DIR: stateDir,
+    TABBREW_SESSION_LONG_POLL_MS: '500',
+    TABBREW_SESSION_CONNECT_WAIT_MS: '1500',
+    TABBREW_CHROME: launcher,
+  }
+}
 
 function tabbrew(...args: string[]) {
+  return tabbrewWith(undefined, ...args)
+}
+
+function tabbrewWith(extension: string | undefined, ...args: string[]) {
   const result = Bun.spawnSync(['bun', 'run', 'src/index.ts', 'session', ...args], {
     cwd: root,
-    env: env(),
+    env: env(extension),
   })
   return {
     exitCode: result.exitCode,
@@ -119,7 +132,7 @@ describe('tabbrew session', () => {
       const stdout = await new Response(child.stdout).text()
       expect(await child.exited).toBe(0)
       expect(stdout).toContain('session connected')
-      expect(opened()).toEqual([connectionUrl()])
+      expect(opened()).toEqual([`chrome-extension://${PRODUCT_EXTENSION_ID}/connection.html`])
       expect(tabbrew('status').stdout).toContain('running, connected')
     } finally {
       controller.abort()
@@ -127,11 +140,24 @@ describe('tabbrew session', () => {
     }
   })
 
-  test('open reports a page that never connects', () => {
+  test('open points a Store user at the Store when the page never connects', () => {
+    const before = opened().length
     const { exitCode, stderr } = tabbrew('open')
     expect(exitCode).toBe(1)
-    expect(stderr).toContain(connectionUrl())
+    expect(stderr).toContain(PRODUCT_STORE_URL)
+    expect(opened().slice(before)).toEqual([
+      `chrome-extension://${PRODUCT_EXTENSION_ID}/connection.html`,
+    ])
     expect(tabbrew('status').stdout).toContain('running, not connected')
+  })
+
+  test('open names an overridden id instead of the Store', () => {
+    const before = opened().length
+    const { exitCode, stderr } = tabbrewWith(extensionId(), 'open')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('TABBREW_EXTENSION_ID')
+    expect(stderr).not.toContain(PRODUCT_STORE_URL)
+    expect(opened().slice(before)).toEqual([`chrome-extension://${extensionId()}/connection.html`])
   })
 
   test('run refuses to start a second one', () => {

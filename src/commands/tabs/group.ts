@@ -18,9 +18,7 @@ const COLORS: GroupColor[] = [
 const isGroupColor = (value: string): value is GroupColor => (COLORS as string[]).includes(value)
 
 export const group = new Command('group')
-  .description(
-    'Group tabs together, joining an existing group or creating one (needs a connected session; see tabbrew session open)',
-  )
+  .description('Group tabs together, joining an existing group or creating one')
   .argument('<tab...>', 'tab ids, as shown by "tabs list"')
   .option('--to <group>', 'join this existing group')
   .option('--window <window>', 'create a new group in this window')
