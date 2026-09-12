@@ -15,6 +15,30 @@ in Chrome, which the CLI talks to over `127.0.0.1`. The extension in this repo
 is the CLI's **harness** for developing that protocol (see [Harness
 extension](#harness-extension)); it is shipped as a zip with every release.
 
+## What Tabbrew Does
+
+Each command goes over `127.0.0.1` to the TabBrew extension, which runs it
+against the Chrome you already have open and reports back. Nothing changes
+unless a command names it.
+
+| Command | What it does |
+| --- | --- |
+| `tabbrew session start` / `stop` | Start or stop the local session that links this terminal to Chrome |
+| `tabbrew tabs list` | Every open tab across every window, one row each |
+| `tabbrew tabs create` | Open a URL in a new background tab: at the end of a window, next to a tab, or inside a group |
+| `tabbrew tabs focus` | Select a tab and raise its window |
+| `tabbrew tabs move` | Put tabs next to another tab, across windows if needed |
+| `tabbrew tabs group` | Gather tabs into a new or existing group, with title, colour and collapsed state |
+| `tabbrew tabs discard` | Unload tabs from memory, keeping them on the tab strip |
+| `tabbrew tabs close` | Close tabs |
+| `tabbrew windows list` | One row per open window, with tab and group counts |
+| `tabbrew windows create` | Open a new window, empty or with URLs |
+| `tabbrew groups list` | One row per tab group, with colour and collapsed state |
+| `tabbrew groups collapse` / `uncollapse` | Fold or expand groups |
+| `tabbrew groups close` | Close groups while Chrome keeps them among its saved groups |
+| `tabbrew init` | Write a cheat sheet into `CLAUDE.md` / `AGENTS.md` so an AI agent can drive the browser |
+| `tabbrew update` | Replace the installed binary with the latest release |
+
 ## Install
 
 ### Install script (macOS, Linux)
