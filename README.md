@@ -2,13 +2,13 @@
   <img src="docs/logo.svg" alt="TabBrew" width="128">
 </p>
 
+<p align="center"><strong>A Chrome tab manager for the terminal.</strong></p>
+
 # tabbrew-cli
 
 [![CI](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/colevels/tabbrew-cli)](https://github.com/colevels/tabbrew-cli/releases/latest)
 [![npm](https://img.shields.io/npm/v/tabbrew-cli)](https://www.npmjs.com/package/tabbrew-cli)
-
-**A Chrome tab manager for the terminal.**
 
 Manage Chrome tabs, windows and tab groups from the terminal: list them, open,
 focus, move, group, ungroup, discard, reload and close tabs, fold and close groups. Every verb
