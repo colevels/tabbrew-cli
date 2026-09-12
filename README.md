@@ -481,6 +481,11 @@ bun run typecheck
 bun test
 ```
 
+Commands live in `src/commands/<noun>/<verb>.ts`, one verb per file; `init`
+and `update` are top-level verbs. `src/core/` holds the logic behind them and
+never imports from `src/commands/`, so it can be tested without going through
+the CLI.
+
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the branch flow and how a release
 is cut.
 
@@ -539,45 +544,3 @@ command channel's paths and shapes live in `src/core/session/protocol.ts`,
 which both the CLI and the extension import, so the two sides cannot drift
 apart. `extension/wxt.config.ts` also derives the manifest's
 `host_permissions` from that list.
-
-## Layout
-
-Commands are organised as noun folders with one verb per file; `init` and
-`update` are the top-level verbs. `src/core/` holds the logic behind them and never imports
-from `src/commands/`, so it can be tested without going through the CLI.
-
-```
-src/index.ts                                 root program, registers nouns
-src/commands/<noun>/index.ts                 new Command("<noun>") + addCommand(each verb)
-src/commands/<noun>/<verb>.ts                one verb = one exported Command
-src/commands/tabs/list.ts                    readSnapshot through the session, as a table or --json
-src/commands/groups/collapse.ts              the collapse verb and the factory uncollapse shares
-src/commands/init/index.ts                   the init verb, writes the agent cheat sheet
-src/core/<module>/index.ts                   public surface of a core module
-src/core/session/protocol.ts                 wire contract shared with the extension: ports, marker, probe, command channel
-src/core/session/config.ts                   timeouts, paths, env overrides, how the CLI re-runs itself
-src/core/session/server.ts                   the loopback server (/health, /stop, the request queue, idle exit)
-src/core/session/lifecycle.ts                find, spawn, wait for, and stop a session
-src/core/session/call.ts                     post an operator call to a session and explain its failures
-src/core/session/chrome.ts                   the extension id, the connection page URL, and opening it in Chrome
-src/core/session/format.ts                   one-line description of a session
-src/core/operators/contract.ts               what the CLI may ask of Chrome: the snapshot and the operators
-src/core/tabs/format.ts                      the tab table
-src/core/agent-docs/block.ts                 find, replace and remove the marker-fenced block
-src/core/agent-docs/targets.ts               which agent doc files exist and which to create
-src/core/agent-docs/cheatsheet.ts            render the block from config + commander metadata
-src/core/agent-docs/install.ts               write and remove the block on disk
-src/commands/update/index.ts                 the update verb: check, download, verify, swap
-src/core/update/config.ts                    where releases live, with env overrides for tests and forks
-src/core/update/index.ts                     resolve the latest release, verify its checksum, replace the binary
-install.sh                                   curl | sh installer: picks the asset, verifies it, installs to ~/.local/bin
-extension/README.md                          why the extension exists: CLI harness, not the product
-extension/wxt.config.ts                      WXT config; harness manifest with the CLI version and the two ports' host permissions
-extension/src/components/App.tsx             the connection: polls the session and serves its commands while a page is open
-extension/src/entrypoints/connection/main.tsx mounts App into connection.html, the tab the CLI opens; yields to a twin, closes with its session
-extension/src/entrypoints/sidepanel/main.tsx mounts App into sidepanel.html
-extension/src/entrypoints/background.ts      only makes the toolbar icon open the side panel
-extension/src/utils/session.ts               the shared probe with a browser-sized timeout
-extension/src/utils/channel.ts               a page's half of the command channel: claim, run, answer
-extension/src/utils/operators.ts             operators -> chrome.*, the one place that touches Chrome
-```
