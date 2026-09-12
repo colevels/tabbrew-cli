@@ -5,7 +5,7 @@
 [![npm](https://img.shields.io/npm/v/tabbrew-cli)](https://www.npmjs.com/package/tabbrew-cli)
 
 Manage Chrome tabs, windows and tab groups from the terminal: list them, open,
-focus, move, group, discard, reload and close tabs, fold and close groups. Every verb
+focus, move, group, ungroup, discard, reload and close tabs, fold and close groups. Every verb
 has `--json`, and `tabbrew init` writes a cheat sheet so an AI coding agent
 working in your repo can drive the browser the same way.
 
@@ -29,6 +29,7 @@ unless a command names it.
 | `tabbrew tabs focus` | Select a tab and raise its window |
 | `tabbrew tabs move` | Put tabs next to another tab, across windows if needed |
 | `tabbrew tabs group` | Gather tabs into a new or existing group, with title, colour and collapsed state |
+| `tabbrew tabs ungroup` | Take tabs out of their group |
 | `tabbrew tabs discard` | Unload tabs from memory, keeping them on the tab strip |
 | `tabbrew tabs reload` | Reload tabs in place, optionally bypassing the cache |
 | `tabbrew tabs close` | Close tabs |
@@ -349,6 +350,23 @@ window closes that window, exactly as it does in the UI; closing every tab of a
 group drops the group, so use `tabbrew groups close` when Chrome should keep it
 among its saved groups.
 
+`tabbrew tabs ungroup` takes tabs out of their group and leaves them where
+they are on the tab strip. It is the counterpart to `tabs group`; a group
+emptied this way disappears, as it does in the UI.
+
+```bash
+tabbrew tabs ungroup 1903              # free one tab
+tabbrew tabs ungroup 1903 1950 --json  # [1903, 1950]
+```
+
+Silent on success. All the ids go to Chrome in one call, so either every tab
+leaves its group or none does; a repeated id is collapsed, since Chrome refuses
+a list that names the same tab twice. An id that is not a positive integer is
+rejected before the session is contacted, and an id Chrome does not know fails
+after the snapshot read with `no tab <id>` — nothing changes in either case. A
+tab that is not in any group is accepted and left alone. Anything Chrome itself
+refuses surfaces as `ungroupTabs failed`.
+
 ### Windows
 
 `tabbrew windows list` prints one row per open window, derived from the same
@@ -473,7 +491,7 @@ TabBrew product extension. Browser-facing features land here paired with their
 CLI command (the session handshake, the three `list` verbs,
 `tabbrew groups collapse`/`uncollapse`/`close`, `tabbrew tabs create`,
 `tabbrew tabs focus`, `tabbrew tabs move`, `tabbrew tabs discard`,
-`tabbrew tabs reload` and `tabbrew tabs close` today)
+`tabbrew tabs reload`, `tabbrew tabs close` and `tabbrew tabs ungroup` today)
 so the protocol can be exercised end to end in a real Chrome. The product extension moves to its own repository once that protocol is
 stable; see `extension/README.md`.
 

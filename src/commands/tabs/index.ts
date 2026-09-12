@@ -7,6 +7,7 @@ import { group } from './group'
 import { list } from './list'
 import { move } from './move'
 import { reload } from './reload'
+import { ungroup } from './ungroup'
 
 export const tabs = browserGroup('tabs', 'Tabs open in Chrome', [
   'tabbrew tabs list',
@@ -21,3 +22,4 @@ export const tabs = browserGroup('tabs', 'Tabs open in Chrome', [
   .addCommand(reload)
   .addCommand(close)
   .addCommand(group)
+  .addCommand(ungroup)

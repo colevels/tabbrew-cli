@@ -96,6 +96,7 @@ const moves: { tabIds: number[]; index: number; windowId?: number }[] = []
 const discards: number[] = []
 const reloads: { tabId: number; bypassCache?: boolean }[] = []
 const closes: number[][] = []
+const ungroupings: number[][] = []
 const groupings: { tabIds: number[]; groupId?: number; windowId?: number }[] = []
 const groupUpdates: { groupId: number; title?: string; color?: string; collapsed?: boolean }[] = []
 const creations: { url?: string; windowId?: number; index?: number }[] = []
@@ -121,6 +122,12 @@ function answer(request: OperatorRequest): unknown {
     const { tabIds } = request.input as { tabIds: number[] }
     closes.push(tabIds)
     if (tabIds.includes(1903)) return { error: 'Tabs cannot be edited right now' }
+    return { output: { tabIds } }
+  }
+  if (request.operator === 'ungroupTabs') {
+    const { tabIds } = request.input as { tabIds: number[] }
+    ungroupings.push(tabIds)
+    if (tabIds.includes(1901)) return { error: 'Tabs cannot be edited right now' }
     return { output: { tabIds } }
   }
   if (request.operator === 'groupTabs') {
@@ -409,6 +416,46 @@ describe('tabbrew tabs close', () => {
     expect(stdout).toBe('')
     expect(stderr).toContain('closeTabs failed: Tabs cannot be edited right now')
     expect(closes.splice(0)).toEqual([[1903, 1950]])
+  })
+})
+
+describe('tabbrew tabs ungroup', () => {
+  test('rejects a bad id before touching the session', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('tabs', 'ungroup', '1903', 'x')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('tab id must be a positive integer: x')
+    expect(stdout).toBe('')
+    expect(ungroupings).toEqual([])
+  })
+
+  test('rejects an id the snapshot does not have, ungrouping nothing', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('tabs', 'ungroup', '1903', '9999')
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('no tab 9999; run "tabbrew tabs list"')
+    expect(stdout).toBe('')
+    expect(ungroupings).toEqual([])
+  })
+
+  test('ungroups every id in one call and prints nothing', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'ungroup', '1903', '1950', '1903')
+    expect(exitCode).toBe(0)
+    expect(stdout).toBe('')
+    expect(ungroupings.splice(0)).toEqual([[1903, 1950]])
+  })
+
+  test('prints the ungrouped ids as json', async () => {
+    const { exitCode, stdout } = await tabbrew('tabs', 'ungroup', '1903', '--json')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual([1903])
+    ungroupings.splice(0)
+  })
+
+  test("surfaces Chrome's refusal", async () => {
+    const { exitCode, stdout, stderr } = await tabbrew('tabs', 'ungroup', '1901', '1903')
+    expect(exitCode).toBe(1)
+    expect(stdout).toBe('')
+    expect(stderr).toContain('ungroupTabs failed: Tabs cannot be edited right now')
+    expect(ungroupings.splice(0)).toEqual([[1901, 1903]])
   })
 })
 

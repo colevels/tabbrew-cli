@@ -332,6 +332,34 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
     await report('After `tabbrew groups close`')
   })
 
+  test('tabs ungroup frees grouped tabs and drops the emptied group', async () => {
+    const grouped = await json<OperatorOutput<'groupTabs'>>(
+      'tabs',
+      'group',
+      String(ids[3]),
+      String(ids[4]),
+    )
+    expect(grouped.groupId).toBeGreaterThan(0)
+    expect((await settledTabs(windowId)).map((tab) => tab.groupId)).toEqual([
+      -1,
+      grouped.groupId,
+      grouped.groupId,
+    ])
+
+    const freed = await json<number[]>('tabs', 'ungroup', String(ids[3]), String(ids[4]))
+    expect(freed).toEqual([ids[3] as number, ids[4] as number])
+
+    const tabs = await settledTabs(windowId)
+    expect(tabs).toMatchObject([
+      expectedTab(0, { index: 0 }),
+      expectedTab(3, { index: 1 }),
+      expectedTab(4, { index: 2 }),
+    ])
+    const groups = await json<GroupSummary[]>('groups', 'list')
+    expect(groups.find((group) => group.id === grouped.groupId)).toBeUndefined()
+    await report('After `tabbrew tabs ungroup` on a fresh group of two tabs')
+  })
+
   test('tabs create opens a background tab after an anchor', async () => {
     const created = await json<OperatorOutput<'createTab'>>(
       'tabs',
