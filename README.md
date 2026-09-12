@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.svg" alt="TabBrew" width="128">
+</p>
+
 # tabbrew-cli
 
 [![CI](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/colevels/tabbrew-cli/actions/workflows/ci.yml)
