@@ -32,6 +32,7 @@ export function render(program: Command): string {
     `- Background output goes to ${log}; read it when start fails.`,
     '- After upgrading the tabbrew binary run `tabbrew session stop` then `start` so the new version serves.',
     '- Re-run `tabbrew init` after upgrading to refresh this block; do not edit it by hand.',
+    "- Never run `tabbrew update` or `tabbrew uninstall`; those are the user's to run.",
     `- \`${PROJECT_CONFIG}\` in the project picks which extension build \`session start\` opens; set it with \`tabbrew init --extension harness|<id>\` (\`store\` clears it), not by hand.`,
     '',
     'COMMANDS:',

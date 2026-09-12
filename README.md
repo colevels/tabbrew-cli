@@ -42,6 +42,7 @@ unless a command names it.
 | `tabbrew groups close` | Close groups while Chrome keeps them among its saved groups |
 | `tabbrew init` | Write a cheat sheet into `CLAUDE.md` / `AGENTS.md` so an AI agent can drive the browser |
 | `tabbrew update` | Replace the installed binary with the latest release |
+| `tabbrew uninstall` | Stop the session, remove `~/.tabbrew` and the binary it installed |
 
 ## Install
 
@@ -147,10 +148,14 @@ repos that carry the cheat sheet.
 ## Uninstall
 
 ```bash
-rm ~/.local/bin/tabbrew      # or wherever it was installed; npm: npm uninstall -g tabbrew-cli
-rm -rf ~/.tabbrew            # session log
+tabbrew uninstall --dry-run    # show what would go, change nothing
+tabbrew uninstall              # stop the session, remove ~/.tabbrew and the binary
+npm uninstall -g tabbrew-cli   # if installed from npm; from source: bun unlink
 ```
 
+`uninstall` removes the binary only when it is the one `install.sh` or
+`tabbrew update` put there; npm and source installs keep theirs. Before you
+run it, `tabbrew init --remove` in any repo that carries the cheat sheet.
 Then remove the extension in `chrome://extensions`.
 
 ## Commands
