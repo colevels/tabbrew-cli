@@ -152,316 +152,75 @@ Then remove the extension in `chrome://extensions`.
 
 ## Commands
 
+> Every verb takes `--json` and is silent on success. Ids are the TAB, WINDOW
+> and GROUP columns printed by the `list` verbs.
+
 ### Session
 
-The session is a small HTTP server on `127.0.0.1` that links this terminal to
-Chrome. `start` launches it in the background, opens the extension's
-connection page in Chrome and returns once that page is serving; `run` keeps
-the server in the foreground.
-
 ```bash
-tabbrew session start          # spawn in the background, then open the connection page in Chrome
+tabbrew session start            # spawn in the background, open the connection page
 tabbrew session start --no-open  # spawn only
-tabbrew session open           # (re)open the connection page for a running session
-tabbrew session status         # where it is, pid, version, uptime, connected or not (exit 1 if none)
-tabbrew session status --json
-tabbrew session stop           # ask it to exit, wait until the port is free
-tabbrew session run            # foreground, Ctrl-C to stop
+tabbrew session open             # (re)open the connection page
+tabbrew session status           # address, pid, version, uptime (exit 1 if none)
+tabbrew session stop             # ask it to exit, wait for the port
+tabbrew session run              # foreground, Ctrl-C to stop
 ```
 
-It binds the first free port of `49227`, `49228` (the two the extension's
-manifest may reach), answers `GET /health`, accepts `POST /stop` from local
-processes only, and exits on its own after 10 minutes without use. An open
-extension page polling `/health` counts as use; `tabbrew session status` from
-a terminal does not, so a session nobody is looking at still goes away.
-Background output goes to `~/.tabbrew/session.log`.
-
-`open` launches `chrome-extension://<id>/connection.html` through `open -a
-"Google Chrome"` on macOS, `google-chrome` on Linux and `start chrome` on
-Windows, then waits up to 5 seconds for the page to hold the command channel.
-The id is the Web Store extension's, so the CLI never has to ask Chrome for
-it; `TABBREW_EXTENSION_ID`, else `extensionId` in the nearest `.tabbrew.json`
-up from the current directory, names another build, such as the harness. Opening
-the page twice is harmless: the second copy finds the first and closes itself.
-When its session stops, the page closes itself too. Set `TABBREW_CHROME` to a
-program that takes the URL as its only argument to use another browser or
-profile.
-
-Browser commands travel through the same server. A local process posts an
-operator call (`POST /operators/<name>`, for instance `readSnapshot`); a
-connected extension page (the connection page or the side panel) claims it by
-long-polling `GET /requests/next`, runs it against Chrome, and posts the answer
-to `POST /requests/<id>/result`; the call resolves with that answer. A call
-nobody claims within 2 seconds fails with `no_panel`; a claimed call with no
-result within 10 seconds fails with `timeout`; a poll with nothing to serve is
-released empty after 25 seconds and the page polls again. `GET /health`
-reports `listening: true` while a page holds the channel.
-Only local processes may post calls, for the same reason only they may stop the
-session.
-
-Environment overrides, mainly for tests:
-
-| Variable | Meaning |
-| --- | --- |
-| `TABBREW_SESSION_PORTS` | comma-separated ports to try, in order |
-| `TABBREW_SESSION_IDLE_MS` | idle time before the session exits |
-| `TABBREW_SESSION_DIR` | where `session.log` is written |
-| `TABBREW_SESSION_CLAIM_WAIT_MS` | how long a call waits for a page to claim it |
-| `TABBREW_SESSION_OPERATOR_TIMEOUT_MS` | how long a claimed call waits for its result |
-| `TABBREW_SESSION_LONG_POLL_MS` | how long a page's poll is held open |
-| `TABBREW_SESSION_CONNECT_WAIT_MS` | how long `open` waits for the connection page |
-| `TABBREW_CHROME` | program that opens the connection page, given its URL |
-| `TABBREW_EXTENSION_ID` | extension whose connection page to open, instead of the Web Store one; overrides `.tabbrew.json` |
+The session exits after 10 idle minutes. `TABBREW_EXTENSION_ID`, or
+`extensionId` in the nearest `.tabbrew.json`, opens another extension build.
 
 ### Tabs
 
-`tabbrew tabs list` prints every open tab, across every window, as the
-extension sees it. It needs a session with a connected page, which
-`tabbrew session start` sets up; without one it fails with "nothing is
-connected to the session; run \"tabbrew session open\".
-
 ```bash
-tabbrew tabs list              # one row per tab
-tabbrew tabs list --json       # the raw snapshot: windows, groups, tabs
+tabbrew tabs list                            # one row per tab, every window
+tabbrew tabs create https://example.com      # open in the background, end of current window
+tabbrew tabs create example.com --after 1901 # right after tab 1901
+tabbrew tabs create --window 1843 --group 7  # new tab page, inside group 7
+tabbrew tabs focus 1901                      # select it and raise its window
+tabbrew tabs move 1950 --after 1901          # next to 1901, across windows if needed
+tabbrew tabs move 1950 1952 --before 1903    # several, in the order given
+tabbrew tabs group 1901 1903 --title Work    # new group, --color / --collapse optional
+tabbrew tabs group 1950 --to 7               # join an existing group
+tabbrew tabs ungroup 1903                    # take it out of its group
+tabbrew tabs discard 1950                    # unload from memory, keep on the tab strip
+tabbrew tabs reload 1950                     # reload in place
+tabbrew tabs reload 1950 --hard              # bypass the cache
+tabbrew tabs close 1950 1952                 # close, no undo
 ```
 
-```
-TAB   WINDOW  GROUP  FLAGS   URL              TITLE
-1901  1842    -      active  mail.google.com  Inbox
-1903  1842    7      -       github.com       Pull Request #42
-1950  1843    -      -       newtab           New Tab
-```
-
-Rows are ordered by window, then by position in the tab strip. TAB, WINDOW and
-GROUP are Chrome's ids (`-` when the tab is in no group); FLAGS is any of
-`active`, `pinned`, `audible`, `muted`, `discarded`, `loading`, or `-`. The URL
-column shows the host only, without a leading `www.`. TITLE comes last, where a
-long one extends its own row instead of shifting the columns, and is capped at
-60 columns with a trailing `…`; the full title and url, group titles and
-colours, window focus and `lastAccessed` are all in `--json`.
-
-`tabbrew tabs create` opens a tab. Without a url it opens a new tab page, and
-without a placement flag Chrome puts it at the end of the current window. The
-tab always opens in the background, so a script can build up a window without
-the focus jumping around.
-
-```bash
-tabbrew tabs create https://example.com              # at the end of the current window
-tabbrew tabs create example.com                      # a bare host is read as https://
-tabbrew tabs create https://example.com --after 1901 # right after 1901, in its window
-tabbrew tabs create --window 1843                    # a new tab page, at the end of window 1843
-tabbrew tabs create --group 7 --json                 # inside group 7: {tabId, windowId, index, url, groupId}
-```
-
-Prints `created tab <id> in window <label> at index <n>` on success, because the
-new id is the one thing you cannot look up beforehand. `--window`, `--after` and
-`--before` all name the destination window, so give at most one; `--group` may
-join any of them, as long as the group is in that same window, and is applied by
-a second call once the tab exists. An id that is not a positive integer is
-rejected before the session is contacted; an unknown tab, window or group fails
-after the snapshot read with `no tab <id>`, `no window <id>` or `no group <id>`.
-A url Chrome will not open surfaces as `createTab failed`.
-
-`tabbrew tabs focus` is the counterpart to `create`'s background opening: it
-selects the tab in its window and raises that window to the front. The raise is
-real OS focus, so it pulls attention away from whatever the person is doing —
-it is the one verb that does, deliberately.
-
-```bash
-tabbrew tabs focus 1901         # select 1901 and bring its window forward
-tabbrew tabs focus 1901 --json  # {tabId, windowId}
-```
-
-Silent on success, and takes exactly one tab: focusing several is meaningless.
-An id that is not a positive integer is rejected before the session is
-contacted. Unlike the verbs that plan against a snapshot, `focus` needs no
-snapshot, so an unknown id is Chrome's answer, not the CLI's: it fails with
-`focusTab failed: tab <id> not found` rather than `no tab <id>`.
-
-`tabbrew tabs move` puts tabs next to another tab, addressed by the TAB
-column. The moved tabs end up in the anchor's window, so a tab from window B
-placed after a tab in window A crosses windows with no extra flag. It is the
-first verb that changes tabs.
-
-```bash
-tabbrew tabs move 1950 --after 1901         # 1950 lands right after 1901
-tabbrew tabs move 1950 1952 --before 1903   # both, in the order given, just before 1903
-tabbrew tabs move 1950 --after 1901 --json  # [{tabId, windowId, index}]
-```
-
-Silent on success. All the ids go to Chrome in one call, so either every tab
-moves or none does. An id that is not a positive integer, a missing anchor
-flag, or a tab named as its own anchor is rejected before the session is
-contacted; an id Chrome does not know fails after the snapshot read with
-`no tab <id>`. Chrome decides what happens at a group boundary (a tab dropped
-inside a group joins it) and refuses to move an unpinned tab ahead of pinned
-ones; both surface as `moveTabs failed`.
-
-`tabbrew tabs discard` unloads tabs from memory and leaves them on the tab
-strip, where they reload on their next click. It is the way to free memory
-without closing anything.
-
-```bash
-tabbrew tabs discard 1950                 # unload one tab
-tabbrew tabs discard 1950 1952 --json     # [{tabId, previousTabId, changed}]
-```
-
-Silent on success. Chrome takes one tab per call, so the ids go in order and
-the first refusal stops the rest untouched; Chrome refuses the active tab, an
-unknown id and a few others, and each surfaces as `discardTab failed`. Chrome
-may replace a discarded tab with a new one under a new id: `--json` reports the
-id it has now as `tabId`, the one you gave as `previousTabId`, and `changed`
-when they differ. Take the new id from there, or re-list, before reusing it.
-
-`tabbrew tabs reload` reloads tabs in place, as F5 does: the tab keeps its id,
-its position and its group. It is the verb an agent wants after changing the
-code behind a localhost tab, and it loads a discarded tab back.
-
-```bash
-tabbrew tabs reload 1950                   # reload one tab
-tabbrew tabs reload 1950 1952 --hard       # both, bypassing the cache
-tabbrew tabs reload 1950 --json            # [{tabId}]
-```
-
-Silent on success. Chrome takes one tab per call, so the ids go in order and
-the first refusal stops the rest untouched. An id that is not a positive
-integer is rejected before the session is contacted; `reload` needs no
-snapshot, so an unknown id is Chrome's answer and fails with
-`reloadTab failed: No tab with id: <id>`. `--hard` is the hard reload of
-DevTools: the page is fetched again instead of served from the cache. The
-command returns as soon as Chrome starts the reload, not when the page has
-finished loading.
-
-`tabbrew tabs close` closes tabs outright. It is the counterpart to `discard`:
-nothing is kept, and there is no undo from the CLI.
-
-```bash
-tabbrew tabs close 1950            # close one tab
-tabbrew tabs close 1950 1952 --json  # [1950, 1952]
-```
-
-Silent on success. All the ids go to Chrome in one call, so either every tab
-closes or none does; a repeated id is collapsed, since Chrome refuses a list
-that names the same tab twice. An id that is not a positive integer is rejected
-before the session is contacted, and an id Chrome does not know fails after the
-snapshot read with `no tab <id>` — nothing closes in either case. Anything
-Chrome itself refuses surfaces as `closeTabs failed`. Closing the last tab in a
-window closes that window, exactly as it does in the UI; closing every tab of a
-group drops the group, so use `tabbrew groups close` when Chrome should keep it
-among its saved groups.
-
-`tabbrew tabs ungroup` takes tabs out of their group and leaves them where
-they are on the tab strip. It is the counterpart to `tabs group`; a group
-emptied this way disappears, as it does in the UI.
-
-```bash
-tabbrew tabs ungroup 1903              # free one tab
-tabbrew tabs ungroup 1903 1950 --json  # [1903, 1950]
-```
-
-Silent on success. All the ids go to Chrome in one call, so either every tab
-leaves its group or none does; a repeated id is collapsed, since Chrome refuses
-a list that names the same tab twice. An id that is not a positive integer is
-rejected before the session is contacted, and an id Chrome does not know fails
-after the snapshot read with `no tab <id>` — nothing changes in either case. A
-tab that is not in any group is accepted and left alone. Anything Chrome itself
-refuses surfaces as `ungroupTabs failed`.
+`focus` is the one verb that steals OS focus. `discard` may give a tab a new
+id; `--json` reports it with `previousTabId`.
 
 ### Windows
 
-`tabbrew windows list` prints one row per open window, derived from the same
-snapshot as `tabs list`, with the same session and connection requirements.
-
 ```bash
-tabbrew windows list           # one row per window
-tabbrew windows list --json    # [{id, focused, incognito, state, tabCount, groupCount, activeTabId}]
+tabbrew windows list                             # one row per window, tab and group counts
+tabbrew windows create                           # empty window
+tabbrew windows create a.com b.com --focus       # with tabs, brought to the front
 ```
-
-```
-WINDOW  TABS  GROUPS  FLAGS    ACTIVE
-1842    2     1       focused  mail.google.com  Inbox
-1843    1     0       -        newtab  New Tab
-```
-
-Rows are ordered by window id. TABS and GROUPS are counts; FLAGS is any of
-`focused`, `incognito`, `minimized`, `maximized`, `fullscreen`,
-`locked-fullscreen`, or `-` (a `normal` state is not shown). ACTIVE comes last
-and shows the host and title of the window's active tab, the title capped at
-60 columns, or `-` when the window has no active tab.
 
 ### Groups
 
-`tabbrew groups list` prints one row per tab group, derived from the same
-snapshot as `tabs list`, with the same session and connection requirements.
-
 ```bash
-tabbrew groups list            # one row per group
-tabbrew groups list --json     # [{id, windowId, windowLabel, title, color, collapsed, tabCount}]
+tabbrew groups list           # one row per group: colour, collapsed, tab count
+tabbrew groups collapse 7 9   # fold, in order
+tabbrew groups uncollapse 7   # expand again
+tabbrew groups close 7        # close its tabs, keep the group among Chrome's saved groups
 ```
-
-```
-GROUP  WINDOW  TABS  COLOR  FLAGS      TITLE
-7      A       1     blue   -          Work
-9      A       3     red    collapsed  Reading
-```
-
-Rows are ordered by window, then by the group's position in the tab strip.
-GROUP is Chrome's group id, as shown by `tabs list`; WINDOW is the window's
-label; TABS is a count; FLAGS is `collapsed` or `-`. TITLE comes last, capped
-at 60 columns with a trailing `…`, or `-` when the group has no title.
-
-`tabbrew groups collapse` and `tabbrew groups uncollapse` fold or expand
-groups, addressed by the GROUP column of `groups list`. They are the first
-verbs that change Chrome.
-
-```bash
-tabbrew groups collapse 7 9       # collapse groups 7 and 9, in order
-tabbrew groups uncollapse 7       # expand it again
-tabbrew groups collapse 7 --json  # [{groupId, collapsed}]
-```
-
-Both are silent on success. Ids are sent one at a time in the order given;
-the first failure stops with exit 1 and the groups before it stay changed. An
-id that is not a positive integer is rejected before the session is contacted,
-and an unknown id fails with Chrome's message.
-
-`tabbrew groups close` closes groups. Removing a group's tabs would also
-drop it from Chrome's saved tab groups, so instead each group is moved into a
-throwaway window and that window is closed: the tabs go away and the group
-stays saved on the profile.
-
-```bash
-tabbrew groups close 7 9       # close groups 7 and 9, in order
-tabbrew groups close 7 --json  # [{groupId, tabIds}]
-```
-
-Silent on success, with the same ordering, validation and failure rules as
-`collapse`. An id with no tabs behind it fails with `No group with id`.
 
 ### Init
 
-`tabbrew init` writes a cheat sheet for AI coding agents so they discover the
-CLI instead of guessing. It is non-interactive and safe to re-run: the block
-lives between `<!-- TABBREW:START -->` and `<!-- TABBREW:END -->` markers and is
-replaced in place on every run; everything outside it is left alone.
-
 ```bash
-tabbrew init                    # update CLAUDE.md, .claude/CLAUDE.md, AGENTS.md, .cursorrules if present, else create CLAUDE.md
-tabbrew init --agent codex      # target one tool's file: claude, cursor, codex, all
-tabbrew init --path docs/AI.md  # explicit file(s); must stay inside the current directory
-tabbrew init --print            # show the block, write nothing
-tabbrew init --remove           # strip the block everywhere (deletes a file that held nothing else)
-tabbrew init --extension harness   # also record which extension build `session start` opens: store, harness or an id
+tabbrew init                       # write the cheat sheet into CLAUDE.md / AGENTS.md / .cursorrules
+tabbrew init --agent codex         # one tool's file: claude, cursor, codex, all
+tabbrew init --path docs/AI.md     # explicit file, inside the current directory
+tabbrew init --print               # show the block, write nothing
+tabbrew init --remove              # strip the block everywhere
+tabbrew init --extension harness   # record which extension build to open: store, harness, or an id
 ```
 
-The command reference inside the block is generated from the registered
-commands, so it cannot drift; re-run `init` after upgrading the CLI.
-
-`--extension` writes `{"extensionId": "<id>"}` to `.tabbrew.json` in the
-current directory and `session start` / `session open` read the nearest one up
-from wherever they run. `harness` resolves to the harness id, a 32-letter id is
-kept as given, and `store` removes the key (and the file, if nothing else is in
-it). `TABBREW_EXTENSION_ID` still wins over the file.
+The block sits between `<!-- TABBREW:START -->` and `<!-- TABBREW:END -->`
+and is replaced on every run, so re-run `init` after upgrading.
 
 ## Development
 
