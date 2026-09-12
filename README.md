@@ -25,16 +25,15 @@
 
 ---
 
-Manage Chrome tabs, windows and tab groups from the command line: list them, open,
-focus, move, group, ungroup, discard, reload and close tabs, fold and close groups. Every verb
-has `--json`, and `tabbrew init` writes a cheat sheet so an AI coding agent
-working in your repo can drive the browser the same way.
+A tab manager for Chrome that lives in your terminal. Every verb takes
+`--json`, and `tabbrew init` writes AI coding agents a cheat sheet, so you
+can hand tab, window and group management to the agent you already work
+with.
 
-It needs two things: the `tabbrew` binary, and the [TabBrew
-extension](https://chromewebstore.google.com/detail/ikmpmkkcmhhnjmdiooekbhfmomcbefkf)
-in Chrome, which the CLI talks to over `127.0.0.1`. The extension in this repo
-is the CLI's **harness** for developing that protocol (see [Harness
-extension](#harness-extension)); it is shipped as a zip with every release.
+You need two things: the `tabbrew` binary ([Install](#install)) and the
+[TabBrew extension](https://chromewebstore.google.com/detail/ikmpmkkcmhhnjmdiooekbhfmomcbefkf)
+from the Chrome Web Store. The CLI talks to the extension over `127.0.0.1`
+and only touches the tabs you name.
 
 ## What Tabbrew Does
 
