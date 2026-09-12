@@ -2,8 +2,8 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { connectionUrl, extensionId, openInChrome } from './chrome'
-import { CONNECTION_PAGE, PRODUCT_EXTENSION_ID } from './config'
+import { connectionUrl, explainNotConnected, extensionId, openInChrome } from './chrome'
+import { CONNECTION_PAGE, PRODUCT_EXTENSION_ID, PRODUCT_STORE_URL } from './config'
 import { PROJECT_CONFIG } from './project'
 
 const dirs: string[] = []
@@ -63,6 +63,34 @@ describe('chrome', () => {
       expect(connectionUrl()).toBe(`chrome-extension://${id}/${CONNECTION_PAGE}`)
       process.env.TABBREW_EXTENSION_ID = PRODUCT_EXTENSION_ID
       expect(connectionUrl()).toBe(`chrome-extension://${PRODUCT_EXTENSION_ID}/${CONNECTION_PAGE}`)
+    } finally {
+      process.chdir(cwd)
+    }
+  })
+
+  test('explainNotConnected points a Store user at the Store', () => {
+    expect(explainNotConnected()).toContain(PRODUCT_STORE_URL)
+  })
+
+  test('explainNotConnected names an overridden id instead of the Store', () => {
+    process.env.TABBREW_EXTENSION_ID = extensionId()
+    const message = explainNotConnected()
+    expect(message).toContain('TABBREW_EXTENSION_ID')
+    expect(message).toContain(extensionId())
+    expect(message).not.toContain(PRODUCT_STORE_URL)
+  })
+
+  test('explainNotConnected names .tabbrew.json when the project set the id', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tabbrew-chrome-'))
+    dirs.push(dir)
+    const id = 'abcdefghijklmnopabcdefghijklmnop'
+    writeFileSync(join(dir, PROJECT_CONFIG), JSON.stringify({ extensionId: id }))
+    const cwd = process.cwd()
+    process.chdir(dir)
+    try {
+      const message = explainNotConnected()
+      expect(message).toContain(PROJECT_CONFIG)
+      expect(message).toContain(id)
     } finally {
       process.chdir(cwd)
     }

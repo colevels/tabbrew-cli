@@ -90,7 +90,8 @@ bun link                       # puts `tabbrew` on your PATH, pointing at this c
 
 Install [TabBrew](https://chromewebstore.google.com/detail/ikmpmkkcmhhnjmdiooekbhfmomcbefkf)
 from the Chrome Web Store. That is all: `tabbrew session start` opens its
-connection page by id.
+connection page by id, and if that page never answers it prints the Store
+link to install from.
 
 To drive another build instead, the harness or an unpacked checkout of the
 product, load it through `chrome://extensions` → **Developer mode** → **Load
