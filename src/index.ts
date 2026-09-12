@@ -8,7 +8,14 @@ import { tabs } from './commands/tabs'
 import { update } from './commands/update'
 import { windows } from './commands/windows'
 
-const program = new Command().name('tabbrew').description('TabBrew CLI').version(pkg.version)
+const program = new Command()
+  .name('tabbrew')
+  .description('TabBrew CLI')
+  .version(pkg.version)
+  .addHelpText(
+    'after',
+    '\ntabs, windows and groups need a connected session; run "tabbrew session start" first.',
+  )
 
 program.addCommand(session)
 program.addCommand(tabs)

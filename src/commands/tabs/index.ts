@@ -1,4 +1,4 @@
-import { Command } from 'commander'
+import { browserGroup } from '../browser-group'
 import { close } from './close'
 import { create } from './create'
 import { discard } from './discard'
@@ -7,8 +7,7 @@ import { group } from './group'
 import { list } from './list'
 import { move } from './move'
 
-export const tabs = new Command('tabs')
-  .description('Tabs open in Chrome')
+export const tabs = browserGroup('tabs', 'Tabs open in Chrome')
   .addCommand(create)
   .addCommand(list)
   .addCommand(focus)

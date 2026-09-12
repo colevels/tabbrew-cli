@@ -21,5 +21,13 @@ describe('tabbrew cli', () => {
     const { exitCode, stdout } = run('--help')
     expect(exitCode).toBe(0)
     expect(stdout).toContain('tabbrew')
+    expect(stdout).toContain('tabbrew session start')
+  })
+
+  test('group help states the session note once', () => {
+    const count = (text: string) => text.split('connected session').length - 1
+    expect(count(run('tabs', '--help').stdout)).toBe(1)
+    expect(count(run('tabs', 'list', '--help').stdout)).toBe(1)
+    expect(count(run('session', '--help').stdout)).toBe(0)
   })
 })

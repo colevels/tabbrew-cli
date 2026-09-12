@@ -8,7 +8,7 @@ export const parseGroupId = (raw: string): number | null =>
 export function collapsedVerb(name: string, collapsed: boolean): Command {
   const action = collapsed ? 'Collapse' : 'Expand'
   return new Command(name)
-    .description(`${action} tab groups (needs a connected session; see tabbrew session open)`)
+    .description(`${action} tab groups`)
     .argument('<group...>', 'group ids, as shown by "groups list"')
     .option('--json', 'machine-readable output')
     .action(async (raws: string[], opts: { json?: boolean }) => {

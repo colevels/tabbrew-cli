@@ -4,7 +4,7 @@ import { callOperator, withSession } from '../../core/session'
 import { parseTabId, reject } from './tab-ids'
 
 export const close = new Command('close')
-  .description('Close tabs (needs a connected session; see tabbrew session open)')
+  .description('Close tabs')
   .argument('<tab...>', 'tab ids, as shown by "tabs list"')
   .option('--json', 'machine-readable output')
   .action(async (raws: string[], opts: { json?: boolean }) => {

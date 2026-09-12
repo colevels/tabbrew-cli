@@ -4,9 +4,7 @@ import { callOperator, withSession } from '../../core/session'
 import { parseTabId, reject } from './tab-ids'
 
 export const discard = new Command('discard')
-  .description(
-    'Unload tabs from memory, keeping them on the tab strip (needs a connected session; see tabbrew session open)',
-  )
+  .description('Unload tabs from memory, keeping them on the tab strip')
   .argument('<tab...>', 'tab ids, as shown by "tabs list"')
   .option('--json', 'machine-readable output')
   .action(async (raws: string[], opts: { json?: boolean }) => {

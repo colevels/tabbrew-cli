@@ -3,9 +3,7 @@ import { callOperator, withSession } from '../../core/session'
 import { parseGroupId } from './collapse'
 
 export const close = new Command('close')
-  .description(
-    'Close tab groups; Chrome keeps them in its saved groups (needs a connected session; see tabbrew session open)',
-  )
+  .description('Close tab groups; Chrome keeps them in its saved groups')
   .argument('<group...>', 'group ids, as shown by "groups list"')
   .option('--json', 'machine-readable output')
   .action(async (raws: string[], opts: { json?: boolean }) => {
