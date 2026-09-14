@@ -68,6 +68,17 @@ describe('assetName', () => {
   })
 })
 
+describe('isHomebrewKeg', () => {
+  test('recognises a keg under any Homebrew prefix', () => {
+    expect(update.isHomebrewKeg('/opt/homebrew/Cellar/tabbrew/0.9.4/bin/tabbrew')).toBe(true)
+    expect(
+      update.isHomebrewKeg('/home/linuxbrew/.linuxbrew/Cellar/tabbrew/0.9.4/bin/tabbrew'),
+    ).toBe(true)
+    expect(update.isHomebrewKeg('/Users/me/.local/bin/tabbrew')).toBe(false)
+    expect(update.isHomebrewKeg('/opt/homebrew/Cellar/bun/1.3.5/bin/bun')).toBe(false)
+  })
+})
+
 describe('resolveLatest', () => {
   test('reads the version from the releases/latest redirect', async () => {
     expect(await update.resolveLatest()).toBe('9.9.9')

@@ -49,6 +49,7 @@ describe('tabbrew uninstall', () => {
     expect(JSON.parse(stdout)).toEqual({
       session: null,
       stateDirectory: stateDir,
+      binaryManager: 'npm-or-source',
       binary: null,
       removed: false,
     })
