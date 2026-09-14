@@ -28,6 +28,15 @@ export const isCompiledBinary = (): boolean => compiled
 // Symlinks resolved, so the swap replaces the file the link points at.
 export const currentBinaryPath = (): string => realpathSync(process.execPath)
 
+// Every Homebrew prefix (/opt/homebrew, /usr/local, linuxbrew) kegs under Cellar;
+// brew owns that file, so update and uninstall must leave it to brew.
+export const isHomebrewKeg = (binaryPath: string): boolean =>
+  binaryPath.includes('/Cellar/tabbrew/')
+export const installedViaHomebrew = (): boolean => compiled && isHomebrewKeg(currentBinaryPath())
+
+export const HOMEBREW_UPGRADE_HINT =
+  'tabbrew is installed with Homebrew; run "brew upgrade tabbrew"'
+
 export function assetName(platform = process.platform, arch = process.arch): string {
   const os = platform === 'darwin' ? 'darwin' : platform === 'linux' ? 'linux' : null
   const cpu = arch === 'arm64' ? 'arm64' : arch === 'x64' ? 'x64' : null
@@ -141,6 +150,7 @@ export async function replaceBinary(target: string, bytes: Uint8Array): Promise<
 }
 
 export async function performUpdate(): Promise<{ info: UpdateInfo; replaced: boolean }> {
+  if (installedViaHomebrew()) throw new UpdateError(HOMEBREW_UPGRADE_HINT)
   const info = await checkForUpdate()
   if (!info.updateAvailable) return { info, replaced: false }
   const bytes = await downloadAndVerify(assetName())

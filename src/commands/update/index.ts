@@ -1,6 +1,8 @@
 import { Command } from 'commander'
 import {
   checkForUpdate,
+  HOMEBREW_UPGRADE_HINT,
+  installedViaHomebrew,
   isCompiledBinary,
   performUpdate,
   UpdateError,
@@ -19,6 +21,11 @@ export const update = new Command('update')
         else if (info.updateAvailable) {
           console.log(`update available: ${info.current} → ${info.latest}; run "tabbrew update"`)
         } else console.log(`tabbrew is up to date (${info.current})`)
+        return
+      }
+      if (installedViaHomebrew()) {
+        console.error(HOMEBREW_UPGRADE_HINT)
+        process.exitCode = 1
         return
       }
       if (!isCompiledBinary()) {

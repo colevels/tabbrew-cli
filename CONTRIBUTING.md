@@ -53,13 +53,18 @@ Releases are cut by pushing a version tag; GitHub Actions
 4. The workflow runs the checks, cross-compiles `tabbrew-{darwin,linux}-{arm64,x64}`,
    zips the extension as `tabbrew-extension.zip`, writes `checksums.txt`,
    attests every asset, creates the GitHub Release with generated notes, then
-   publishes `tabbrew-cli` to npm.
+   publishes `tabbrew-cli` to npm and pushes a regenerated
+   `Formula/tabbrew.rb` (from `scripts/homebrew-formula.ts` and the release
+   `checksums.txt`) to [colevels/homebrew-tap](https://github.com/colevels/homebrew-tap).
 5. Read the generated release notes and edit them where they need a human
    sentence.
 
 The npm job needs an `NPM_TOKEN` repository secret: a granular access token
-from npmjs.com with publish rights on `tabbrew-cli`.
+from npmjs.com with publish rights on `tabbrew-cli`. The homebrew job needs
+`HOMEBREW_TAP_TOKEN`: a fine-grained GitHub token scoped to the
+`homebrew-tap` repository with Contents read/write.
 
-Users on the prebuilt binary pick the release up with `tabbrew update`; npm
-users with `npm install -g tabbrew-cli@latest`. Both then load the new
+Users on the prebuilt binary pick the release up with `tabbrew update`;
+Homebrew users with `brew upgrade tabbrew`; npm users with
+`npm install -g tabbrew-cli@latest`. All then load the new
 `tabbrew-extension.zip` in Chrome.

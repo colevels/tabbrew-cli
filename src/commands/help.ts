@@ -1,4 +1,5 @@
-import type { Argument, Command, Help, HelpConfiguration } from 'commander'
+import type { Argument, Help, HelpConfiguration } from 'commander'
+import { Command } from 'commander'
 import pkg from '../../package.json'
 
 type Sections = { examples?: string[]; note?: string }
@@ -10,6 +11,12 @@ export const helpSections = (cmd: Command, extra: Sections): Command => {
   sections.set(cmd, extra)
   return cmd
 }
+
+export const browserCommand = (name: string, description: string, examples: string[]): Command =>
+  helpSections(new Command(name).description(description), {
+    examples,
+    note: `All ${name} commands need a connected session; run \`tabbrew session start\` first.`,
+  })
 
 // The root note is about picking a top-level command, so only the root screen shows it;
 // a group's note covers every verb beneath it.

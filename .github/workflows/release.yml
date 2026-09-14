@@ -5,6 +5,8 @@ name: Release
 # The binaries are built here, in a clean runner, and each asset carries a
 # SLSA build-provenance attestation linking it to this commit and run:
 #   gh attestation verify tabbrew-<os>-<arch> --repo colevels/tabbrew-cli
+# Afterwards the package goes to npm and the formula in colevels/homebrew-tap
+# is regenerated from checksums.txt.
 on:
   push:
     tags: ["v*"]
@@ -97,3 +99,35 @@ jobs:
       - run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Needs the HOMEBREW_TAP_TOKEN repository secret (a fine-grained PAT with
+  # Contents read/write on colevels/homebrew-tap only).
+  homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+      - name: Render formula from the release checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern checksums.txt --dir dist
+          bun scripts/homebrew-formula.ts "${GITHUB_REF_NAME#v}" dist/checksums.txt > dist/tabbrew.rb
+      - uses: actions/checkout@v7
+        with:
+          repository: colevels/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+      - name: Push formula to the tap
+        working-directory: tap
+        run: |
+          mkdir -p Formula
+          cp ../dist/tabbrew.rb Formula/tabbrew.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/tabbrew.rb
+          git commit -m "tabbrew ${GITHUB_REF_NAME#v}"
+          git push
