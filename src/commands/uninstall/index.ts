@@ -4,9 +4,12 @@ import { describeUninstall, performUninstall, type UninstallPlan } from '../../c
 import { UpdateError } from '../../core/update'
 import { helpSections } from '../help'
 
-const NPM_OR_SOURCE =
-  'binary: skipped, tabbrew is running from npm or a source checkout\n' +
-  '  npm: npm uninstall -g tabbrew-cli\n  source: bun unlink'
+const SKIPPED_BINARY: Record<Exclude<UninstallPlan['binaryManager'], 'install-script'>, string> = {
+  homebrew: 'binary: skipped, tabbrew is installed with Homebrew\n  brew uninstall tabbrew',
+  'npm-or-source':
+    'binary: skipped, tabbrew is running from npm or a source checkout\n' +
+    '  npm: npm uninstall -g tabbrew-cli\n  source: bun unlink',
+}
 
 function describe(plan: UninstallPlan, dryRun: boolean): string[] {
   const stop = dryRun ? 'would stop' : 'stopped'
@@ -16,7 +19,9 @@ function describe(plan: UninstallPlan, dryRun: boolean): string[] {
       ? `session: ${stop} ${HOST}:${plan.session.port} · pid ${plan.session.pid}`
       : 'session: none running',
     `state: ${remove} ${plan.stateDirectory}`,
-    plan.binary ? `binary: ${remove} ${plan.binary}` : NPM_OR_SOURCE,
+    plan.binaryManager === 'install-script'
+      ? `binary: ${remove} ${plan.binary}`
+      : SKIPPED_BINARY[plan.binaryManager],
     '',
     'still to do by hand:',
     '  - remove the TabBrew extension in chrome://extensions',
@@ -49,5 +54,5 @@ export const uninstall = new Command('uninstall')
 
 helpSections(uninstall, {
   examples: ['tabbrew uninstall --dry-run', 'tabbrew uninstall'],
-  note: 'npm and source installs keep their binary: remove those with npm uninstall -g tabbrew-cli or bun unlink.',
+  note: 'Homebrew, npm and source installs keep their binary: remove those with brew uninstall tabbrew, npm uninstall -g tabbrew-cli or bun unlink.',
 })

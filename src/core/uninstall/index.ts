@@ -1,20 +1,30 @@
 import { rmSync, unlinkSync } from 'node:fs'
 import { discover, HOST, STATE_DIR, stopSession } from '../session'
 import type { SessionInfo } from '../session/protocol'
-import { currentBinaryPath, isCompiledBinary, UpdateError } from '../update'
+import { currentBinaryPath, installedViaHomebrew, isCompiledBinary, UpdateError } from '../update'
+
+// Only install-script binaries are ours to delete; brew, npm and bun own the others.
+export type BinaryManager = 'install-script' | 'homebrew' | 'npm-or-source'
 
 export type UninstallPlan = {
   session: SessionInfo | null
   stateDirectory: string
-  // null when running from npm or a source checkout, which their own tools remove.
+  binaryManager: BinaryManager
+  // The path only when binaryManager is install-script.
   binary: string | null
 }
 
 export async function describeUninstall(): Promise<UninstallPlan> {
+  const binaryManager: BinaryManager = !isCompiledBinary()
+    ? 'npm-or-source'
+    : installedViaHomebrew()
+      ? 'homebrew'
+      : 'install-script'
   return {
     session: await discover(),
     stateDirectory: STATE_DIR,
-    binary: isCompiledBinary() ? currentBinaryPath() : null,
+    binaryManager,
+    binary: binaryManager === 'install-script' ? currentBinaryPath() : null,
   }
 }
 
