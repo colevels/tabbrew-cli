@@ -12,7 +12,7 @@ import {
   VERSION,
 } from './config'
 
-export { VERSION } from './config'
+export { REPOSITORY, VERSION } from './config'
 
 export class UpdateError extends Error {
   override name = 'UpdateError'
@@ -149,11 +149,18 @@ export async function replaceBinary(target: string, bytes: Uint8Array): Promise<
   }
 }
 
-export async function performUpdate(): Promise<{ info: UpdateInfo; replaced: boolean }> {
+export async function performUpdate(
+  report: (step: string) => void = () => {},
+): Promise<{ info: UpdateInfo; replaced: boolean }> {
   if (installedViaHomebrew()) throw new UpdateError(HOMEBREW_UPGRADE_HINT)
+  report(`Checking ${REPOSITORY} for the latest release`)
   const info = await checkForUpdate()
   if (!info.updateAvailable) return { info, replaced: false }
-  const bytes = await downloadAndVerify(assetName())
-  await replaceBinary(currentBinaryPath(), bytes)
+  const asset = assetName()
+  report(`Downloading ${asset} v${info.latest} and verifying its checksum`)
+  const bytes = await downloadAndVerify(asset)
+  const target = currentBinaryPath()
+  report(`Installing to ${target}`)
+  await replaceBinary(target, bytes)
   return { info, replaced: true }
 }
