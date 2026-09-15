@@ -173,6 +173,11 @@ After any update, run `tabbrew session stop` then `tabbrew session start` so
 the new version serves (`tabbrew update` reminds you when a session is
 running), and re-run `tabbrew init` in repos that carry the cheat sheet.
 
+Every other command also checks for a newer release in the background, at
+most once every 24 hours (state kept in `~/.tabbrew/state.yml`), and prints a
+one-line notice on stderr when one is found. Set `TABBREW_NO_UPDATE_CHECK=1`
+to disable it.
+
 ## Uninstall
 
 ```bash
