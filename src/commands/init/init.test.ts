@@ -38,9 +38,9 @@ describe('tabbrew init', () => {
     const doc = read('CLAUDE.md')
     expect(doc).toContain(MARKER_START)
     expect(doc).toContain(MARKER_END)
-    expect(doc).toContain(`TabBrew CLI v${pkg.version}`)
+    expect(doc).toContain(`## TabBrew CLI (v${pkg.version})`)
     expect(doc).toContain('tabbrew session start')
-    expect(doc).toContain('tabbrew session status [--json]')
+    expect(doc).toContain('- `session` — start, open, stop, status, run')
     expect(readdirSync(dir)).toEqual(['CLAUDE.md'])
   })
 
