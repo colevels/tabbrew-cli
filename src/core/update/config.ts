@@ -17,7 +17,18 @@ export const REQUEST_TIMEOUT_MS = 15_000
 export const DOWNLOAD_TIMEOUT_MS =
   parseMs(process.env.TABBREW_UPDATE_DOWNLOAD_TIMEOUT_MS) ?? 120_000
 
+export const UPDATE_CHECK_INTERVAL_MS =
+  parseMs(process.env.TABBREW_UPDATE_CHECK_INTERVAL_MS) ?? 24 * 60 * 60 * 1000
+
+// Read live rather than frozen at import time: it's a plain opt-out flag
+// checked once per invocation, and reading it live keeps it easy to test.
+export const noUpdateCheck = (): boolean => truthy(process.env.TABBREW_NO_UPDATE_CHECK)
+
 function parseMs(value: string | undefined): number | null {
   const n = Number(value)
   return Number.isFinite(n) && n > 0 ? n : null
+}
+
+function truthy(value: string | undefined): boolean {
+  return value != null && value !== '' && value !== '0' && value.toLowerCase() !== 'false'
 }

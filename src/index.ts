@@ -34,4 +34,11 @@ installHelp(program)
 
 // gh prints help for a bare invocation; Commander would send it to stderr with exit 1.
 if (process.argv.length <= 2) program.outputHelp()
-else await program.parseAsync()
+else {
+  await program.parseAsync()
+  // Skip `update` itself so the check never doubles up with `--check`'s own output.
+  if (program.args[0] !== 'update') {
+    const { notifyIfUpdateAvailable } = await import('./core/update/notify')
+    await notifyIfUpdateAvailable()
+  }
+}
