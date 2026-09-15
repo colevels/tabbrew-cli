@@ -170,9 +170,8 @@ tabbrew-cli@latest`. From source: `git pull && bun run build`. `tabbrew update`
 refuses to touch any of these.
 
 After any update, run `tabbrew session stop` then `tabbrew session start` so
-the new version serves, load the matching `tabbrew-extension.zip` in
-`chrome://extensions` (remove the old one first), and re-run `tabbrew init` in
-repos that carry the cheat sheet.
+the new version serves (`tabbrew update` reminds you when a session is
+running), and re-run `tabbrew init` in repos that carry the cheat sheet.
 
 ## Uninstall
 
