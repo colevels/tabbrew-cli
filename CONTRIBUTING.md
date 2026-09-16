@@ -23,9 +23,10 @@ explains how to run it locally, and CI runs it on every pull request.
 ## Branches
 
 - `develop` is where work lands. Open pull requests against it from a feature
-  branch (`feat/...`, `fix/...`, `chore/...`).
-- `main` only moves by a pull request from `develop`, and every release is
-  tagged on `main`.
+  branch (`feat/...`, `fix/...`, `chore/...`). Direct pushes are allowed,
+  force-pushes are not.
+- `main` only moves by a pull request from `develop` with green CI, and every
+  release is tagged on `main`.
 
 Browser-facing features come with their extension half in `extension/` and an
 e2e case in `src/e2e/`, so the protocol is exercised in a real Chrome before the
