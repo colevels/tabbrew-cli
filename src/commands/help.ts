@@ -53,6 +53,9 @@ const rows = (
 const section = (heading: string, lines: string[]): string[] =>
   lines.length ? [[heading, ...lines].join('\n')] : []
 
+const shouldColor = (): boolean => Boolean(process.stdout.isTTY) && !process.env.NO_COLOR
+const bold = (text: string): string => (shouldColor() ? `\x1b[1m${text}\x1b[22m` : text)
+
 const configuration: HelpConfiguration = {
   formatHelp: (cmd, helper) => {
     const { examples = [] } = sections.get(cmd) ?? {}
@@ -72,10 +75,10 @@ const configuration: HelpConfiguration = {
     const learnMore = extra ? [...LEARN_MORE, extra] : LEARN_MORE
     const blocks = [
       helper.boxWrap(cmd.description(), helper.helpWidth ?? 80),
-      ...section('USAGE', [`  ${usage(cmd)}`]),
+      ...section(bold('USAGE'), [`  ${usage(cmd)}`]),
       ...[...groups].flatMap(([heading, cmds]) =>
         section(
-          heading,
+          bold(heading),
           rows(
             helper,
             cmds.map((sub): Row => [`${sub.name()}:`, helper.subcommandDescription(sub)]),
@@ -84,7 +87,7 @@ const configuration: HelpConfiguration = {
         ),
       ),
       ...section(
-        'ARGUMENTS',
+        bold('ARGUMENTS'),
         rows(
           helper,
           helper
@@ -93,7 +96,7 @@ const configuration: HelpConfiguration = {
         ),
       ),
       ...section(
-        'FLAGS',
+        bold('FLAGS'),
         rows(
           helper,
           flags.map(
@@ -102,11 +105,11 @@ const configuration: HelpConfiguration = {
         ),
       ),
       ...section(
-        'EXAMPLES',
+        bold('EXAMPLES'),
         examples.map((line) => `  $ ${line}`),
       ),
       ...section(
-        'LEARN MORE',
+        bold('LEARN MORE'),
         learnMore.map((line) => `  ${line}`),
       ),
     ]
