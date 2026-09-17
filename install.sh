@@ -68,7 +68,6 @@ case ":${PATH}:" in
 esac
 
 info ""
-info "Next, load the matching extension in Chrome (once per version):"
-info "  1. Download ${BASE_URL}/tabbrew-extension.zip and unzip it"
-info "  2. chrome://extensions -> Developer mode -> Load unpacked -> the unzipped folder"
+info "Next, install the TabBrew extension from the Chrome Web Store:"
+info "  https://chromewebstore.google.com/detail/ikmpmkkcmhhnjmdiooekbhfmomcbefkf"
 info "Then: ${BIN} session start"
