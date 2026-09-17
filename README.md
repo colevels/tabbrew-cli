@@ -64,6 +64,10 @@ unless a command names it.
 
 ## Install
 
+Every method below installs only the `tabbrew` binary. It also needs the
+[TabBrew extension](https://chromewebstore.google.com/detail/ikmpmkkcmhhnjmdiooekbhfmomcbefkf)
+from the Chrome Web Store; see [Set up the extension](#set-up-the-extension).
+
 ### Homebrew (macOS, Linux)
 
 ```bash
