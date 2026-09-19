@@ -42,6 +42,7 @@
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --compile --outfile dist/tabbrew",
     "build:ext": "wxt build extension",
+    "build:sdk": "bun scripts/build-sdk.ts",
     "dev:ext": "wxt extension",
     "zip:ext": "wxt zip extension",
     "typecheck": "tsc --noEmit && tsc --noEmit -p extension && tsc --noEmit -p sdk",

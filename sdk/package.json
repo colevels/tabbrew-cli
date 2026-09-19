@@ -1,0 +1,41 @@
+{
+  "name": "@tabbrew/sdk",
+  "version": "0.9.11",
+  "description": "Serve tabbrew CLI sessions from a Chrome extension page",
+  "type": "module",
+  "license": "MIT",
+  "author": "Jiho",
+  "homepage": "https://github.com/colevels/tabbrew-cli/tree/main/sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/colevels/tabbrew-cli.git",
+    "directory": "sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/colevels/tabbrew-cli/issues"
+  },
+  "keywords": [
+    "tabbrew",
+    "chrome-extension",
+    "tabs",
+    "tab-groups",
+    "sdk"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/types/sdk/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/sdk/src/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  }
+}
