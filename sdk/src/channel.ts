@@ -24,7 +24,7 @@ export interface ChannelOptions {
   retryMs?: number
 }
 
-const pause = (ms: number, signal: AbortSignal): Promise<void> =>
+export const pause = (ms: number, signal: AbortSignal): Promise<void> =>
   new Promise((resolve) => {
     const done = () => {
       clearTimeout(timer)
