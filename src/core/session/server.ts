@@ -1,3 +1,4 @@
+import { type CommandDeclaration, parseDeclaration, type Registry } from '../commands/declaration'
 import { isOperatorName } from '../operators/contract'
 import {
   CLAIM_WAIT_MS,
@@ -10,11 +11,14 @@ import {
 } from './config'
 import { createWindowLabels } from './labels'
 import {
+  COMMANDS_PATH,
+  matchCommandPath,
   matchOperatorPath,
   matchResultPath,
   NEXT_REQUEST_PATH,
   type OperatorFailureCode,
   type OperatorRequest,
+  OWNER_PARAM,
 } from './protocol'
 
 export interface SessionServer {
@@ -32,15 +36,47 @@ export interface ServerOptions {
 
 type Timer = ReturnType<typeof setTimeout>
 
+// `owner` is the token a declaring extension polls with; without one a request
+// or poller belongs to the standard pool.
 interface PendingRequest {
   request: OperatorRequest
+  owner?: string
   settle: (response: Response) => void
   timer?: Timer
 }
 
 interface Poller {
+  owner?: string
   deliver: (response: Response) => void
 }
+
+interface Registration {
+  extensionId: string
+  owner: string
+  description: string
+  commands: Record<string, CommandDeclaration>
+}
+
+const EXTENSION_ORIGIN = /^chrome-extension:\/\/([a-p]{32})$/
+
+// A namespace becomes a root command, so it must never shadow one of ours,
+// present or plausible.
+const RESERVED_NAMESPACES = [
+  'session',
+  'tabs',
+  'windows',
+  'groups',
+  'init',
+  'update',
+  'uninstall',
+  'plugins',
+  'extensions',
+  'help',
+  'call',
+  'plugin',
+]
+
+const MAX_DECLARATION_BYTES = 256 * 1024
 
 // The one thing a held route needs from Bun's server.
 interface RequestHolder {
@@ -84,6 +120,11 @@ export function createServer(
   const claimed = new Map<string, PendingRequest>()
   const pollers: Poller[] = []
   const labels = createWindowLabels()
+  const registry = new Map<string, Registration>()
+
+  const isConnected = (owner: string | undefined): boolean =>
+    pollers.some((poller) => poller.owner === owner) ||
+    [...claimed.values()].some((pending) => pending.owner === owner)
 
   const remove = <T>(list: T[], item: T): void => {
     const at = list.indexOf(item)
@@ -101,10 +142,10 @@ export function createServer(
     return json(pending.request)
   }
 
-  function enqueue(request: OperatorRequest): Promise<Response> {
+  function enqueue(request: OperatorRequest, owner?: string): Promise<Response> {
     const { promise, resolve } = Promise.withResolvers<Response>()
-    const pending: PendingRequest = { request, settle: resolve }
-    const poller = pollers.shift()
+    const pending: PendingRequest = { request, owner, settle: resolve }
+    const poller = pollers.find((candidate) => candidate.owner === owner)
     if (poller) {
       poller.deliver(claim(pending))
       return promise
@@ -117,7 +158,8 @@ export function createServer(
     // A panel busy with an earlier request is not polling; give it that
     // request's own time before calling it absent.
     pending.timer = setTimeout(() => {
-      if (claimed.size > 0) pending.timer = setTimeout(giveUp, operatorTimeoutMs)
+      if ([...claimed.values()].some((busy) => busy.owner === owner))
+        pending.timer = setTimeout(giveUp, operatorTimeoutMs)
       else giveUp()
     }, claimWaitMs)
     return promise
@@ -133,14 +175,96 @@ export function createServer(
     return enqueue({ id: crypto.randomUUID(), operator: name, input })
   }
 
+  async function callCommand(
+    namespace: string,
+    command: string,
+    req: Request,
+    holder: RequestHolder,
+  ): Promise<Response> {
+    if (!fromShell(req)) return failure('forbidden', 403)
+    const registration = registry.get(namespace)
+    if (!registration || !Object.hasOwn(registration.commands, command)) {
+      return failure('unknown_operator', 404)
+    }
+    const input: unknown = await req.json().catch(() => undefined)
+    if (input === undefined) return failure('bad_request', 400)
+    lastUsed = Date.now()
+    holder.timeout(req, holdSeconds(claimWaitMs + 2 * operatorTimeoutMs))
+    return enqueue(
+      { id: crypto.randomUUID(), namespace, operator: command, input },
+      registration.owner,
+    )
+  }
+
+  async function declare(req: Request): Promise<Response> {
+    const extensionId = EXTENSION_ORIGIN.exec(req.headers.get('origin') ?? '')?.[1]
+    if (!extensionId) return failure('forbidden', 403)
+    lastUsed = Date.now()
+    const text = await req.text().catch(() => '')
+    let body: unknown = null
+    if (text.length <= MAX_DECLARATION_BYTES) {
+      try {
+        body = JSON.parse(text)
+      } catch {}
+    }
+    const declaration = parseDeclaration(body)
+    if (!declaration) return failure('bad_commands', 400)
+    const { namespace, description, commands } = declaration
+    const existing = registry.get(namespace)
+    if (
+      RESERVED_NAMESPACES.includes(namespace) ||
+      (existing && existing.extensionId !== extensionId)
+    ) {
+      return failure('namespace_taken', 409)
+    }
+    // Two pages of one extension (side panel and connection page) declare the
+    // same thing; rotating the token would have them evict each other forever.
+    if (
+      existing &&
+      JSON.stringify([existing.description, existing.commands]) ===
+        JSON.stringify([description, commands])
+    ) {
+      return json({ owner: existing.owner })
+    }
+    // One namespace per extension: a rename must not leave the old name behind,
+    // and a page still polling with a replaced token has to declare again.
+    for (const [name, registration] of registry) {
+      if (registration.extensionId !== extensionId) continue
+      registry.delete(name)
+      for (const poller of pollers.filter((p) => p.owner === registration.owner)) {
+        poller.deliver(failure('unknown_owner', 410))
+      }
+    }
+    const owner = crypto.randomUUID()
+    registry.set(namespace, { extensionId, owner, description, commands })
+    return json({ owner })
+  }
+
+  function listCommands(req: Request): Response {
+    if (!fromShell(req)) return failure('forbidden', 403)
+    const listed: Registry = {}
+    for (const [namespace, { extensionId, owner, description, commands }] of registry) {
+      listed[namespace] = { extensionId, description, connected: isConnected(owner), commands }
+    }
+    return json(listed)
+  }
+
   function poll(req: Request, holder: RequestHolder): Response | Promise<Response> {
     lastUsed = Date.now()
-    const next = queue.shift()
-    if (next) return claim(next)
+    const owner = new URL(req.url).searchParams.get(OWNER_PARAM) ?? undefined
+    if (owner !== undefined && ![...registry.values()].some((r) => r.owner === owner)) {
+      return failure('unknown_owner', 410)
+    }
+    const next = queue.find((pending) => pending.owner === owner)
+    if (next) {
+      remove(queue, next)
+      return claim(next)
+    }
 
     holder.timeout(req, holdSeconds(longPollMs))
     const { promise, resolve } = Promise.withResolvers<Response>()
     const poller: Poller = {
+      owner,
       deliver(response) {
         clearTimeout(timer)
         remove(pollers, poller)
@@ -165,7 +289,9 @@ export function createServer(
     const body = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : null
     if (body && 'output' in body) {
       const output =
-        pending.request.operator === 'readSnapshot' ? labels.stamp(body.output) : body.output
+        pending.owner === undefined && pending.request.operator === 'readSnapshot'
+          ? labels.stamp(body.output)
+          : body.output
       pending.settle(json({ output }))
       return json({ ok: true })
     }
@@ -193,7 +319,7 @@ export function createServer(
           pid: process.pid,
           port: self.port,
           uptimeMs: Date.now() - startedAt,
-          listening: pollers.length > 0 || claimed.size > 0,
+          listening: isConnected(undefined),
         })
       }
 
@@ -204,6 +330,16 @@ export function createServer(
       }
 
       if (req.method === 'GET' && pathname === NEXT_REQUEST_PATH) return poll(req, self)
+
+      if (pathname === COMMANDS_PATH) {
+        if (req.method === 'POST') return declare(req)
+        if (req.method === 'GET') return listCommands(req)
+      }
+
+      const command = matchCommandPath(pathname)
+      if (req.method === 'POST' && command !== null) {
+        return callCommand(command.namespace, command.command, req, self)
+      }
 
       const operator = matchOperatorPath(pathname)
       if (req.method === 'POST' && operator !== null) return call(operator, req, self)

@@ -268,6 +268,66 @@ tabbrew init --extension harness   # record which extension build to open: store
 The block sits between `<!-- TABBREW:START -->` and `<!-- TABBREW:END -->`
 and is replaced on every run, so re-run `init` after upgrading.
 
+### Plugins
+
+```bash
+tabbrew plugins list           # which plugins added commands, and whether they are connected
+tabbrew harness echo hi        # a plugin's command: tabbrew <plugin> <command>
+tabbrew harness --help         # help is built from what the plugin declared
+```
+
+See [Plugins](#plugins-1) for writing your own.
+
+## Plugins
+
+A plugin is a Chrome extension of your own that adds commands to tabbrew
+without them becoming part of the CLI. ("The extension" everywhere else in this
+README is the TabBrew extension the CLI connects to.) A plugin declares its
+commands when its page connects to the session; from then on they run as
+`tabbrew <plugin> <command>`, with `--help`, typed arguments, `--json` and a
+rendered table, and they disappear with the session. Nothing is installed and no code of yours runs outside Chrome.
+
+```ts
+import { serveSession } from './sdk' // extension/src/sdk in this repository
+
+await serveSession({
+  namespace: 'bookmarks',
+  description: 'Manage Chrome bookmarks',
+  signal: controller.signal,
+  commands: {
+    list: {
+      description: 'List bookmarks',
+      options: { folder: { type: 'string', description: 'only this folder' } },
+      run: async ({ folder }) => ({ bookmarks: await find(folder) }),
+      view: { rows: 'bookmarks', columns: ['id', 'folder', 'url', 'title'], clip: { title: 60 } },
+    },
+  },
+})
+```
+
+`run` receives one object: arguments and options by name, options in camelCase.
+`view` is `{ rows?, columns, clip? }` for a table, `{ fields }` for key and
+value rows, or `{ message: 'saved {id}' }`; without one the CLI renders by the
+shape of the output. The CLI does the rendering, so your output is data.
+
+The extension needs `host_permissions` for `http://127.0.0.1:49227/*` and
+`:49228/*`, and has to call `serveSession` from an extension page (a side panel
+or a tab), not the service worker, which Chrome stops when idle. The SDK is not
+published yet: copy `extension/src/sdk` together with the files it imports
+(`extension/src/utils/channel.ts` and, from `src/core`, `commands/declaration.ts`,
+`session/protocol.ts` and `operators/contract.ts`), or speak the protocol directly:
+
+| Route | From | |
+| --- | --- | --- |
+| `POST /commands` | extension page | `{ commandsVersion: 1, namespace, description, commands }` → `{ owner }`. Refused with `403` unless the origin is `chrome-extension://`, `400 bad_commands`, or `409 namespace_taken` for a built-in name or another extension's namespace. |
+| `GET /requests/next?owner=<owner>` | extension page | Long-poll for `{ id, namespace, operator, input }`. `204` means ask again, `410` means the session restarted: declare again. |
+| `POST /requests/<id>/result` | extension page | `{ output }` or `{ error }`. |
+| `POST /operators/<namespace>/<command>` | CLI | What `tabbrew <namespace> <command>` sends. |
+| `GET /commands` | CLI | Everything declared, and whether its extension is connected. |
+
+Names are lowercase letters, digits and hyphens. The shapes live in
+`src/core/commands/declaration.ts`.
+
 ## Development
 
 ```bash

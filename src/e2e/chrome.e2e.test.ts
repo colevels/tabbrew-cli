@@ -400,6 +400,26 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
     await report('After `tabbrew tabs focus` on a background tab')
   })
 
+  test('the harness adds its own commands to tabbrew', async () => {
+    const registry = await json<Record<string, { connected: boolean }>>('plugins', 'list')
+    expect(registry.harness).toMatchObject({ extensionId: extensionId(), connected: true })
+
+    const help = await tabbrew('--help')
+    expect(help.stdout).toContain('PLUGIN COMMANDS\n  harness:')
+
+    const echoed = await tabbrew('harness', 'echo', 'brewed', '--times', '2')
+    expect(echoed.stderr).toBe('')
+    expect(echoed.stdout).toBe('brewed brewed\n')
+
+    const { hosts } = await json<{ hosts: { host: string; tabs: number }[] }>(
+      'harness',
+      'tabs-by-host',
+    )
+    const open = (await snapshot()).tabs.length
+    expect(hosts.reduce((sum, row) => sum + row.tabs, 0)).toBe(open)
+    await report('After `tabbrew harness tabs-by-host`')
+  })
+
   test('session stop ends the session', async () => {
     expect((await tabbrew('session', 'stop')).exitCode).toBe(0)
     expect((await tabbrew('session', 'status')).exitCode).toBe(1)

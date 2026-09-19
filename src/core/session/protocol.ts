@@ -84,7 +84,9 @@ export function formatUptime(ms: number): string {
 // while any page may serve requests.
 export interface OperatorRequest {
   id: string
-  operator: OperatorName
+  // A standard operator name, or the command name when `namespace` is set.
+  operator: string
+  namespace?: string
   input: unknown
 }
 
@@ -99,6 +101,9 @@ export const OPERATOR_FAILURE_CODES = [
   'timeout',
   'operator_failed',
   'stopping',
+  'unknown_owner',
+  'namespace_taken',
+  'bad_commands',
 ] as const
 
 export type OperatorFailureCode = (typeof OPERATOR_FAILURE_CODES)[number]
@@ -112,10 +117,24 @@ export const NEXT_REQUEST_PATH = '/requests/next'
 export const operatorPath = (name: OperatorName): string => `/operators/${name}`
 export const resultPath = (id: string): string => `/requests/${id}/result`
 
+// An extension declares its commands once and polls with the owner token it
+// got back: a POST always carries Origin, a long-polled GET is not known to.
+export const COMMANDS_PATH = '/commands'
+export const OWNER_PARAM = 'owner'
+export const commandPath = (namespace: string, command: string): string =>
+  `/operators/${namespace}/${command}`
+
 const OPERATOR_PATH = /^\/operators\/([A-Za-z]+)$/
+const COMMAND_PATH = /^\/operators\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
 const RESULT_PATH = /^\/requests\/([0-9a-f-]+)\/result$/
 
 export const matchOperatorPath = (pathname: string): string | null =>
   OPERATOR_PATH.exec(pathname)?.[1] ?? null
+export const matchCommandPath = (
+  pathname: string,
+): { namespace: string; command: string } | null => {
+  const [, namespace, command] = COMMAND_PATH.exec(pathname) ?? []
+  return namespace && command ? { namespace, command } : null
+}
 export const matchResultPath = (pathname: string): string | null =>
   RESULT_PATH.exec(pathname)?.[1] ?? null

@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { browser } from 'wxt/browser'
+import { serveSession } from '../sdk'
 import { type ServedEvent, serveOperators } from '../utils/channel'
+import {
+  createHarnessCommands,
+  HARNESS_DESCRIPTION,
+  HARNESS_NAMESPACE,
+} from '../utils/harness-commands'
 import { createOperators } from '../utils/operators'
 import { discover, formatUptime, HOST, PORTS, type SessionInfo } from '../utils/session'
 
@@ -8,6 +14,7 @@ import { discover, formatUptime, HOST, PORTS, type SessionInfo } from '../utils/
 const POLL_MS = 3_000
 
 const operators = createOperators(browser)
+const harnessCommands = createHarnessCommands(browser)
 
 type Checked = { at: number; session: SessionInfo | null }
 
@@ -92,6 +99,20 @@ export const App = ({ onLost }: { onLost?: () => void }) => {
     void serveOperators({ port, operators, signal: controller.signal, onServed: setServed })
     return () => controller.abort()
   }, [port])
+
+  // Not keyed on the port: serveSession finds the session itself and declares
+  // again whenever a restarted one has forgotten it.
+  useEffect(() => {
+    const controller = new AbortController()
+    void serveSession({
+      namespace: HARNESS_NAMESPACE,
+      description: HARNESS_DESCRIPTION,
+      commands: harnessCommands,
+      signal: controller.signal,
+      onServed: setServed,
+    })
+    return () => controller.abort()
+  }, [])
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1_000)

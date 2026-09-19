@@ -4,6 +4,8 @@ import pkg from '../package.json'
 import { groups } from './commands/groups'
 import { helpSections, installHelp } from './commands/help'
 import { init } from './commands/init'
+import { plugins } from './commands/plugins'
+import { buildPluginCommands, PLUGIN_COMMANDS } from './commands/plugins/build'
 import { session } from './commands/session'
 import { tabs } from './commands/tabs'
 import { uninstall } from './commands/uninstall'
@@ -23,8 +25,23 @@ program
   .addCommand(groups)
   .commandsGroup('ADDITIONAL COMMANDS')
   .addCommand(init)
+  .addCommand(plugins)
   .addCommand(update)
   .addCommand(uninstall)
+
+// Only an invocation no built-in command answers pays for the lookup; with no
+// session up there is nothing to add and the help reads as it always has.
+const requested = process.argv[2]
+if (!requested || !program.commands.some((command) => command.name() === requested)) {
+  const { discover, readCommands } = await import('./core/session')
+  const session = await discover()
+  if (session) {
+    program.commandsGroup(PLUGIN_COMMANDS)
+    for (const command of buildPluginCommands(await readCommands(session))) {
+      program.addCommand(command)
+    }
+  }
+}
 
 helpSections(program, {
   examples: ['tabbrew session start', 'tabbrew tabs list', 'tabbrew init'],

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { callOperator, OperatorCallError } from './call'
+import { callOperator, OperatorCallError, readCommands } from './call'
 import { VERSION } from './config'
 import type { OperatorRequest, SessionInfo } from './protocol'
 import { createServer, type ServerOptions, type SessionServer } from './server'
@@ -102,5 +102,18 @@ describe('callOperator', () => {
     const error = await failure(callOperator(info(squatter.port ?? 0), 'readSnapshot', {}))
     expect(error.code).toBe('unsupported')
     expect(error.message).toContain('predates')
+  })
+
+  test('a session too old to know of extension commands simply has none', async () => {
+    const squatter = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: () => Response.json({ error: 'not_found' }, { status: 404 }),
+    })
+    squatters.push(squatter)
+    expect(await readCommands(info(squatter.port ?? 0))).toEqual({})
+    const server = up()
+    await server.stop('gone')
+    expect(await readCommands(info(server.port))).toEqual({})
   })
 })

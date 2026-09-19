@@ -15,6 +15,12 @@ claims against `chrome.*` (`src/utils/operators.ts`), and posts the result to
 `POST /requests/<id>/result`. Every new verb lands here alongside its CLI
 command.
 
+The harness is also the first plugin: the first consumer of
+`src/sdk/serveSession`, the way any Chrome extension adds commands to tabbrew. It declares the `harness` namespace
+(`src/utils/harness-commands.ts`): `tabbrew harness echo <text> [--times n]` and
+`tabbrew harness tabs-by-host`. The root README's "Plugins" section
+documents the SDK and its routes.
+
 The shared wire contract lives in `src/core/session/protocol.ts` and is imported
 by both the CLI and this extension, so the two sides cannot drift apart.
 `wxt.config.ts` derives the manifest's `host_permissions` from the same port

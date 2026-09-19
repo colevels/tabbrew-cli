@@ -27,6 +27,7 @@ describe('tabbrew cli', () => {
       'CORE COMMANDS\n  session:    Connect this CLI to the TabBrew extension in Chrome',
     )
     expect(stdout).toContain('ADDITIONAL COMMANDS\n  init:       Write the TabBrew cheat sheet')
+    expect(stdout).toContain('  plugins:    Commands that other Chrome extensions add to tabbrew')
     expect(stdout).toContain(
       '  -h, --help     show help for command\n  -V, --version  show tabbrew version',
     )
