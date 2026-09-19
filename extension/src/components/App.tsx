@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { browser } from 'wxt/browser'
-import { type ServedEvent, serveOperators } from '../utils/channel'
-import { createOperators } from '../utils/operators'
-import { discover, formatUptime, HOST, PORTS, type SessionInfo } from '../utils/session'
+import { type ServedEvent, serveOperators } from '../../../sdk/src/channel'
+import { createOperators } from '../../../sdk/src/operators'
+import { discover, formatUptime, HOST, PORTS, type SessionInfo } from '../../../sdk/src/session'
 
 // Well inside the session's idle window, so an open panel keeps it alive.
 const POLL_MS = 3_000

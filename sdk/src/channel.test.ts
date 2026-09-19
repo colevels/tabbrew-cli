@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { OPERATOR_NAMES, type Operators } from '../../../src/core/operators/contract'
-import {
-  createServer,
-  type ServerOptions,
-  type SessionServer,
-} from '../../../src/core/session/server'
+import { OPERATOR_NAMES, type Operators } from '../../src/core/operators/contract'
+import { createServer, type ServerOptions, type SessionServer } from '../../src/core/session/server'
 import { type ServedEvent, serveOperators } from './channel'
 
 const servers: SessionServer[] = []

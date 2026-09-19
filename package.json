@@ -44,7 +44,7 @@
     "build:ext": "wxt build extension",
     "dev:ext": "wxt extension",
     "zip:ext": "wxt zip extension",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p extension",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p extension && tsc --noEmit -p sdk",
     "test": "bun test",
     "test:e2e": "TABBREW_E2E=1 bun test --timeout 60000 src/e2e",
     "format": "biome format --write .",

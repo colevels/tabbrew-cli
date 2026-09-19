@@ -3,14 +3,14 @@ import {
   discover as discoverOn,
   probe as probeOn,
   type SessionInfo,
-} from '../../../src/core/session/protocol'
+} from '../../src/core/session/protocol'
 
 export {
   CONNECTION_PAGE,
   DEFAULT_PORTS as PORTS,
   formatUptime,
   HOST,
-} from '../../../src/core/session/protocol'
+} from '../../src/core/session/protocol'
 export type { SessionInfo }
 
 // Looser than the CLI's 400ms: Chrome adds its own latency, but a foreign

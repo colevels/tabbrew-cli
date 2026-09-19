@@ -1,9 +1,9 @@
 // operators -> chrome.*
 
 import type { Browser } from 'wxt/browser'
-import type { Operators, TabSnapshot } from '../../../src/core/operators/contract'
+import type { Operators, TabSnapshot } from '../../src/core/operators/contract'
 
-export type { Operators } from '../../../src/core/operators/contract'
+export type { Operators } from '../../src/core/operators/contract'
 
 // Only the calls the operators make, in promise form, so a test can hand in a
 // plain object and the panel can hand in `browser` from wxt/browser.

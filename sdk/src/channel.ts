@@ -1,14 +1,14 @@
 // The panel's half of the command channel: claim a request from the session,
 // run it against Chrome, post the result, repeat while the panel is open.
 
-import type { OperatorName, Operators } from '../../../src/core/operators/contract'
+import type { OperatorName, Operators } from '../../src/core/operators/contract'
 import {
   HOST,
   NEXT_REQUEST_PATH,
   type OperatorRequest,
   type OperatorResult,
   resultPath,
-} from '../../../src/core/session/protocol'
+} from '../../src/core/session/protocol'
 
 export interface ServedEvent {
   at: number
