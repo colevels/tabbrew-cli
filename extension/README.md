@@ -11,13 +11,20 @@ Chrome before it is considered done. Today that is the session handshake and the
 command channel behind `tabbrew tabs list`, `tabbrew windows list`, `tabbrew groups list`, `tabbrew groups collapse`/`uncollapse`/`close`, `tabbrew windows create` and `tabbrew tabs create`/`focus`/`move`/`group`/`ungroup`/`discard`/`reload`: an extension page finds a `tabbrew session`
 on `127.0.0.1:49227` or `:49228`, polls `GET /health`, and while a session
 answers it holds a long-poll on `GET /requests/next`, runs each request it
-claims against `chrome.*` (`src/utils/operators.ts`), and posts the result to
+claims against `chrome.*`, and posts the result to
 `POST /requests/<id>/result`. Every new verb lands here alongside its CLI
 command.
 
+None of that is the harness's own code. It is [`@tabbrew/sdk`](../sdk), the
+package any extension uses to serve the CLI, and the harness is its first
+consumer: `src/components/App.tsx` makes one `serveSession` call and imports
+nothing but the SDK's public entry. The operators live in
+`sdk/src/operators.ts`.
+
 The shared wire contract lives in `src/core/session/protocol.ts` and is imported
-by both the CLI and this extension, so the two sides cannot drift apart.
-`wxt.config.ts` derives the manifest's `host_permissions` from the same port
+by both the CLI and the SDK, so inside this repository the two sides cannot
+drift apart; an extension outside it gets the same guarantee from the SDK's
+version, which is the CLI's. `wxt.config.ts` derives the manifest's `host_permissions` from the same port
 list and pins the manifest `key` from the same file, so the extension id is the
 one the CLI computes.
 
@@ -28,8 +35,8 @@ mounted by two entrypoints: `connection.html`, the tab the CLI opens, and
 
 ## What it is not
 
-- Not the product. The real TabBrew extension will live in its own repository
-  and will be started once the CLI protocol has settled.
+- Not the product. The real TabBrew extension lives in its own repository and
+  serves the CLI through the same SDK.
 - Not published to the Chrome Web Store. Each GitHub Release carries the build
   as `tabbrew-extension.zip`; load it unpacked.
 
