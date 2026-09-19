@@ -114,12 +114,12 @@ export const createOperators = (chrome: ChromeApi): Operators => ({
 
   // The one guard in this module. Without a window named, Chrome does not
   // group the tabs where they are: it creates the group in the caller's
-  // window, which is the panel's, and drags them there.
+  // window, which is the serving page's, and drags them there.
   groupTabs: async ({ tabIds, groupId, windowId }) => {
     if (groupId === undefined && windowId === undefined) {
       throw new Error(
         'groupTabs needs a windowId or an existing groupId: ' +
-          "without one Chrome moves the tabs into the panel's window",
+          "without one Chrome moves the tabs into the serving page's window",
       )
     }
     const target = groupId === undefined ? { createProperties: { windowId } } : { groupId }
@@ -202,7 +202,11 @@ export const createOperators = (chrome: ChromeApi): Operators => ({
   },
 
   createTab: async ({ url, windowId, index, active = false }) => {
-    const tab = await chrome.tabs.create(omitUndefined({ url, windowId, index, active }))
+    // Without a windowId Chrome uses the caller's window: the one the serving
+    // page happens to live in, which with a side panel host is arbitrary from
+    // the CLI's point of view. The last-focused window is what the user means.
+    const target = windowId ?? (await chrome.windows.getLastFocused()).id
+    const tab = await chrome.tabs.create(omitUndefined({ url, windowId: target, index, active }))
     return { tabId: requireTabId(tab), windowId: tab.windowId, index: tab.index, url: tabUrl(tab) }
   },
 })

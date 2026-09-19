@@ -447,9 +447,18 @@ describe('createWindow', () => {
 describe('createTab', () => {
   test('is inactive unless asked, and sends only the keys given', async () => {
     const chrome = fakeChrome()
+    await createOperators(chrome).createTab({ url: 'https://a.example/', windowId: 20 })
+    expect(chrome.calls).toStrictEqual([
+      ['tabs.create', { url: 'https://a.example/', windowId: 20, active: false }],
+    ])
+  })
+
+  test('lands in the last-focused window when none is named', async () => {
+    const chrome = fakeChrome({ windows: { getLastFocused: async () => aWindow({ id: 30 }) } })
     await createOperators(chrome).createTab({ url: 'https://a.example/' })
     expect(chrome.calls).toStrictEqual([
-      ['tabs.create', { url: 'https://a.example/', active: false }],
+      ['windows.getLastFocused'],
+      ['tabs.create', { url: 'https://a.example/', windowId: 30, active: false }],
     ])
   })
 
