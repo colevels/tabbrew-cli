@@ -1,12 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { type Browser, browser } from 'wxt/browser'
-import type { OperatorInput } from '../../../src/core/operators/contract'
-import { type ChromeApi, createOperators } from './operators'
+import type { OperatorInput } from '../../src/core/operators/contract'
+import type { ChromeApi, ChromeTab, ChromeTabGroup, ChromeWindow } from './chrome-api'
+import { createOperators } from './operators'
 
-// The panel hands `browser` in; keep it assignable.
-const _panelChrome: ChromeApi = browser
-
-const aTab = (overrides: Partial<Browser.tabs.Tab> = {}): Browser.tabs.Tab => ({
+const aTab = (overrides: Partial<ChromeTab> = {}): ChromeTab => ({
   id: 1,
   windowId: 10,
   index: 0,
@@ -14,35 +11,26 @@ const aTab = (overrides: Partial<Browser.tabs.Tab> = {}): Browser.tabs.Tab => ({
   title: 'A',
   pinned: false,
   active: false,
-  highlighted: false,
-  selected: false,
-  incognito: false,
   discarded: false,
-  autoDiscardable: true,
-  frozen: false,
   groupId: -1,
   lastAccessed: 1_000,
   ...overrides,
 })
 
-const aWindow = (overrides: Partial<Browser.windows.Window> = {}): Browser.windows.Window => ({
+const aWindow = (overrides: Partial<ChromeWindow> = {}): ChromeWindow => ({
   id: 10,
   focused: false,
-  alwaysOnTop: false,
   incognito: false,
   state: 'normal',
   ...overrides,
 })
 
-const aGroup = (
-  overrides: Partial<Browser.tabGroups.TabGroup> = {},
-): Browser.tabGroups.TabGroup => ({
+const aGroup = (overrides: Partial<ChromeTabGroup> = {}): ChromeTabGroup => ({
   id: 100,
   windowId: 10,
   title: 'Docs',
   color: 'blue',
   collapsed: false,
-  shared: false,
   ...overrides,
 })
 
@@ -459,9 +447,18 @@ describe('createWindow', () => {
 describe('createTab', () => {
   test('is inactive unless asked, and sends only the keys given', async () => {
     const chrome = fakeChrome()
+    await createOperators(chrome).createTab({ url: 'https://a.example/', windowId: 20 })
+    expect(chrome.calls).toStrictEqual([
+      ['tabs.create', { url: 'https://a.example/', windowId: 20, active: false }],
+    ])
+  })
+
+  test('lands in the last-focused window when none is named', async () => {
+    const chrome = fakeChrome({ windows: { getLastFocused: async () => aWindow({ id: 30 }) } })
     await createOperators(chrome).createTab({ url: 'https://a.example/' })
     expect(chrome.calls).toStrictEqual([
-      ['tabs.create', { url: 'https://a.example/', active: false }],
+      ['windows.getLastFocused'],
+      ['tabs.create', { url: 'https://a.example/', windowId: 30, active: false }],
     ])
   })
 

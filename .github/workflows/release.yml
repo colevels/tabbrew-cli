@@ -5,8 +5,8 @@ name: Release
 # The binaries are built here, in a clean runner, and each asset carries a
 # SLSA build-provenance attestation linking it to this commit and run:
 #   gh attestation verify tabbrew-<os>-<arch> --repo colevels/tabbrew-cli
-# Afterwards the package goes to npm and the formula in colevels/homebrew-tap
-# is regenerated from checksums.txt.
+# Afterwards tabbrew-cli and @tabbrew/sdk go to npm and the formula in
+# colevels/homebrew-tap is regenerated from checksums.txt.
 on:
   push:
     tags: ["v*"]
@@ -22,13 +22,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Tag must match package.json
+      # The SDK is versioned in lockstep: @tabbrew/sdk x.y.z speaks the
+      # protocol of tabbrew-cli x.y.z.
+      - name: Tag must match package.json and sdk/package.json
         run: |
-          version="v$(jq -r .version package.json)"
-          if [ "$version" != "$GITHUB_REF_NAME" ]; then
-            echo "tag $GITHUB_REF_NAME does not match package.json $version" >&2
-            exit 1
-          fi
+          for manifest in package.json sdk/package.json; do
+            version="v$(jq -r .version "$manifest")"
+            if [ "$version" != "$GITHUB_REF_NAME" ]; then
+              echo "tag $GITHUB_REF_NAME does not match $manifest $version" >&2
+              exit 1
+            fi
+          done
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -38,6 +42,7 @@ jobs:
       - run: bun run check
       - run: bun run typecheck
       - run: bun test
+      - run: bun run build:sdk
 
       # Bun cross-compiles every target from this one runner.
       - name: Build binaries
@@ -97,6 +102,27 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
       - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Its own job so that it can be re-run alone: a version npm already has
+  # fails the job above for good. NPM_TOKEN must also cover the @tabbrew scope.
+  npm-sdk:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+      - run: bun install --frozen-lockfile
+      - run: bun run build:sdk
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm publish --provenance --access public
+        working-directory: sdk
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

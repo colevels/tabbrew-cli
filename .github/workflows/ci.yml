@@ -27,6 +27,7 @@ jobs:
       - run: bun test
       - run: bun run build
       - run: bun run build:ext
+      - run: bun run build:sdk
       - run: ./dist/tabbrew --version
 
   # The compiled CLI driving a real Chrome that holds the harness extension.
