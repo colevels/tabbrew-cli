@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { mergeKnownPlugins } from '../../core/plugins/cache'
 import { describe, discover, HOST, listen, PORTS, VERSION } from '../../core/session'
 
 export const run = new Command('run')
@@ -12,6 +13,7 @@ export const run = new Command('run')
     }
 
     const server = listen(PORTS, {
+      onRegistryChange: (registry) => mergeKnownPlugins(registry),
       onStop(reason) {
         console.log(`session stopped (${reason})`)
         process.exit(0)

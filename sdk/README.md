@@ -61,7 +61,7 @@ protocol of `tabbrew-cli` x.y.z.
 |---|---|
 | `operators` | The operator table, normally `createOperators(chrome)`. Leave it out to add commands only. |
 | `namespaces` | Your own commands: see [below](#your-own-commands). `operators`, `namespaces` or both. |
-| `page` | The page of your extension the CLI may open when one of your commands finds none connected, as a path inside the extension (`'connection.html'`). Without it the CLI only says the plugin is not connected. |
+| `page` | The page of your extension the CLI may open when one of your commands finds none connected, as a path inside the extension (`'connection.html'`). The CLI remembers it between sessions. Without it the CLI only says the plugin is not connected. |
 | `signal` | Aborting it ends the call; the returned promise then settles. |
 | `onStatus` | Called after **every** poll, the ones that find nothing included. |
 | `onServed` | Called after each operator: `{ at, operator, error? }`. |
