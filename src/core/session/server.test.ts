@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { fromBrowser } from './as-extension'
 import { SERVICE, VERSION } from './config'
 import { NEXT_REQUEST_PATH, type OperatorRequest } from './protocol'
 import { createServer, type ServerOptions, type SessionServer } from './server'
@@ -10,7 +11,6 @@ const up = (options: ServerOptions = {}) => {
   return server
 }
 const url = (server: SessionServer, path: string) => `http://127.0.0.1:${server.port}${path}`
-const fromBrowser = { headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'cors' } }
 
 const call = (server: SessionServer, name: string, input: unknown = {}) =>
   fetch(url(server, `/operators/${name}`), { method: 'POST', body: JSON.stringify(input) })
