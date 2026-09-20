@@ -1,6 +1,6 @@
 {
   "name": "@tabbrew/sdk",
-  "version": "0.9.11",
+  "version": "0.9.12",
   "description": "Serve tabbrew CLI sessions from a Chrome extension page",
   "type": "module",
   "license": "MIT",
