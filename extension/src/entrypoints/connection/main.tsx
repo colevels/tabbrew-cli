@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { browser } from 'wxt/browser'
 import { App } from '../../components/App'
 import '../../components/style.css'
-import { CONNECTION_PAGE } from '../../utils/session'
+import { CONNECTION_PAGE } from '../../../../sdk/src/index'
 
 // The CLI opens this page by URL with no way to tell whether one is already
 // up, so a second copy yields to the first; and a page whose session has

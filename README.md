@@ -349,3 +349,7 @@ command channel's paths and shapes live in `src/core/session/protocol.ts`,
 which both the CLI and the extension import, so the two sides cannot drift
 apart. `extension/wxt.config.ts` also derives the manifest's
 `host_permissions` from that list.
+
+The page's side of all this is [`@tabbrew/sdk`](sdk), which the harness
+consumes like any other extension would. To make your own extension serve
+`tabbrew`, start there.

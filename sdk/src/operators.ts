@@ -1,46 +1,15 @@
 // operators -> chrome.*
 
-import type { Browser } from 'wxt/browser'
-import type { Operators, TabSnapshot } from '../../../src/core/operators/contract'
+import type {
+  GroupColor,
+  Operators,
+  TabSnapshot,
+  TabStatus,
+  WindowState,
+} from '../../src/core/operators/contract'
+import type { ChromeApi, ChromeTab } from './chrome-api'
 
-export type { Operators } from '../../../src/core/operators/contract'
-
-// Only the calls the operators make, in promise form, so a test can hand in a
-// plain object and the panel can hand in `browser` from wxt/browser.
-export interface ChromeApi {
-  windows: {
-    getAll(): Promise<Browser.windows.Window[]>
-    getLastFocused(): Promise<Browser.windows.Window>
-    update(windowId: number, info: Browser.windows.UpdateInfo): Promise<Browser.windows.Window>
-    create(data: Browser.windows.CreateData): Promise<Browser.windows.Window | undefined>
-    remove(windowId: number): Promise<void>
-  }
-  tabGroups: {
-    query(info: Browser.tabGroups.QueryInfo): Promise<Browser.tabGroups.TabGroup[]>
-    update(
-      groupId: number,
-      properties: Browser.tabGroups.UpdateProperties,
-    ): Promise<Browser.tabGroups.TabGroup | undefined>
-    move(
-      groupId: number,
-      properties: Browser.tabGroups.MoveProperties,
-    ): Promise<Browser.tabGroups.TabGroup | undefined>
-  }
-  tabs: {
-    query(info: Browser.tabs.QueryInfo): Promise<Browser.tabs.Tab[]>
-    remove(tabIds: number[]): Promise<void>
-    update(
-      tabId: number,
-      properties: Browser.tabs.UpdateProperties,
-    ): Promise<Browser.tabs.Tab | undefined>
-    move(tabIds: number[], properties: Browser.tabs.MoveProperties): Promise<Browser.tabs.Tab[]>
-    group(options: Browser.tabs.GroupOptions): Promise<number>
-    ungroup(tabIds: [number, ...number[]]): Promise<void>
-    discard(tabId: number): Promise<Browser.tabs.Tab | undefined>
-    reload(tabId: number, properties: Browser.tabs.ReloadProperties): Promise<void>
-    create(properties: Browser.tabs.CreateProperties): Promise<Browser.tabs.Tab>
-  }
-}
+export type { Operators } from '../../src/core/operators/contract'
 
 // An optional field the CLI left out must reach Chrome as absent, not as
 // `key: undefined`.
@@ -52,14 +21,14 @@ const omitUndefined = <T extends object>(object: T): T => {
   return kept as T
 }
 
-const tabUrl = (tab: Browser.tabs.Tab): string => tab.url || tab.pendingUrl || ''
+const tabUrl = (tab: ChromeTab): string => tab.url || tab.pendingUrl || ''
 
-const requireTabId = (tab: Browser.tabs.Tab | undefined): number => {
+const requireTabId = (tab: ChromeTab | undefined): number => {
   if (tab?.id === undefined) throw new Error('Chrome returned a tab without an id')
   return tab.id
 }
 
-const toTabSnapshot = (tab: Browser.tabs.Tab, id: number): TabSnapshot => ({
+const toTabSnapshot = (tab: ChromeTab, id: number): TabSnapshot => ({
   id,
   windowId: tab.windowId,
   index: tab.index,
@@ -70,7 +39,9 @@ const toTabSnapshot = (tab: Browser.tabs.Tab, id: number): TabSnapshot => ({
   muted: !!tab.mutedInfo?.muted,
   discarded: tab.discarded,
   active: tab.active,
-  status: tab.status,
+  // ChromeApi reads Chrome's unions as strings; what Chrome said goes through
+  // as it is, a value newer than the contract included.
+  status: tab.status as TabStatus | undefined,
   groupId: tab.groupId,
   lastAccessed: tab.lastAccessed,
 })
@@ -97,13 +68,20 @@ export const createOperators = (chrome: ChromeApi): Operators => ({
       windows: windows.flatMap((w) =>
         w.id === undefined
           ? []
-          : [{ id: w.id, focused: w.id === focusedId, incognito: w.incognito, state: w.state }],
+          : [
+              {
+                id: w.id,
+                focused: w.id === focusedId,
+                incognito: w.incognito,
+                state: w.state as WindowState | undefined,
+              },
+            ],
       ),
       groups: groups.map((g) => ({
         id: g.id,
         windowId: g.windowId,
         title: g.title ?? '',
-        color: g.color,
+        color: g.color as GroupColor,
         collapsed: g.collapsed,
       })),
       tabs: tabs.flatMap((t) => (t.id === undefined ? [] : [toTabSnapshot(t, t.id)])),
@@ -136,12 +114,12 @@ export const createOperators = (chrome: ChromeApi): Operators => ({
 
   // The one guard in this module. Without a window named, Chrome does not
   // group the tabs where they are: it creates the group in the caller's
-  // window, which is the panel's, and drags them there.
+  // window, which is the serving page's, and drags them there.
   groupTabs: async ({ tabIds, groupId, windowId }) => {
     if (groupId === undefined && windowId === undefined) {
       throw new Error(
         'groupTabs needs a windowId or an existing groupId: ' +
-          "without one Chrome moves the tabs into the panel's window",
+          "without one Chrome moves the tabs into the serving page's window",
       )
     }
     const target = groupId === undefined ? { createProperties: { windowId } } : { groupId }
@@ -156,7 +134,11 @@ export const createOperators = (chrome: ChromeApi): Operators => ({
 
   updateGroup: async ({ groupId, title, color, collapsed }) => {
     const group = await chrome.tabGroups.update(groupId, omitUndefined({ title, color, collapsed }))
-    return { groupId: group?.id ?? groupId, title: group?.title, color: group?.color }
+    return {
+      groupId: group?.id ?? groupId,
+      title: group?.title,
+      color: group?.color as GroupColor | undefined,
+    }
   },
 
   // Removing the tabs would drop the group from Chrome's saved groups; closing
@@ -220,7 +202,11 @@ export const createOperators = (chrome: ChromeApi): Operators => ({
   },
 
   createTab: async ({ url, windowId, index, active = false }) => {
-    const tab = await chrome.tabs.create(omitUndefined({ url, windowId, index, active }))
+    // Without a windowId Chrome uses the caller's window: the one the serving
+    // page happens to live in, which with a side panel host is arbitrary from
+    // the CLI's point of view. The last-focused window is what the user means.
+    const target = windowId ?? (await chrome.windows.getLastFocused()).id
+    const tab = await chrome.tabs.create(omitUndefined({ url, windowId: target, index, active }))
     return { tabId: requireTabId(tab), windowId: tab.windowId, index: tab.index, url: tabUrl(tab) }
   },
 })

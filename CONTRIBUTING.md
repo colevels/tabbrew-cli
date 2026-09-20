@@ -28,8 +28,8 @@ explains how to run it locally, and CI runs it on every pull request.
 - `main` only moves by a pull request from `develop` with green CI, and every
   release is tagged on `main`.
 
-Browser-facing features come with their extension half in `extension/` and an
-e2e case in `src/e2e/`, so the protocol is exercised in a real Chrome before the
+Browser-facing features come with their extension half, an operator in `sdk/`
+that the harness in `extension/` picks up, and an e2e case in `src/e2e/`, so the protocol is exercised in a real Chrome before the
 change is considered done. Keep the README's command reference current in
 the same pull request.
 
@@ -38,10 +38,13 @@ the same pull request.
 Releases are cut by pushing a version tag; GitHub Actions
 (`.github/workflows/release.yml`) does the rest.
 
-1. Bump `version` in `package.json` on a branch off `develop`, open a
-   `chore(release): x.y.z` pull request into `develop` and merge it. The
-   version is read from that one field by the CLI, the cheat sheet and the
-   extension manifest.
+1. Bump `version` in `package.json` and in `sdk/package.json` to the same
+   number on a branch off `develop`, open a `chore(release): x.y.z` pull
+   request into `develop` and merge it. The CLI, the cheat sheet and the
+   extension manifest read the first; `@tabbrew/sdk` is versioned in lockstep,
+   so that x.y.z of it speaks the protocol of x.y.z of the CLI. `sdk/` may
+import from `src/core`; `src/` must never import from `sdk/`, which the
+published CLI does not carry.
 2. Open a pull request from `develop` into `main` and merge it.
 3. Tag the merge commit on `main` and push the tag:
 
@@ -50,18 +53,19 @@ Releases are cut by pushing a version tag; GitHub Actions
    git tag vX.Y.Z && git push origin vX.Y.Z
    ```
 
-   The workflow refuses a tag that does not match `package.json`.
+   The workflow refuses a tag that does not match both manifests.
 4. The workflow runs the checks, cross-compiles `tabbrew-{darwin,linux}-{arm64,x64}`,
    zips the extension as `tabbrew-extension.zip`, writes `checksums.txt`,
    attests every asset, creates the GitHub Release with generated notes, then
-   publishes `tabbrew-cli` to npm and pushes a regenerated
+   publishes `tabbrew-cli` and `@tabbrew/sdk` to npm and pushes a regenerated
    `Formula/tabbrew.rb` (from `scripts/homebrew-formula.ts` and the release
    `checksums.txt`) to [colevels/homebrew-tap](https://github.com/colevels/homebrew-tap).
 5. Read the generated release notes and edit them where they need a human
    sentence.
 
-The npm job needs an `NPM_TOKEN` repository secret: a granular access token
-from npmjs.com with publish rights on `tabbrew-cli`. The homebrew job needs
+The npm jobs need an `NPM_TOKEN` repository secret: a granular access token
+from npmjs.com with publish rights on `tabbrew-cli` and on the `@tabbrew`
+scope. The homebrew job needs
 `HOMEBREW_TAP_TOKEN`: a fine-grained GitHub token scoped to the
 `homebrew-tap` repository with Contents read/write.
 

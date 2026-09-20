@@ -1,20 +1,23 @@
 import { useEffect, useState } from 'react'
 import { browser } from 'wxt/browser'
-import { type ServedEvent, serveOperators } from '../utils/channel'
-import { createOperators } from '../utils/operators'
-import { discover, formatUptime, HOST, PORTS, type SessionInfo } from '../utils/session'
-
-// Well inside the session's idle window, so an open panel keeps it alive.
-const POLL_MS = 3_000
+import {
+  createOperators,
+  DEFAULT_PORTS,
+  formatUptime,
+  HOST,
+  type ServedEvent,
+  type SessionInfo,
+  type SessionStatus,
+  serveSession,
+} from '../../../sdk/src/index'
 
 const operators = createOperators(browser)
-
-type Checked = { at: number; session: SessionInfo | null }
 
 const Missing = () => (
   <section>
     <p>
-      No session on {PORTS.map((port) => `${HOST}:${port}`).join(', ')}. Start one from a terminal:
+      No session on {DEFAULT_PORTS.map((port) => `${HOST}:${port}`).join(', ')}. Start one from a
+      terminal:
     </p>
     <pre>tabbrew session start</pre>
     <p className="muted">This panel checks again every few seconds.</p>
@@ -63,35 +66,27 @@ const Connected = ({
 
 // onLost fires once a session this page was serving stops answering.
 export const App = ({ onLost }: { onLost?: () => void }) => {
-  const [checked, setChecked] = useState<Checked | null>(null)
+  const [status, setStatus] = useState<SessionStatus | null>(null)
   const [served, setServed] = useState<ServedEvent | null>(null)
   const [now, setNow] = useState(Date.now())
-  const [wasServing, setWasServing] = useState(false)
 
-  const session = checked?.session ?? null
-  const port = session?.port
+  const session = status?.state === 'connected' ? status.session : null
 
-  // Closing the page is how polling stops.
+  // Closing the page is how serving stops.
   useEffect(() => {
-    const refresh = async () => setChecked({ at: Date.now(), session: await discover() })
-    void refresh()
-    const timer = setInterval(() => void refresh(), POLL_MS)
-    return () => clearInterval(timer)
+    const controller = new AbortController()
+    void serveSession({
+      operators,
+      signal: controller.signal,
+      onStatus: setStatus,
+      onServed: setServed,
+    })
+    return () => controller.abort()
   }, [])
 
   useEffect(() => {
-    if (port !== undefined) setWasServing(true)
-    else if (wasServing) onLost?.()
-  }, [port, wasServing, onLost])
-
-  // Keyed on the port, not the session: every poll hands back a fresh object
-  // and the channel must outlive them.
-  useEffect(() => {
-    if (port === undefined) return
-    const controller = new AbortController()
-    void serveOperators({ port, operators, signal: controller.signal, onServed: setServed })
-    return () => controller.abort()
-  }, [port])
+    if (status?.state === 'lost') onLost?.()
+  }, [status, onLost])
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1_000)
@@ -106,10 +101,10 @@ export const App = ({ onLost }: { onLost?: () => void }) => {
       </h1>
       <p className="muted">Development harness for the tabbrew CLI. Not the product extension.</p>
 
-      {checked &&
+      {status &&
         (session ? <Connected session={session} served={served} now={now} /> : <Missing />)}
 
-      {checked && <p className="muted">checked {Math.round((now - checked.at) / 1000)}s ago</p>}
+      {status && <p className="muted">checked {Math.round((now - status.at) / 1000)}s ago</p>}
     </>
   )
 }
