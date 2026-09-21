@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { browser } from 'wxt/browser'
 import {
+  CONNECTION_PAGE,
   createOperators,
   DEFAULT_PORTS,
   formatUptime,
@@ -10,8 +11,10 @@ import {
   type SessionStatus,
   serveSession,
 } from '../../../sdk/src/index'
+import { harnessCommands } from './harness-commands'
 
 const operators = createOperators(browser)
+const namespaces = harnessCommands(browser, browser.runtime.getManifest().version)
 
 const Missing = () => (
   <section>
@@ -77,6 +80,8 @@ export const App = ({ onLost }: { onLost?: () => void }) => {
     const controller = new AbortController()
     void serveSession({
       operators,
+      namespaces,
+      page: CONNECTION_PAGE,
       signal: controller.signal,
       onStatus: setStatus,
       onServed: setServed,
