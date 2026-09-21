@@ -108,6 +108,8 @@ const PAGE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/
 
 const OPERATOR = /^[A-Za-z]{1,64}$/
 
+const EXTENSION_ID = /^[a-p]{32}$/
+
 const SHELL_FREE = /^[^;&|`$<>\\\n\r]*$/
 
 type Json = Record<string, unknown>
@@ -260,6 +262,28 @@ function parseCommand(namespace: string, value: unknown): CommandDeclaration | n
   }
 }
 
+function parseCommands(
+  namespace: string,
+  value: unknown,
+): { commands: Record<string, CommandDeclaration>; left: string[] } {
+  const commands: Record<string, CommandDeclaration> = {}
+  const left: string[] = []
+  for (const [name, entry] of isObject(value) ? Object.entries(value) : []) {
+    const command =
+      isName(name) && Object.keys(commands).length < MAX_COMMANDS
+        ? parseCommand(namespace, entry)
+        : null
+    if (command) commands[name] = command
+    else left.push(`${namespace}.${name.slice(0, MAX_NAME)}`)
+  }
+  return { commands, left }
+}
+
+const parsePage = (value: unknown): string | undefined =>
+  typeof value === 'string' && PAGE.test(value) && !value.includes('..') && !value.includes('//')
+    ? value
+    : undefined
+
 // Lenient on purpose: a newer extension must keep working against an older
 // CLI, so an unknown field is left behind and only what is wrong is dropped.
 // Everything returned is rebuilt, never the caller's object, so nothing
@@ -279,17 +303,7 @@ export function parseDeclaration(value: unknown): ParsedDeclaration | null {
       invalidNamespaces.push(name.slice(0, MAX_NAME))
       continue
     }
-    const commands: Record<string, CommandDeclaration> = {}
-    const left: string[] = []
-    const entries = isObject(entry.commands) ? Object.entries(entry.commands) : []
-    for (const [commandName, commandEntry] of entries) {
-      const command =
-        isName(commandName) && Object.keys(commands).length < MAX_COMMANDS
-          ? parseCommand(name, commandEntry)
-          : null
-      if (command) commands[commandName] = command
-      else left.push(`${name}.${commandName.slice(0, MAX_NAME)}`)
-    }
+    const { commands, left } = parseCommands(name, entry.commands)
     if (Object.keys(commands).length === 0) {
       invalidNamespaces.push(name)
       continue
@@ -303,22 +317,36 @@ export function parseDeclaration(value: unknown): ParsedDeclaration | null {
         (name): name is string => typeof name === 'string' && OPERATOR.test(name),
       )
     : []
-  const page =
-    typeof value.page === 'string' &&
-    PAGE.test(value.page) &&
-    !value.page.includes('..') &&
-    !value.page.includes('//')
-      ? value.page
-      : undefined
-
   return {
     declaration: {
       commandsVersion: COMMANDS_VERSION,
       operators: [...new Set(operators)].slice(0, MAX_COMMANDS),
       namespaces,
-      page,
+      page: parsePage(value.page),
     },
     invalidNamespaces,
     dropped,
   }
+}
+
+// What the CLI reads back, from a session of another version or from a file
+// anyone can write: held to the same rules as a declaration, never trusted.
+export function parseRegistry(value: unknown): Registry {
+  const registry: Registry = {}
+  for (const [namespace, entry] of isObject(value) ? Object.entries(value) : []) {
+    if (!isName(namespace) || RESERVED_NAMESPACES.includes(namespace) || !isObject(entry)) continue
+    const description = text(entry.description)
+    const { extensionId } = entry
+    const { commands } = parseCommands(namespace, entry.commands)
+    if (description === undefined || Object.keys(commands).length === 0) continue
+    if (typeof extensionId !== 'string' || !EXTENSION_ID.test(extensionId)) continue
+    registry[namespace] = {
+      extensionId,
+      page: parsePage(entry.page),
+      description,
+      connected: entry.connected === true,
+      commands,
+    }
+  }
+  return registry
 }
