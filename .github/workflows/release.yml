@@ -18,7 +18,8 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    # macOS, for codesign: see "Sign the macOS binaries" below.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
 
@@ -51,6 +52,16 @@ jobs:
           for target in darwin-arm64 darwin-x64 linux-arm64 linux-x64; do
             bun build src/index.ts --compile --target=bun-$target --outfile dist/tabbrew-$target
           done
+
+      # Bun leaves stale page hashes in the ad-hoc signature of a darwin binary
+      # (1.3.5: both; 1.4.2: still x64), and macOS 27 kills such a binary at
+      # launch with a bare SIGKILL. Signing again rehashes every page. This runs
+      # before the checksums and the attestation, which cover the signed bytes.
+      - name: Sign the macOS binaries
+        run: |
+          codesign --force --sign - dist/tabbrew-darwin-arm64 dist/tabbrew-darwin-x64
+          codesign --verify --strict dist/tabbrew-darwin-arm64 dist/tabbrew-darwin-x64
+          ./dist/tabbrew-darwin-arm64 --version
 
       - name: Build extension
         run: |

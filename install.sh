@@ -56,7 +56,18 @@ fi
 chmod +x "${tmpdir}/${BIN}"
 mkdir -p "$INSTALL_DIR"
 mv "${tmpdir}/${BIN}" "${INSTALL_DIR}/${BIN}"
-info "Installed ${BIN} $("${INSTALL_DIR}/${BIN}" --version) to ${INSTALL_DIR}/${BIN}"
+
+# macOS kills a binary whose ad-hoc signature is invalid (a bare "killed", no
+# message), which releases up to 0.9.12 were on macOS 27. Signing it again here
+# rehashes every page.
+version=$("${INSTALL_DIR}/${BIN}" --version 2>/dev/null) || version=""
+if [ -z "$version" ] && [ "$os_name" = "darwin" ] && command -v codesign >/dev/null 2>&1; then
+  info "The binary did not start; signing it again..."
+  codesign --force --sign - "${INSTALL_DIR}/${BIN}" 2>/dev/null || true
+  version=$("${INSTALL_DIR}/${BIN}" --version 2>/dev/null) || version=""
+fi
+[ -n "$version" ] || die "${INSTALL_DIR}/${BIN} was installed but does not run; please report it at https://github.com/${REPO}/issues"
+info "Installed ${BIN} ${version} to ${INSTALL_DIR}/${BIN}"
 
 case ":${PATH}:" in
   *":${INSTALL_DIR}:"*) ;;

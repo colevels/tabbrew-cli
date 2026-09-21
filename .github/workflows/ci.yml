@@ -30,6 +30,26 @@ jobs:
       - run: bun run build:sdk
       - run: ./dist/tabbrew --version
 
+  # The darwin binaries as release.yml ships them: cross-compiled, signed again,
+  # then launched. An invalid signature is a bare SIGKILL on macOS 27.
+  darwin-binary:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5 # keep in sync with release.yml
+      - run: bun install --frozen-lockfile
+      - run: |
+          mkdir -p dist
+          for target in darwin-arm64 darwin-x64; do
+            bun build src/index.ts --compile --target=bun-$target --outfile dist/tabbrew-$target
+          done
+      - run: |
+          codesign --force --sign - dist/tabbrew-darwin-arm64 dist/tabbrew-darwin-x64
+          codesign --verify --strict dist/tabbrew-darwin-arm64 dist/tabbrew-darwin-x64
+          ./dist/tabbrew-darwin-arm64 --version
+
   # The compiled CLI driving a real Chrome that holds the harness extension.
   e2e-chrome:
     runs-on: ubuntu-latest
