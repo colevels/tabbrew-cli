@@ -173,6 +173,10 @@ Installed with Homebrew: `brew upgrade tabbrew`. From npm: `npm install -g
 tabbrew-cli@latest`. From source: `git pull && bun run build`. `tabbrew update`
 refuses to touch any of these.
 
+On macOS 27, a binary from 0.9.12 or earlier dies with a bare `killed` before
+it can run `update`: those releases carry an invalid code signature. Run the
+install script again; it replaces the binary without starting the old one.
+
 After any update, run `tabbrew session stop` then `tabbrew session start` so
 the new version serves (`tabbrew update` reminds you when a session is
 running), and re-run `tabbrew init` in repos that carry the cheat sheet.
