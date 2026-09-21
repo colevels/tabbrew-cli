@@ -42,7 +42,16 @@ function explain(
     case 'timeout':
       return new OperatorCallError(
         error,
-        `the connected page did not answer within ${Math.round(OPERATOR_TIMEOUT_MS / 1000)}s`,
+        detail === 'busy'
+          ? 'the connected page is still busy with an earlier command; retry in a moment'
+          : `the connected page did not answer within ${Math.round(OPERATOR_TIMEOUT_MS / 1000)}s`,
+      )
+    case 'unknown_operator':
+      return new OperatorCallError(
+        error,
+        detail
+          ? `the connected extension does not support ${name}; update it and retry`
+          : `${name} rejected: ${error}`,
       )
     case 'operator_failed':
       return new OperatorCallError(error, `${name} failed: ${detail}`)

@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Snapshot } from '../../core/operators'
+import { fromBrowser } from '../../core/session/as-extension'
 import { NEXT_REQUEST_PATH, type OperatorRequest, resultPath } from '../../core/session/protocol'
 import { summarizeWindows } from '../../core/windows'
 
@@ -10,7 +11,6 @@ const root = `${import.meta.dir}/../../..`
 // A port nothing else on the machine (or a real session) is likely to hold.
 const port = 50_000 + Math.floor(Math.random() * 10_000)
 const base = `http://127.0.0.1:${port}`
-const fromBrowser = { headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'cors' } }
 let stateDir = ''
 
 // The session inherits these from the CLI that spawns it.
