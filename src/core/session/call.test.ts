@@ -76,12 +76,15 @@ describe('callOperator', () => {
     expect(error.message).toBe('focusTab failed: tab 9 not found')
   })
 
-  test('times out when the panel claims but never answers', async () => {
+  test('warns a claimed call may still have run when the panel never answers', async () => {
     const { port } = up({ operatorTimeoutMs: 100 })
     void claim(port)
-    const error = await failure(callOperator(info(port), 'readSnapshot', {}))
+    const error = await failure(callOperator(info(port), 'createTab', {}))
     expect(error.code).toBe('timeout')
     expect(error.message).toContain('did not answer')
+    expect(error.message).toContain(
+      'createTab may still have run, so check with "tabbrew tabs list" before retrying',
+    )
   })
 
   test('says busy, not absent, behind a page still working', async () => {
@@ -91,6 +94,7 @@ describe('callOperator', () => {
     const error = await failure(callOperator(info(port), 'focusTab', { tabId: 9 }))
     expect(error.code).toBe('timeout')
     expect(error.message).toContain('still busy')
+    expect(error.message).not.toContain('may still have run')
     await waiting
   })
 

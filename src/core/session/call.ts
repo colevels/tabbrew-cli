@@ -62,13 +62,20 @@ function explain(
           ? `the "${plugin}" plugin is not connected; open its Chrome extension's page and retry`
           : 'nothing is connected to the session; run "tabbrew session open" and retry',
       )
-    case 'timeout':
+    // A busy page never received the call; a claimed one may finish it after we stop waiting.
+    case 'timeout': {
+      if (detail === 'busy') {
+        return new OperatorCallError(
+          error,
+          'the connected page is still busy with an earlier command; retry in a moment',
+        )
+      }
+      const check = plugin ? 'check' : 'check with "tabbrew tabs list"'
       return new OperatorCallError(
         error,
-        detail === 'busy'
-          ? 'the connected page is still busy with an earlier command; retry in a moment'
-          : `the connected page did not answer within ${Math.round(timeoutMs / 1000)}s`,
+        `the connected page did not answer within ${Math.round(timeoutMs / 1000)}s; ${name} may still have run, so ${check} before retrying`,
       )
+    }
     case 'unknown_operator':
       return new OperatorCallError(
         error,

@@ -31,6 +31,7 @@ export function render(program: Command): string {
     '',
     `- Re-check \`session status\` before assuming a session is still up; it exits after ${idleMinutes} idle minutes.`,
     '- "nothing is connected to the session" means run `tabbrew session open` and retry.',
+    '- "may still have run" means the command could have taken effect: run `tabbrew tabs list --json` and check before retrying. "still busy" never ran; retry as is.',
     `- Only ports ${PORTS.join(' and ')} are reachable from Chrome. Never set TABBREW_SESSION_PORTS outside tests.`,
     '- `tabs close` cannot be undone, and closing the last tab closes its window. Use `tabs discard` when the tab should survive.',
     '- `tabs discard` may give a tab a new id; take it from the `--json` output or re-list.',
