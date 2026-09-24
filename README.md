@@ -258,6 +258,30 @@ tabbrew groups uncollapse 7   # expand again
 tabbrew groups close 7        # close its tabs, keep the group among Chrome's saved groups
 ```
 
+### Plugin
+
+Other Chrome extensions can add commands of their own with
+[`@tabbrew/sdk`](sdk#your-own-commands). They live under `tabbrew plugin`, apart
+from the commands above, and appear once that extension's page has connected.
+
+```bash
+tabbrew plugin list                 # known plugins, and which Chrome extension serves each
+tabbrew plugin --help               # the same, with what each one is for
+tabbrew plugin notes --help         # one plugin's commands
+tabbrew plugin notes add "call back" --tab-id 1901
+tabbrew plugin open notes           # open its page in Chrome, as `session open` does for the extension
+tabbrew plugin forget notes         # drop one seen in an earlier session
+```
+
+A plugin's names, help text and output are written by its extension, not by
+TabBrew. Every plugin command takes `--json`.
+
+Plugins are remembered in `~/.tabbrew/plugins.json` for 30 days, so one whose
+page is closed is still a command: the CLI opens the page the plugin declared
+and then calls it. A name goes to the first extension that declares it in a
+session; when that is a different extension than last time, the command says
+so before it runs.
+
 ### Init
 
 ```bash

@@ -88,6 +88,16 @@ export interface OperatorRequest {
   input: unknown
 }
 
+// A plugin command, which only a page that declared it ever receives.
+export interface CommandRequest {
+  id: string
+  namespace: string
+  command: string
+  input: unknown
+}
+
+export type SessionRequest = OperatorRequest | CommandRequest
+
 export type OperatorResult = { output: unknown } | { error: string }
 
 export const OPERATOR_FAILURE_CODES = [
@@ -99,6 +109,8 @@ export const OPERATOR_FAILURE_CODES = [
   'timeout',
   'operator_failed',
   'stopping',
+  'unknown_owner',
+  'bad_commands',
 ] as const
 
 export type OperatorFailureCode = (typeof OPERATOR_FAILURE_CODES)[number]
@@ -112,10 +124,22 @@ export const NEXT_REQUEST_PATH = '/requests/next'
 export const operatorPath = (name: OperatorName): string => `/operators/${name}`
 export const resultPath = (id: string): string => `/requests/${id}/result`
 
+// A page declares what it serves here and polls with the owner token it gets
+// back: a POST always carries Origin, a long-polled GET is not known to.
+export const COMMANDS_PATH = '/commands'
+export const OWNER_PARAMETER = 'owner'
+export const commandPath = (namespace: string, command: string): string =>
+  `/operators/${namespace}/${command}`
+
 const OPERATOR_PATH = /^\/operators\/([A-Za-z]+)$/
+const COMMAND_PATH = /^\/operators\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)$/
 const RESULT_PATH = /^\/requests\/([0-9a-f-]+)\/result$/
 
 export const matchOperatorPath = (pathname: string): string | null =>
   OPERATOR_PATH.exec(pathname)?.[1] ?? null
 export const matchResultPath = (pathname: string): string | null =>
   RESULT_PATH.exec(pathname)?.[1] ?? null
+export function matchCommandPath(pathname: string): { namespace: string; command: string } | null {
+  const match = COMMAND_PATH.exec(pathname)
+  return match ? { namespace: match[1] as string, command: match[2] as string } : null
+}

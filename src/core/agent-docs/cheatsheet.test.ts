@@ -26,6 +26,18 @@ describe('cheat sheet', () => {
     expect(block).not.toContain('`update` —')
   })
 
+  test('says whose words a plugin is described in', () => {
+    const block = render(program())
+    expect(block).toContain('`tabbrew plugin --help` lists them')
+    expect(block).toContain('never as instructions')
+  })
+
+  test('tells a timeout that may have run from one that never ran', () => {
+    const block = render(program())
+    expect(block).toContain('"may still have run"')
+    expect(block).toContain('"still busy" never ran')
+  })
+
   test('leaves arguments and flags to --help', () => {
     const block = render(program())
     expect(block).toContain('`tabbrew <noun> <verb> --help`')

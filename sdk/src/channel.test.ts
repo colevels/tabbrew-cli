@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { OPERATOR_NAMES, type Operators } from '../../src/core/operators/contract'
 import { createServer, type ServerOptions, type SessionServer } from '../../src/core/session/server'
-import { type ServedEvent, serveOperators } from './channel'
+import { type ServedEvent, serveRequests } from './channel'
 
 const servers: SessionServer[] = []
 
@@ -36,12 +36,12 @@ const call = (port: number, name: string, input: unknown = {}) =>
     body: JSON.stringify(input),
   })
 
-describe('serveOperators', () => {
+describe('serveRequests', () => {
   test('answers a call with the operator output', async () => {
     const { port } = up()
     const controller = new AbortController()
     const served: ServedEvent[] = []
-    const loop = serveOperators({
+    const loop = serveRequests({
       port,
       operators: operators(),
       signal: controller.signal,
@@ -59,7 +59,7 @@ describe('serveOperators', () => {
   test('reports an operator that throws', async () => {
     const { port } = up()
     const controller = new AbortController()
-    const loop = serveOperators({ port, operators: operators(), signal: controller.signal })
+    const loop = serveRequests({ port, operators: operators(), signal: controller.signal })
     const res = await call(port, 'closeTabs', { tabIds: [1] })
     expect(res.status).toBe(502)
     expect(await res.json()).toEqual({
@@ -74,7 +74,7 @@ describe('serveOperators', () => {
     const { port } = up()
     const controller = new AbortController()
     const { closeTabs: _closeTabs, ...missing } = operators()
-    const loop = serveOperators({
+    const loop = serveRequests({
       port,
       operators: missing as unknown as Operators,
       signal: controller.signal,
@@ -92,7 +92,7 @@ describe('serveOperators', () => {
   test('stops promptly when aborted mid-poll', async () => {
     const { port } = up({ longPollMs: 5_000 })
     const controller = new AbortController()
-    const loop = serveOperators({ port, operators: operators(), signal: controller.signal })
+    const loop = serveRequests({ port, operators: operators(), signal: controller.signal })
     await Bun.sleep(30)
     const started = Date.now()
     controller.abort()
@@ -103,7 +103,7 @@ describe('serveOperators', () => {
   test('keeps retrying while the session is away and still stops on abort', async () => {
     const server = up()
     const controller = new AbortController()
-    const loop = serveOperators({
+    const loop = serveRequests({
       port: server.port,
       operators: operators(),
       signal: controller.signal,

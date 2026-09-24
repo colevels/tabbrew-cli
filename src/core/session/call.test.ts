@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { fromBrowser } from './as-extension'
 import { callOperator, OperatorCallError } from './call'
 import { VERSION } from './config'
 import type { OperatorRequest, SessionInfo } from './protocol'
@@ -24,7 +25,6 @@ const info = (port: number): SessionInfo => ({
   uptimeMs: 0,
   listening: true,
 })
-const fromBrowser = { headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'cors' } }
 
 const claim = async (port: number): Promise<OperatorRequest> => {
   const res = await fetch(`http://127.0.0.1:${port}/requests/next`, fromBrowser)
@@ -76,12 +76,44 @@ describe('callOperator', () => {
     expect(error.message).toBe('focusTab failed: tab 9 not found')
   })
 
-  test('times out when the panel claims but never answers', async () => {
+  test('warns a claimed call may still have run when the panel never answers', async () => {
     const { port } = up({ operatorTimeoutMs: 100 })
     void claim(port)
-    const error = await failure(callOperator(info(port), 'readSnapshot', {}))
+    const error = await failure(callOperator(info(port), 'createTab', {}))
     expect(error.code).toBe('timeout')
     expect(error.message).toContain('did not answer')
+    expect(error.message).toContain(
+      'createTab may still have run, so check with "tabbrew tabs list" before retrying',
+    )
+  })
+
+  test('says busy, not absent, behind a page still working', async () => {
+    const { port } = up({ claimWaitMs: 40, operatorTimeoutMs: 400 })
+    const waiting = callOperator(info(port), 'readSnapshot', {}).catch(() => undefined)
+    await claim(port)
+    const error = await failure(callOperator(info(port), 'focusTab', { tabId: 9 }))
+    expect(error.code).toBe('timeout')
+    expect(error.message).toContain('still busy')
+    expect(error.message).not.toContain('may still have run')
+    await waiting
+  })
+
+  test('names an operator the connected extension does not serve', async () => {
+    const { port } = up({ longPollMs: 300 })
+    const declared = await fetch(`http://127.0.0.1:${port}/commands`, {
+      method: 'POST',
+      body: JSON.stringify({ commandsVersion: 1, operators: ['readSnapshot'] }),
+      headers: { origin: `chrome-extension://${'a'.repeat(32)}`, 'sec-fetch-site': 'none' },
+    })
+    const { owner } = (await declared.json()) as { owner: string }
+    const held = fetch(`http://127.0.0.1:${port}/requests/next?owner=${owner}`, fromBrowser)
+    await Bun.sleep(30)
+    const error = await failure(callOperator(info(port), 'reloadTab', { tabId: 9 }))
+    expect(error.code).toBe('unknown_operator')
+    expect(error.message).toBe(
+      'the connected extension does not support reloadTab; update it and retry',
+    )
+    await held
   })
 
   test('reports a session that is gone as unreachable', async () => {

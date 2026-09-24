@@ -13,7 +13,7 @@ const dist = 'sdk/dist'
 rmSync(dist, { recursive: true, force: true })
 
 const built = await Bun.build({
-  entrypoints: ['sdk/src/index.ts'],
+  entrypoints: ['sdk/src/index.ts', 'sdk/src/testing.ts'],
   outdir: dist,
   format: 'esm',
   target: 'browser',

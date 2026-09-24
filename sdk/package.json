@@ -1,6 +1,6 @@
 {
   "name": "@tabbrew/sdk",
-  "version": "0.9.13",
+  "version": "0.9.14",
   "description": "Serve tabbrew CLI sessions from a Chrome extension page",
   "type": "module",
   "license": "MIT",
@@ -28,6 +28,10 @@
     ".": {
       "types": "./dist/types/sdk/src/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/types/sdk/src/testing.d.ts",
+      "default": "./dist/testing.js"
     },
     "./package.json": "./package.json"
   },

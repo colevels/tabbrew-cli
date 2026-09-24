@@ -9,6 +9,6 @@
     "rootDir": "..",
     "outDir": "dist/types"
   },
-  "files": ["src/index.ts"],
+  "files": ["src/index.ts", "src/testing.ts"],
   "include": []
 }

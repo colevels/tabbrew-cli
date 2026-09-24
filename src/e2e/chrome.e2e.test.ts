@@ -7,9 +7,11 @@ import { appendFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pkg from '../../package.json'
+import type { Registry } from '../core/commands/declaration'
 import type { GroupSummary } from '../core/groups'
 import type { OperatorOutput, Snapshot, TabPlacement, TabSnapshot } from '../core/operators'
 import { connectionUrl, extensionId } from '../core/session/chrome'
+import { CONNECTION_PAGE } from '../core/session/protocol'
 import type { WindowSummary } from '../core/windows'
 
 const enabled = !!process.env.TABBREW_E2E
@@ -398,6 +400,37 @@ describe.skipIf(!enabled)('tabbrew against a real Chrome', () => {
       activeTabId: ids[3] as number,
     })
     await report('After `tabbrew tabs focus` on a background tab')
+  })
+
+  // The one page serves the operators above and these from the same loop, and
+  // Chrome's own Origin on the declaration is what names the extension.
+  test('the harness adds its own commands under tabbrew plugin', async () => {
+    const registry = await json<Registry>('plugin', 'list')
+    expect(registry.harness).toMatchObject({
+      extensionId: extensionId(),
+      page: CONNECTION_PAGE,
+      connected: true,
+    })
+    expect(registry['harness-build']?.connected).toBe(true)
+
+    expect((await tabbrew('--help')).stdout).not.toContain('harness')
+    const help = await tabbrew('plugin', '--help')
+    expect(help.stdout).toContain('PLUGINS\n  harness:')
+    expect(help.stdout).toContain(`(Chrome extension ${extensionId()})`)
+
+    const echo = await tabbrew('plugin', 'harness', 'echo', 'brewed', '--times', '2')
+    expect(echo.stderr).toBe('')
+    expect(echo.stdout).toBe('brewed brewed\n')
+
+    const { hosts } = await json<{ hosts: { host: string; tabs: number }[] }>(
+      'plugin',
+      'harness',
+      'tabs-by-host',
+    )
+    const counted = hosts.reduce((total, { tabs }) => total + tabs, 0)
+    expect(counted).toBe((await snapshot()).tabs.length)
+
+    expect(await json('plugin', 'harness-build', 'show')).toMatchObject({ version: pkg.version })
   })
 
   test('session stop ends the session', async () => {
