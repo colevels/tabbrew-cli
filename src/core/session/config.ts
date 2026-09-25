@@ -30,6 +30,8 @@ export const CLAIM_WAIT_MS = parseMs(process.env.TABBREW_SESSION_CLAIM_WAIT_MS) 
 export const OPERATOR_TIMEOUT_MS =
   parseMs(process.env.TABBREW_SESSION_OPERATOR_TIMEOUT_MS) ?? 10_000
 export const LONG_POLL_MS = parseMs(process.env.TABBREW_SESSION_LONG_POLL_MS) ?? 25_000
+// How long a page that let a call time out is still taken to be working on it.
+export const LATE_RESULT_MS = 60_000
 // An upper bound only: the session answers sooner in every case it handles.
 export const OPERATOR_CALL_TIMEOUT_MS = 30_000
 

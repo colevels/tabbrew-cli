@@ -10,6 +10,7 @@ const root = `${import.meta.dir}/../../..`
 // A port nothing else on the machine (or a real session) is likely to hold.
 const port = 50_000 + Math.floor(Math.random() * 10_000)
 const base = `http://127.0.0.1:${port}`
+const OPERATOR_TIMEOUT_MS = 1_500
 let stateDir = ''
 
 // The session inherits these from the CLI that spawns it.
@@ -19,6 +20,7 @@ const env = () => ({
   TABBREW_SESSION_DIR: stateDir,
   TABBREW_SESSION_CLAIM_WAIT_MS: '300',
   TABBREW_SESSION_LONG_POLL_MS: '500',
+  TABBREW_SESSION_OPERATOR_TIMEOUT_MS: String(OPERATOR_TIMEOUT_MS),
 })
 
 // Async, unlike the session tests: the fake panel below has to keep serving
@@ -101,9 +103,26 @@ const groupings: { tabIds: number[]; groupId?: number; windowId?: number }[] = [
 const groupUpdates: { groupId: number; title?: string; color?: string; collapsed?: boolean }[] = []
 const creations: { url?: string; windowId?: number; index?: number }[] = []
 const focuses: number[] = []
+// Grouping tab 1901 on its own outlasts the session's wait, as regrouping does
+// in a very full window; into window 1842 it lands in a new group 9002.
+let slowGroupId: number | undefined
 
-function answer(request: OperatorRequest): unknown {
-  if (request.operator === 'readSnapshot') return { output: snapshot }
+async function answer(request: OperatorRequest): Promise<unknown> {
+  if (request.operator === 'readSnapshot') {
+    if (slowGroupId === undefined) return { output: snapshot }
+    return {
+      output: {
+        ...snapshot,
+        groups: [
+          ...snapshot.groups,
+          { id: slowGroupId, windowId: 1842, title: '', color: 'grey', collapsed: false },
+        ],
+        tabs: snapshot.tabs.map((tab) =>
+          tab.id === 1901 ? { ...tab, groupId: slowGroupId } : tab,
+        ),
+      },
+    }
+  }
   if (request.operator === 'discardTab') {
     const { tabId } = request.input as { tabId: number }
     discards.push(tabId)
@@ -134,6 +153,11 @@ function answer(request: OperatorRequest): unknown {
     const input = request.input as { tabIds: number[]; groupId?: number; windowId?: number }
     groupings.push(input)
     if (input.tabIds.includes(1903)) return { error: 'Tabs cannot be edited right now' }
+    if (input.tabIds.length === 1 && input.tabIds[0] === 1901) {
+      await Bun.sleep(OPERATOR_TIMEOUT_MS + 500)
+      if (input.windowId === 1842) slowGroupId = 9002
+      return { output: { groupId: 9002 } }
+    }
     return { output: { groupId: input.groupId ?? 9001 } }
   }
   if (request.operator === 'updateGroup') {
@@ -188,7 +212,7 @@ async function servePanel(signal: AbortSignal): Promise<void> {
       const request = (await res.json()) as OperatorRequest
       await fetch(base + resultPath(request.id), {
         method: 'POST',
-        body: JSON.stringify(answer(request)),
+        body: JSON.stringify(await answer(request)),
         ...fromBrowser,
         signal,
       })
@@ -580,6 +604,44 @@ describe('tabbrew tabs group', () => {
     expect(exitCode).toBe(1)
     expect(stderr).toContain('groupTabs failed: Tabs cannot be edited right now')
     groupings.splice(0)
+  })
+
+  test('still titles a group Chrome created after the call timed out', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew(
+      'tabs',
+      'group',
+      '1901',
+      '--window',
+      '1842',
+      '--title',
+      'Foo',
+      '--color',
+      'red',
+      '--json',
+    )
+    slowGroupId = undefined
+    expect(stderr).toBe('')
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(stdout)).toEqual({ groupId: 9002, title: 'Foo', color: 'red' })
+    expect(groupings.splice(0)).toEqual([{ tabIds: [1901], windowId: 1842 }])
+    expect(groupUpdates.splice(0)).toEqual([{ groupId: 9002, title: 'Foo', color: 'red' }])
+  })
+
+  test('reports the timeout when the tabs never grouped', async () => {
+    const { exitCode, stdout, stderr } = await tabbrew(
+      'tabs',
+      'group',
+      '1901',
+      '--window',
+      '1843',
+      '--title',
+      'Foo',
+    )
+    expect(exitCode).toBe(1)
+    expect(stdout).toBe('')
+    expect(stderr).toContain('the connected page did not answer within 2s')
+    groupings.splice(0)
+    expect(groupUpdates).toEqual([])
   })
 })
 

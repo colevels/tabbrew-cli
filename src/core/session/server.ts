@@ -10,6 +10,7 @@ import {
   CLAIM_WAIT_MS,
   HOST,
   IDLE_EXIT_MS,
+  LATE_RESULT_MS,
   LONG_POLL_MS,
   OPERATOR_TIMEOUT_MS,
   SERVICE,
@@ -36,6 +37,7 @@ export interface ServerOptions {
   idleMs?: number
   claimWaitMs?: number
   operatorTimeoutMs?: number
+  lateResultMs?: number
   longPollMs?: number
   onStop?: (reason: string) => void
   // Every time a declaration changes what the plugins offer.
@@ -114,6 +116,7 @@ export function createServer(
     idleMs = IDLE_EXIT_MS,
     claimWaitMs = CLAIM_WAIT_MS,
     operatorTimeoutMs = OPERATOR_TIMEOUT_MS,
+    lateResultMs = LATE_RESULT_MS,
     longPollMs = LONG_POLL_MS,
     onStop,
     onRegistryChange,
@@ -180,8 +183,11 @@ export function createServer(
     pending.claimer = claimer
     claimed.set(pending.request.id, pending)
     pending.timer = setTimeout(() => {
-      claimed.delete(pending.request.id)
       pending.settle(failure('timeout', 504))
+      // The page is still at work and polls again only once it answers: to
+      // forget it now would fail the next call as no_panel. A page that closed
+      // mid-call never answers, hence the bound.
+      pending.timer = setTimeout(() => claimed.delete(pending.request.id), lateResultMs)
     }, pending.timeoutMs)
     return json(pending.request)
   }

@@ -30,3 +30,22 @@ export function planGroup(
   const windowId = snapshot.tabs.find((tab) => tab.id === tabIds[0])?.windowId as number
   return { ok: true, input: { tabIds, windowId } }
 }
+
+// Chrome can finish grouping after the call timed out; only the tabs can say
+// whether it did, and a group that already existed is not one it created.
+export function findGrouped(
+  before: Snapshot,
+  after: Snapshot,
+  input: OperatorInput<'groupTabs'>,
+): number | undefined {
+  const groupIds = new Set(
+    input.tabIds.map((tabId) => after.tabs.find((tab) => tab.id === tabId)?.groupId),
+  )
+  const [groupId] = groupIds
+  if (groupIds.size !== 1 || groupId === undefined || groupId === -1) return undefined
+  if (input.groupId !== undefined) return groupId === input.groupId ? groupId : undefined
+  const created =
+    !before.groups.some((group) => group.id === groupId) &&
+    after.groups.some((group) => group.id === groupId && group.windowId === input.windowId)
+  return created ? groupId : undefined
+}

@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import type { GroupColor } from '../../core/operators'
-import { callOperator, withSession } from '../../core/session'
-import { planGroup } from '../../core/tabs'
+import { callOperator, OperatorCallError, withSession } from '../../core/session'
+import { findGrouped, planGroup } from '../../core/tabs'
 import { parseTabId, reject } from './tab-ids'
 
 const COLORS: GroupColor[] = [
@@ -71,7 +71,16 @@ export const group = new Command('group')
         const snapshot = await callOperator(session, 'readSnapshot', {})
         const plan = planGroup(snapshot, tabIds as [number, ...number[]], { groupId, windowId })
         if (!plan.ok) return reject(plan.message)
-        const grouped = await callOperator(session, 'groupTabs', plan.input)
+        const grouped = await callOperator(session, 'groupTabs', plan.input).catch(
+          async (error: unknown) => {
+            if (!(error instanceof OperatorCallError && error.code === 'timeout')) throw error
+            // The page answers the next call only once it is done grouping.
+            const after = await callOperator(session, 'readSnapshot', {}).catch(() => null)
+            const found = after ? findGrouped(snapshot, after, plan.input) : undefined
+            if (found === undefined) throw error
+            return { groupId: found }
+          },
+        )
         let output: { groupId: number; title?: string; color?: GroupColor } = grouped
         if (opts.title !== undefined || color !== undefined || collapsed !== undefined) {
           output = await callOperator(session, 'updateGroup', {

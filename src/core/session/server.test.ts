@@ -213,7 +213,7 @@ describe('operator channel', () => {
     expect(await res.json()).toEqual({ error: 'no_panel' })
   })
 
-  test('a claimed call with no result times out, and the late result is refused', async () => {
+  test('a claimed call with no result times out, and the late result is taken', async () => {
     const server = up({ operatorTimeoutMs: 100 })
     const waiting = poll(server)
     const calling = call(server, 'readSnapshot')
@@ -224,8 +224,38 @@ describe('operator channel', () => {
     expect(await res.json()).toEqual({ error: 'timeout' })
 
     const late = await answer(server, request.id, { output: {} })
-    expect(late.status).toBe(404)
-    expect(await late.json()).toEqual({ error: 'unknown_request' })
+    expect(late.status).toBe(200)
+    expect((await answer(server, request.id, { output: {} })).status).toBe(404)
+  })
+
+  test('a panel still working on a timed-out call is busy, not gone', async () => {
+    const server = up({ claimWaitMs: 50, operatorTimeoutMs: 300 })
+    const waiting = poll(server)
+    const first = call(server, 'groupTabs', { tabIds: [1], windowId: 1 })
+    const slow = await delivered(waiting)
+    expect((await first).status).toBe(504)
+
+    const second = call(server, 'readSnapshot')
+    await Bun.sleep(150)
+    await answer(server, slow.id, { output: { groupId: 9 } })
+    const next = await delivered(poll(server))
+    expect(next.operator).toBe('readSnapshot')
+    await answer(server, next.id, { output: 'after the slow one' })
+    expect(await (await second).json()).toEqual({ output: 'after the slow one' })
+  })
+
+  test('a panel that never answers a timed-out call is forgotten', async () => {
+    const server = up({ claimWaitMs: 50, operatorTimeoutMs: 100, lateResultMs: 100 })
+    const waiting = poll(server)
+    const first = call(server, 'readSnapshot')
+    const lost = await delivered(waiting)
+    expect((await first).status).toBe(504)
+    await Bun.sleep(150)
+
+    const res = await call(server, 'readSnapshot')
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: 'no_panel' })
+    expect((await answer(server, lost.id, { output: {} })).status).toBe(404)
   })
 
   test('an error from the panel is reported with its detail', async () => {
